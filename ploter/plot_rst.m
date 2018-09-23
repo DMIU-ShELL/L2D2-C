@@ -23,7 +23,7 @@ clear;clc;
 % Dueling DQN, softmax neural modulation applied to first two conv layers
 % filename = '/home/coyh4/code/RLCodes/DeepRL-0.3/log/dqn_pixel_atari-180909-183030/2c422352-68ef-44b5-a64d-7b77893b7fcb.monitor.csv';
 % Dueling DQN, softmax neural modulation applied to first three conv layers
-filename = '/home/coyh4/code/RLCodes/DeepRL-0.3/log/dqn_pixel_atari-180912-161520/6a4d75f1-1b42-4bbc-89f4-3c3f9f924add.monitor.csv';
+filename = '~/DARPA/DeepRL-0.3/log/dqn_pixel_atari-180921-205456/cdca8e13-fa28-4ede-94ae-63e030b7348b.monitor.csv';
 startRow = 3;
 
 %% Format for each line of text:
