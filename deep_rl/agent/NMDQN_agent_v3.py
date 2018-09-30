@@ -24,7 +24,7 @@ class NMDQNAgentV3(BaseAgent):
         self.policy = config.policy_fn()
         self.total_steps = 0
         self.buffer_update_rate = 0.1;
-        print self.network
+        #print self.network
 
     def episode(self, deterministic=False):
         episode_start_time = time.time()
