@@ -422,10 +422,10 @@ if __name__ == '__main__':
     mkdir('dataset')
     mkdir('log')
     set_one_thread()
-    select_device(0)
+    select_device(1)
 
-    # dqn_cart_pole()
-    a2c_cart_pole()
+    dqn_cart_pole()
+    #a2c_cart_pole()
     # categorical_dqn_cart_pole()
     # quantile_regression_dqn_cart_pole()
     # n_step_dqn_cart_pole()
