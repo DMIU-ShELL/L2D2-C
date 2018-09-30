@@ -15,7 +15,7 @@ os.environ["CUDA_VISIBLE_DEVICES"]="3"
 def dqn_cart_pole():
     game = 'CartPole-v0'
     config = Config()
-    task_fn = lambda log_dir: ClassicalControl(name, max_steps=200, log_dir=log_dir)
+    config.task_fn = lambda: ClassicalControl(game, max_steps=200,log_dir=log_dir)
     config.evaluation_env = config.task_fn()
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
     config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, FCBody(state_dim))
