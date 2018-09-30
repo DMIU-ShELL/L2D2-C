@@ -6,13 +6,139 @@
 
 import matplotlib
 matplotlib.use("Pdf")
-print("And I'm OK")
-from deep_rl import component
-print("OK")
 from deep_rl import *
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
+
 ## cart pole
+
+def dqn_cart_pole():
+    game = 'CartPole-v0'
+    config = Config()
+    config.task_fn = lambda: ClassicalControl(game, max_steps=200)
+    config.evaluation_env = config.task_fn()
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
+    config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, FCBody(state_dim))
+    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, FCBody(state_dim))
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e4))
+    config.replay_fn = lambda: Replay(memory_size=10000, batch_size=10)
+    config.discount = 0.99
+    config.target_network_update_freq = 200
+    config.exploration_steps = 1000
+    config.logger = get_logger()
+    config.double_q = True
+    # config.double_q = False
+    run_episodes(DQNAgent(config))
+
+def a2c_cart_pole():
+    config = Config()
+    name = 'CartPole-v0'
+    # name = 'MountainCar-v0'
+    task_fn = lambda log_dir: ClassicalControl(name, max_steps=200, log_dir=log_dir)
+    config.num_workers = 5
+    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers,
+                                              log_dir=get_default_log_dir(a2c_cart_pole.__name__))
+    config.optimizer_fn = lambda params: torch.optim.Adam(params, 0.001)
+    config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet(
+        state_dim, action_dim, FCBody(state_dim))
+    config.policy_fn = SamplePolicy
+    config.discount = 0.99
+    config.logger = get_logger()
+    config.gae_tau = 1.0
+    config.entropy_weight = 0.01
+    config.rollout_length = 5
+    run_iterations(A2CAgent(config))
+
+def categorical_dqn_cart_pole():
+    game = 'CartPole-v0'
+    config = Config()
+    config.task_fn = lambda: ClassicalControl(game, max_steps=200)
+    config.evaluation_env = config.task_fn()
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
+    config.network_fn = lambda state_dim, action_dim: \
+        CategoricalNet(action_dim, config.categorical_n_atoms, FCBody(state_dim))
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e4))
+    config.replay_fn = lambda: Replay(memory_size=10000, batch_size=10)
+    config.discount = 0.99
+    config.target_network_update_freq = 200
+    config.exploration_steps = 100
+    config.logger = get_logger(skip=True)
+    config.categorical_v_max = 100
+    config.categorical_v_min = -100
+    config.categorical_n_atoms = 50
+    run_episodes(CategoricalDQNAgent(config))
+
+def quantile_regression_dqn_cart_pole():
+    config = Config()
+    config.task_fn = lambda: ClassicalControl('CartPole-v0', max_steps=200)
+    config.evaluation_env = config.task_fn()
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
+    config.network_fn = lambda state_dim, action_dim: \
+        QuantileNet(action_dim, config.num_quantiles, FCBody(state_dim))
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(0.1))
+    config.replay_fn = lambda: Replay(memory_size=10000, batch_size=10)
+    config.discount = 0.99
+    config.target_network_update_freq = 200
+    config.exploration_steps = 100
+    config.logger = get_logger(skip=True)
+    config.num_quantiles = 20
+    run_episodes(QuantileRegressionDQNAgent(config))
+
+def n_step_dqn_cart_pole():
+    config = Config()
+    task_fn = lambda log_dir: ClassicalControl('CartPole-v0', max_steps=200, log_dir=log_dir)
+    config.evaluation_env = task_fn(None)
+    config.num_workers = 5
+    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
+    config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, FCBody(state_dim))
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e4))
+    config.discount = 0.99
+    config.target_network_update_freq = 200
+    config.rollout_length = 5
+    config.logger = get_logger()
+    run_iterations(NStepDQNAgent(config))
+
+def ppo_cart_pole():
+    config = Config()
+    task_fn = lambda log_dir: ClassicalControl('CartPole-v0', max_steps=200, log_dir=log_dir)
+    config.num_workers = 5
+    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
+    config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet(
+        state_dim, action_dim, FCBody(state_dim))
+    config.discount = 0.99
+    config.logger = get_logger()
+    config.use_gae = True
+    config.gae_tau = 0.95
+    config.entropy_weight = 0.01
+    config.gradient_clip = 0.5
+    config.rollout_length = 128
+    config.optimization_epochs = 10
+    config.num_mini_batches = 4
+    config.ppo_ratio_clip = 0.2
+    config.iteration_log_interval = 1
+    run_iterations(PPOAgent(config))
+
+def option_critic_cart_pole():
+    config = Config()
+    game = 'CartPole-v0'
+    task_fn = lambda log_dir: ClassicalControl(game, max_steps=200, log_dir=log_dir)
+    config.num_workers = 5
+    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
+    config.network_fn = lambda state_dim, action_dim: OptionCriticNet(
+        FCBody(state_dim), action_dim, num_options=2)
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e4))
+    config.discount = 0.99
+    config.target_network_update_freq = 200
+    config.rollout_length = 5
+    config.termination_regularizer = 0.01
+    config.entropy_weight = 0.01
+    config.logger = get_logger()
+    run_iterations(OptionCriticAgent(config))
+
+## Atari games
 
 def dqn_pixel_atari(name):
     config = Config()
@@ -28,116 +154,11 @@ def dqn_pixel_atari(name):
     config.reward_normalizer = SignNormalizer()
     config.discount = 0.99
     config.target_network_update_freq = 10000
-    config.exploration_steps= 100000
+    config.exploration_steps= 50000
     config.logger = get_logger()
     # config.double_q = True
     config.double_q = False
     run_episodes(DQNAgent(config))
-
-def nmdqn_pixel_atari(name):
-    config = Config()
-    config.history_length = 4
-    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
-                                        log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
-    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
-    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, NMNatureConvBody())
-    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.state_normalizer = ImageNormalizer()
-    config.reward_normalizer = SignNormalizer()
-    config.discount = 0.99
-    config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
-    config.logger = get_logger()
-    # config.double_q = True
-    config.double_q = False
-    run_episodes(NMDQNAgent(config))
-
-def nmdqn_pixel_atari_v2(name):
-    config = Config()
-    config.history_length = 4
-    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
-                                        log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
-    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
-    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, NMNatureConvBodyV2())
-    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.state_normalizer = ImageNormalizer()
-    config.reward_normalizer = SignNormalizer()
-    config.discount = 0.99
-    config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
-    config.logger = get_logger()
-    # config.double_q = True
-    config.double_q = False
-    run_episodes(NMDQNAgentV2(config))
-
-def nmdqn_pixel_atari_v2(name):
-    config = Config()
-    config.history_length = 4
-    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
-                                        log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
-    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
-    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, NMNatureConvBodyV2())
-    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.state_normalizer = ImageNormalizer()
-    config.reward_normalizer = SignNormalizer()
-    config.discount = 0.99
-    config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
-    config.logger = get_logger()
-    # config.double_q = True
-    config.double_q = False
-    run_episodes(NMDQNAgentV2(config))
-
-def nmdqn_pixel_atari_v3(name):
-    config = Config()
-    config.history_length = 4
-    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
-                                        log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
-    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
-    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, NMNatureConvBodyV3())
-    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.state_normalizer = ImageNormalizer()
-    config.reward_normalizer = SignNormalizer()
-    config.discount = 0.99
-    config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
-    config.logger = get_logger()
-    # config.double_q = True
-    config.double_q = False
-    run_episodes(NMDQNAgentV3(config))
-
-def nmdqn_pixel_atari_v4(name):
-    config = Config()
-    config.history_length = 4
-    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
-                                        log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
-    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
-    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, NMNatureConvBodyV4())
-    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.state_normalizer = ImageNormalizer()
-    config.reward_normalizer = SignNormalizer()
-    config.discount = 0.99
-    config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
-    config.logger = get_logger()
-    # config.double_q = True
-    config.double_q = False
-    run_episodes(NMDQNAgentV3(config))
 
 def a2c_pixel_atari(name):
     config = Config()
@@ -403,10 +424,15 @@ if __name__ == '__main__':
     set_one_thread()
     select_device(1)
 
-    #dqn_pixel_atari('BreakoutNoFrameskip-v4')
-    #nmdqn_pixel_atari('BreakoutNoFrameskip-v4')
-    #nmdqn_pixel_atari_v2('BreakoutNoFrameskip-v4')
-    nmdqn_pixel_atari_v4('BreakoutNoFrameskip-v4')
+    # dqn_cart_pole()
+     a2c_cart_pole()
+    # categorical_dqn_cart_pole()
+    # quantile_regression_dqn_cart_pole()
+    # n_step_dqn_cart_pole()
+    # ppo_cart_pole()
+    # option_critic_cart_pole()
+
+    # dqn_pixel_atari('BreakoutNoFrameskip-v4')
     # a2c_pixel_atari('BreakoutNoFrameskip-v4')
     # categorical_dqn_pixel_atari('BreakoutNoFrameskip-v4')
     # quantile_regression_dqn_pixel_atari('BreakoutNoFrameskip-v4')
@@ -422,4 +448,3 @@ if __name__ == '__main__':
     # action_conditional_video_prediction()
 
     # plot()
-
