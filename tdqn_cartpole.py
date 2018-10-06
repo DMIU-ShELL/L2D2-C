@@ -11,9 +11,8 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"]="3"
 
 ## cart pole
-
 def dqn_cart_pole():
-    game = 'CartPole-v0'
+    game = 'CartPole-v1'
     config = Config()
     config.task_fn = lambda: ClassicalControl(game, max_steps=200, log_dir=get_default_log_dir(dqn_cart_pole.__name__))
     config.evaluation_env = config.task_fn()
