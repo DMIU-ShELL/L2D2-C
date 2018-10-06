@@ -8,9 +8,9 @@ import matplotlib
 matplotlib.use("Pdf")
 from deep_rl import *
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="4"
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
 
-## cart pole, orgininal
+# original
 def dqn_pixel_atari(name):
     config = Config()
     config.history_length = 4
@@ -40,7 +40,7 @@ def mod_dqn_pixel_atari(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, ModNatureConvBodyV_direct1())
+    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, ModNatureConvBodyV_direct1_3l())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -80,7 +80,6 @@ def action_conditional_video_prediction():
 
     # Train the action conditional video prediction model
     acvp_train(game, prefix)
-
 
 if __name__ == '__main__':
     mkdir('data/video')
