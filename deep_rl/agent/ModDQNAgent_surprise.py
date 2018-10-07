@@ -42,10 +42,11 @@ class ModDQNAgentSurprise(BaseAgentMod):
             #value = self.network.predict(np.stack([self.config.state_normalizer(curr_state)]), np.stack([self.config.state_normalizer(past_state)]), True).flatten()
             value = self.network.predict(np.stack([self.config.state_normalizer(curr_state)]), True).flatten()
             x = torch.Tensor(np.stack([self.config_mod.state_normalizer(past_state)]))
-            predicted_features = self.network_mod.forward(x).flatten()
-            print(predicted_features)
-#            print(np.stack([self.config.state_normalizer(past_state)]).flatten()
-            #value = np.zeros(4)
+            predict_features = self.network_mod.forward(x).flatten()
+            actual_features = self.network.body.forward(tensor(np.stack([self.config_mod.state_normalizer(curr_state)])))
+            feature_loss = actual_features - predict_features
+            #print(feature_loss.mean())
+
             if deterministic:
                 action = np.argmax(value)
             elif self.total_steps < self.config.exploration_steps:
@@ -54,37 +55,36 @@ class ModDQNAgentSurprise(BaseAgentMod):
                 action = self.policy.sample(value)
             #print 'call self.task.step(action)'
             next_state, reward, done, _ = self.task.step(action)
-            #print 'task step'
             total_reward += reward
             reward = self.config.reward_normalizer(reward)
             if not deterministic:
                 self.replay.feed([state, action, reward, next_state, int(done), past_state])
                 self.total_steps += 1
             steps += 1
-            past_state =  (curr_state).astype(np.uint8)
+#            past_state =  (curr_state).astype(np.uint8)
             #print 'learning'
             if not deterministic and self.total_steps > self.config.exploration_steps \
                     and self.total_steps % self.config.sgd_update_frequency == 0:
                 experiences = self.replay.sample()
-                states, actions, rewards, next_states, terminals, states_buffers = experiences
-                next_states_buffers = ((1-self.buffer_update_rate)*states_buffers+self.buffer_update_rate*np.asarray(states)).astype(np.uint8)
+                states, actions, rewards, next_states, terminals, past_state = experiences
+                #next_states_buffers = ((1-self.buffer_update_rate)*states_buffers+self.buffer_update_rate*np.asarray(states)).astype(np.uint8)
                 #print '****'
                 #print np.sum(np.asarray(states))
                 #print np.sum(np.asarray(next_states))
                 #print np.sum(np.asarray(states_buffers))
                 #print np.sum(np.asarray(next_states_buffers))
                 states = self.config.state_normalizer(states)
-                states_buffers = self.config.state_normalizer(states_buffers)
+#                states_buffers = self.config.state_normalizer(states_buffers)
                 next_states = self.config.state_normalizer(next_states)
-                next_states_buffers = self.config.state_normalizer(next_states_buffers)
+                #next_states_buffers = #self.config.state_normalizer(next_states_buffers)
                 #print '****'
-                #print np.sum(np.asarray(states))
-                #print np.sum(np.asarray(next_states))
+            #    print(np.sum(np.asarray(states)))
+        #        print(np.sum(np.asarray(next_states)))
                 #print np.sum(np.asarray(states_buffers))
                 #print np.sum(np.asarray(next_states_buffers))
-                q_next = self.target_network.predict(next_states, next_states_buffers, False).detach()
+                q_next = self.target_network.predict(next_states, False).detach()
                 if self.config.double_q:
-                    _, best_actions = self.network.predict(next_states, next_states_buffers).detach().max(1)
+                    _, best_actions = self.network.predict(next_states).detach().max(1)
                     q_next = q_next.gather(1, best_actions.unsqueeze(1)).squeeze(1)
                 else:
                     q_next, _ = q_next.max(1)
@@ -93,13 +93,17 @@ class ModDQNAgentSurprise(BaseAgentMod):
                 q_next = self.config.discount * q_next * (1 - terminals)
                 q_next.add_(rewards)
                 actions = tensor(actions).unsqueeze(1).long()
-                q = self.network.predict(states, states_buffers, False)
+                q = self.network.predict(states, False)
                 q = q.gather(1, actions).squeeze(1)
                 loss = self.criterion(q, q_next)
                 self.optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.network.parameters(), self.config.gradient_clip)
-                self.optimizer.step()
+                self.optimizer.step
+
+                lossPrediction = self.criterion(actual_features, predict_features)
+
+
             #print 'self evaluate'
             self.evaluate()
             if not deterministic and self.total_steps % self.config.target_network_update_freq == 0:
@@ -113,5 +117,7 @@ class ModDQNAgentSurprise(BaseAgentMod):
 
         episode_time = time.time() - episode_start_time
         self.config.logger.debug('episode steps %d, episode time %f, time per step %f' %
+                          (steps, episode_time, episode_time / float(steps)))
+        print('episode steps %d, episode time %f, time per step %f' %
                           (steps, episode_time, episode_time / float(steps)))
         return total_reward, steps

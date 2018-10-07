@@ -108,4 +108,6 @@ class NMDQNAgentV3(BaseAgent):
         episode_time = time.time() - episode_start_time
         self.config.logger.debug('episode steps %d, episode time %f, time per step %f' %
                           (steps, episode_time, episode_time / float(steps)))
+        print('episode steps %d, episode time %f, time per step %f' %
+                                                    (steps, episode_time, episode_time / float(steps)))
         return total_reward, steps
