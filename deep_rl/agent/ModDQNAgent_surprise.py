@@ -8,14 +8,17 @@ from ..network import *
 from ..component import *
 from ..utils import *
 import time
-from .BaseAgent import *
+#from .BaseAgent import *
+from. BaseAgent_mod import *
 
-class NMDQNAgentV3(BaseAgent):
-    def __init__(self, config):
-        BaseAgent.__init__(self, config)
+class ModDQNAgentSurprise(BaseAgentMod):
+    def __init__(self, config, config_mod):
+        BaseAgentMod.__init__(self, config, config_mod)
         self.config = config
+        self.config_mod = config_mod
         self.task = config.task_fn()
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim)
+        self.network_mod = config_mod.network_fn(self.task.state_dim,512)
         self.target_network = config.network_fn(self.task.state_dim, self.task.action_dim)
         self.optimizer = config.optimizer_fn(self.network.parameters())
         self.criterion = nn.MSELoss()
@@ -32,12 +35,16 @@ class NMDQNAgentV3(BaseAgent):
         state = self.task.reset()
         total_reward = 0.0
         steps = 0
-        state_buffer = np.asarray(state)
-        print(self.network)
-        print("begin episode")
+        curr_state = np.asarray(state)
         while True:
-            tmp_state = np.asarray(state)
-            value = self.network.predict(np.stack([self.config.state_normalizer(tmp_state)]), np.stack([self.config.state_normalizer(state_buffer)]), True).flatten()
+            past_state = curr_state
+            curr_state = np.asarray(state)
+            #value = self.network.predict(np.stack([self.config.state_normalizer(curr_state)]), np.stack([self.config.state_normalizer(past_state)]), True).flatten()
+            value = self.network.predict(np.stack([self.config.state_normalizer(curr_state)]), True).flatten()
+            x = torch.Tensor(np.stack([self.config_mod.state_normalizer(past_state)]))
+            predicted_features = self.network_mod.forward(x).flatten()
+            print(predicted_features)
+#            print(np.stack([self.config.state_normalizer(past_state)]).flatten()
             #value = np.zeros(4)
             if deterministic:
                 action = np.argmax(value)
@@ -51,11 +58,10 @@ class NMDQNAgentV3(BaseAgent):
             total_reward += reward
             reward = self.config.reward_normalizer(reward)
             if not deterministic:
-                self.replay.feed([state, action, reward, next_state, int(done), state_buffer])
+                self.replay.feed([state, action, reward, next_state, int(done), past_state])
                 self.total_steps += 1
             steps += 1
-            state = next_state
-            state_buffer = ((1-self.buffer_update_rate)*state_buffer+self.buffer_update_rate*tmp_state).astype(np.uint8)
+            past_state =  (curr_state).astype(np.uint8)
             #print 'learning'
             if not deterministic and self.total_steps > self.config.exploration_steps \
                     and self.total_steps % self.config.sgd_update_frequency == 0:

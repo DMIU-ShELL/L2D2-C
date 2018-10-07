@@ -20,7 +20,7 @@ def dqn_cart_pole():
     config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, FCBody(state_dim))
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, FCBody(state_dim))
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e4))
-    config.replay_fn = lambda: Replay(memory_size=10000, batch_size=10)
+    config.replay_fn = lambda: Replay(memory_size=100000, batch_size=30)
     config.discount = 0.99
     config.target_network_update_freq = 200
     config.exploration_steps = 1000
@@ -31,7 +31,7 @@ def dqn_cart_pole():
 
 def a2c_cart_pole():
     config = Config()
-    name = 'CartPole-v0'
+    name = 'CartPole-v1'
     # name = 'MountainCar-v0'
     task_fn = lambda log_dir: ClassicalControl(name, max_steps=200, log_dir=log_dir)
     config.num_workers = 5

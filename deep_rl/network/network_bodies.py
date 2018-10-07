@@ -23,7 +23,7 @@ class NatureConvBody(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
-class NMNatureConvBody(nn.Module):
+class Mod1LNatureConvBody_diff(nn.Module):
     def __init__(self, in_channels=4):
         super(NMNatureConvBody, self).__init__()
         self.feature_dim = 512
@@ -43,7 +43,7 @@ class NMNatureConvBody(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
-class NMNatureConvBodyV2(nn.Module):
+class Mod2LNatureConvBody_diff(nn.Module):
     def __init__(self, in_channels=4):
         super(NMNatureConvBodyV2, self).__init__()
         self.feature_dim = 512
@@ -66,7 +66,7 @@ class NMNatureConvBodyV2(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
-class NMNatureConvBodyV3(nn.Module):
+class Mod2LNatureConvBody_diffV2(nn.Module):
     def __init__(self, in_channels=4):
         super(NMNatureConvBodyV3, self).__init__()
         self.feature_dim = 512
@@ -89,7 +89,7 @@ class NMNatureConvBodyV3(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
-class NMNatureConvBodyV4(nn.Module):
+class Mod3LNatureConvBody_diff(nn.Module):
     def __init__(self, in_channels=4):
         super(NMNatureConvBodyV4, self).__init__()
         self.feature_dim = 512
@@ -121,7 +121,7 @@ class NMNatureConvBodyV4(nn.Module):
         return y
 
 # 2-layer modulated by AS
-class ModNatureConvBodyV4_A(nn.Module):
+class Mod2LNatureConvBody_A_diff(nn.Module):
     def __init__(self, in_channels=4):
         super(ModNatureConvBodyV4_A, self).__init__()
         self.feature_dim = 512
@@ -153,7 +153,7 @@ class ModNatureConvBodyV4_A(nn.Module):
         return y
 
 # 2-layer modulated by AS, memory modulates directly layer 1 and 2 without computing the difference. The sigmoid is reduced in intensity
-class ModNatureConvBodyV_direct1(nn.Module):
+class Mod2LNatureConvBody_direct(nn.Module):
     def __init__(self, in_channels=4):
         super(ModNatureConvBodyV_direct1, self).__init__()
         self.feature_dim = 512
@@ -183,7 +183,26 @@ class ModNatureConvBodyV_direct1(nn.Module):
         return y
 
  #3-layer modulated by AS, memory modulates directly layer 1 and 2 without computing the difference. The sigmoid is reduced in intensity
-class ModNatureConvBodyV_direct1_3l(nn.Module):
+
+class ModNatureConvBody_Prediction(nn.Module):
+    def __init__(self, in_channels=4):
+        super(ModNatureConvBodyPrediction, self).__init__()
+        self.feature_dim = 512
+        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
+        self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
+        self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
+        self.fc4 = layer_init(nn.Linear(7 * 7 * 64, self.feature_dim))
+
+    def forward(self, x):
+        y = F.relu(self.conv1(x))
+        y = F.relu(self.conv2(y))
+        y = F.relu(self.conv3(y))
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc4(y))
+        return y
+ #3-layer modulated by AS, memory modulates directly layer 1 and 2 without computing the difference. The sigmoid is reduced in intensity
+
+class Mod3LNatureConvBody_direct(nn.Module):
     def __init__(self, in_channels=4):
         super(ModNatureConvBodyV_direct1_3l, self).__init__()
         self.feature_dim = 512
@@ -216,7 +235,7 @@ class ModNatureConvBodyV_direct1_3l(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
-class NMNatureConvBodyV5(nn.Module):
+class Mod3LNatureConvBody_diff(nn.Module):
     def __init__(self, in_channels=4):
         super(NMNatureConvBodyV5, self).__init__()
         self.feature_dim = 512
