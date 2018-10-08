@@ -8,7 +8,7 @@ import matplotlib
 matplotlib.use("Pdf")
 from deep_rl import *
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="4"
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
 
 ## cart pole, orgininal
 def dqn_pixel_atari(name):
@@ -36,9 +36,9 @@ def mod_dqn_pixel_atari(name):
     config = Config()
     config_mod = Config()
     config.history_length = 4
-    #config.task_fn = lambda: PixelAtari(name, frame_skip=4, #history_length=config.history_length,
-    #                                    log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
-    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length)
+    config.task_fn = lambda: PixelAtari(name, frame_skip=4, #history_length=config.history_length,
+                                        log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
+    #config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length)
 
 
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
@@ -57,7 +57,7 @@ def mod_dqn_pixel_atari(name):
     config.reward_normalizer = SignNormalizer()
     config.discount = 0.99
     config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
+    config.exploration_steps= 1000
     config.logger = get_logger()
     # config.double_q = True
     config.double_q = False
