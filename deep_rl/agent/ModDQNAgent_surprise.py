@@ -36,7 +36,6 @@ class ModDQNAgentSurprise(BaseAgentMod):
         total_reward = 0.0
         steps = 0
         lossPrediction = self.criterion(tensor(0),tensor(0))
-        curr_state = np.asarray(state)
         past_state = np.asarray(state)
         next_state = np.asarray(state)
 
@@ -50,6 +49,7 @@ class ModDQNAgentSurprise(BaseAgentMod):
             else:
                 action = self.policy.sample(value)
 
+            past_state = state
             state = next_state
             next_state, reward, done, _ = self.task.step(action)
             total_reward += reward
@@ -59,14 +59,14 @@ class ModDQNAgentSurprise(BaseAgentMod):
                 self.replay.feed([state, action, reward, next_state, int(done), past_state])
                 self.total_steps += 1
             steps += 1
-#            past_state =  (curr_state).astype(np.uint8)
-            #print 'learning'
+
             if not deterministic and self.total_steps > self.config.exploration_steps \
                     and self.total_steps % self.config.sgd_update_frequency == 0:
                 experiences = self.replay.sample()
-                states, actions, rewards, next_states, terminals, states = experiences
+                states, actions, rewards, next_states, terminals, past_states = experiences
                 states = self.config.state_normalizer(states)
                 next_states = self.config.state_normalizer(next_states)
+                past_states = self.config.state_normalizer(past_states)
                 q_next = self.target_network.predict(next_states, False).detach()
                 if self.config.double_q:
                     _, best_actions = self.network.predict(next_states).detach().max(1)
@@ -86,8 +86,8 @@ class ModDQNAgentSurprise(BaseAgentMod):
                 nn.utils.clip_grad_norm_(self.network.parameters(), self.config.gradient_clip)
                 self.optimizer.step
 
-                x = tensor(np.stack([self.config_mod.state_normalizer(state)]))
-                predict_features = tensor(self.network_mod.forward(x).flatten())
+                x = np.stack([self.config_mod.state_normalizer(state)])
+                predict_features = self.network_mod.forward(tensor(x)).flatten()
                 actual_features = self.network.body.forward(tensor(np.stack([self.config_mod.state_normalizer(next_state)])))
                 lossPrediction = self.criterion(actual_features, predict_features)
                 self.optimizer_mod.zero_grad()
@@ -110,6 +110,6 @@ class ModDQNAgentSurprise(BaseAgentMod):
         episode_time = time.time() - episode_start_time
         self.config.logger.debug('episode steps %d, episode time %f, time per step %f' %
                           (steps, episode_time, episode_time / float(steps)))
-        print('episode steps %d, episode time %f, time per step %f, pre-loss %f' %
+        print('episode steps %d, episode time %f, time per step %f, pred-loss %f' %
                           (steps, episode_time, episode_time / float(steps), lossPrediction.float()))
         return total_reward, steps

@@ -57,7 +57,7 @@ def mod_dqn_pixel_atari(name):
     config.reward_normalizer = SignNormalizer()
     config.discount = 0.99
     config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
+    config.exploration_steps= 1000
     config.logger = get_logger()
     # config.double_q = True
     config.double_q = False
