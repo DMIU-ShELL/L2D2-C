@@ -50,6 +50,8 @@ class ModDQNAgentSurprise(BaseAgentMod):
             else:
                 action = self.policy.sample(value)
 
+            past_state = state
+            state = next_state
             next_state, reward, done, _ = self.task.step(action)
 
             total_reward += reward
@@ -59,8 +61,9 @@ class ModDQNAgentSurprise(BaseAgentMod):
                 self.replay.feed([state, action, reward, next_state, int(done), past_state])
                 self.total_steps += 1
             steps += 1
-            past_state = state
-            state = next_state
+#            print(np.sum((np.asarray(state)-np.asarray(past_state))*(np.asarray(state)-np.asarray(past_state))))
+#            print(np.sum((np.asarray(next_state)-np.asarray(state))*(np.asarray(next_state)-np.asarray(state))))
+#            input()
 
             if not deterministic and self.total_steps > self.config.exploration_steps \
                     and self.total_steps % self.config.sgd_update_frequency == 0:
