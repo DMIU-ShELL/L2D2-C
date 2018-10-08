@@ -40,7 +40,8 @@ class ModDQNAgentSurprise(BaseAgentMod):
         next_state = np.asarray(state)
 
         while True:
-            value = self.network.predict(np.stack([self.config.state_normalizer(next_state)]), True).flatten()
+            tmp_state = np.asarray(state)
+            value = self.network.predict(np.stack([self.config.state_normalizer(tmp_state)]), True).flatten()
 
             if deterministic:
                 action = np.argmax(value)
@@ -49,9 +50,8 @@ class ModDQNAgentSurprise(BaseAgentMod):
             else:
                 action = self.policy.sample(value)
 
-            past_state = state
-            state = next_state
             next_state, reward, done, _ = self.task.step(action)
+
             total_reward += reward
             reward = self.config.reward_normalizer(reward)
 
@@ -59,6 +59,8 @@ class ModDQNAgentSurprise(BaseAgentMod):
                 self.replay.feed([state, action, reward, next_state, int(done), past_state])
                 self.total_steps += 1
             steps += 1
+            past_state = state
+            state = next_state
 
             if not deterministic and self.total_steps > self.config.exploration_steps \
                     and self.total_steps % self.config.sgd_update_frequency == 0:
@@ -84,16 +86,17 @@ class ModDQNAgentSurprise(BaseAgentMod):
                 self.optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.network.parameters(), self.config.gradient_clip)
-                self.optimizer.step
+                self.optimizer.step()
 
                 x = np.stack([self.config_mod.state_normalizer(state)])
                 predict_features = self.network_mod.returnFeatures(x)
+                print(type(predict_features))
                 actual_features = self.network.body.forward(tensor(np.stack([self.config_mod.state_normalizer(next_state)])))
                 lossPrediction = self.criterion(actual_features, predict_features)
                 self.optimizer_mod.zero_grad()
                 lossPrediction.backward()
                 nn.utils.clip_grad_norm_(self.network_mod.parameters(),self.config_mod.gradient_clip)
-                self.optimizer_mod.step
+                self.optimizer_mod.step()
 
 
             #print 'self evaluate'
