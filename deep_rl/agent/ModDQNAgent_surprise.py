@@ -26,7 +26,7 @@ class ModDQNAgentSurprise(BaseAgentMod):
         self.total_steps = 0
 
         self.config_mod = config_mod
-        self.network_mod = config_mod.network_fn(self.task.state_dim,512)
+        self.network_mod = config_mod.network_fn()
         self.optimizer_mod = config_mod.optimizer_fn(self.network_mod.parameters())
         self.network_mod.load_state_dict(self.network_mod.state_dict())
 
@@ -87,7 +87,7 @@ class ModDQNAgentSurprise(BaseAgentMod):
                 self.optimizer.step
 
                 x = np.stack([self.config_mod.state_normalizer(state)])
-                predict_features = self.network_mod.forward(tensor(x)).flatten()
+                predict_features = self.network_mod.returnFeatures(x)
                 actual_features = self.network.body.forward(tensor(np.stack([self.config_mod.state_normalizer(next_state)])))
                 lossPrediction = self.criterion(actual_features, predict_features)
                 self.optimizer_mod.zero_grad()

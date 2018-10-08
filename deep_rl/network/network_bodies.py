@@ -23,6 +23,28 @@ class NatureConvBody(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
+class CombinedNet(nn.Module, BaseNet):
+    def __init__(self, bodyPredict):
+        super(CombinedNet, self).__init__()
+#        self.fc_value = layer_init(nn.Linear(body.feature_dim, 1))
+#        self.fc_advantage = layer_init(nn.Linear(body.feature_dim, action_dim))
+        self.bodyPredict = bodyPredict
+        self.to(Config.DEVICE)
+
+    def returnFeatures(self, x, to_numpy=False):
+        phi = self.bodyPredict(tensor(x))
+        if to_numpy:
+            return phi.cpu().detach().numpy()
+        return phi
+    #        value = self.fc_value(phi)
+#        advantange = self.fc_advantage(phi)
+#        q = value.expand_as(advantange) + (advantange - advantange.mean(1, keepdim=True).expand_as(advantange))
+#        if to_numpy:
+#            return q.cpu().detach().numpy()
+#        return q
+
+
+
 class Mod1LNatureConvBody_diff(nn.Module):
     def __init__(self, in_channels=4):
         super(Mod1LNatureConvBody_diff, self).__init__()

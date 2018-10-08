@@ -48,7 +48,11 @@ def mod_dqn_pixel_atari(name):
     config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
 
     #mod network
-    config_mod.network_fn = lambda state_dim, action_dim: NatureConvBody()
+    #config_mod.network_fn = lambda state_dim, action_dim: NatureConvBody()
+
+    config_mod.network_fn = lambda : CombinedNet(NatureConvBody())
+
+
     config_mod.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
 
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
@@ -57,7 +61,7 @@ def mod_dqn_pixel_atari(name):
     config.reward_normalizer = SignNormalizer()
     config.discount = 0.99
     config.target_network_update_freq = 10000
-    config.exploration_steps= 1000
+    config.exploration_steps= 50000
     config.logger = get_logger()
     # config.double_q = True
     config.double_q = False
