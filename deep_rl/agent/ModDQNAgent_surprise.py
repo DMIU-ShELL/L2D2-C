@@ -90,7 +90,6 @@ class ModDQNAgentSurprise(BaseAgentMod):
 
                 x = np.stack([self.config_mod.state_normalizer(state)])
                 predict_features = self.network_mod.returnFeatures(x)
-                print(type(predict_features))
                 actual_features = self.network.body.forward(tensor(np.stack([self.config_mod.state_normalizer(next_state)])))
                 lossPrediction = self.criterion(actual_features, predict_features)
                 self.optimizer_mod.zero_grad()
