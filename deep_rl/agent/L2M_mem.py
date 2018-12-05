@@ -3,6 +3,7 @@
 # Permission given to modify the code as long as you keep this        #
 # declaration at the top                                              #
 #######################################################################
+'''this agent takes a memory of the input but does not modulate: control test'''
 
 from ..network import *
 from ..component import *

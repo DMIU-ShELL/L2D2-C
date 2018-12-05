@@ -52,7 +52,7 @@ def mod_dqn_pixel_atari_2l(name):
     config.logger = get_logger()
     # config.double_q = True
     config.double_q = False
-    run_episodes(L2MAgentYangV2(config))
+    run_episodes(L2MAgentYang(config))
 # L2M
 def mod_dqn_pixel_atari_3l(name):
     config = Config()
@@ -73,7 +73,7 @@ def mod_dqn_pixel_atari_3l(name):
     config.logger = get_logger()
     # config.double_q = True
     config.double_q = False
-    run_episodes(L2MAgentYangV3(config))
+    run_episodes(L2MAgentYang(config))
 
 def plot():
     import matplotlib.pyplot as plt
@@ -96,7 +96,8 @@ if __name__ == '__main__':
     set_one_thread()
     select_device(1)
 
+    #dqn_pixel_atari('BreakoutNoFrameskip-v4')
+    #mod_dqn_pixel_atari_2l('BreakoutNoFrameskip-v4')
     mod_dqn_pixel_atari_3l('BreakoutNoFrameskip-v4')
-    #mod_dqn_pixel_atari_3l('BreakoutNoFrameskip-v4')
 
     plot()
