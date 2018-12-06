@@ -178,7 +178,7 @@ def dqn_memory_pixel_atari(name):
     config.logger = get_logger()
     # config.double_q = True
     config.double_q = False
-    run_episodes(DQNMemoryAgent(config))
+    run_episodes(L2MMemAgent(config))
 
 def a2c_pixel_atari(name):
     config = Config()
@@ -469,4 +469,3 @@ if __name__ == '__main__':
     # action_conditional_video_prediction()
 
     # plot()
-

@@ -8,7 +8,7 @@ import matplotlib
 matplotlib.use("Pdf")
 from deep_rl import *
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="4"
 
 ## cart pole
 
@@ -40,7 +40,7 @@ def nmdqn_pixel_atari(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, NMNatureConvBody())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod1LNatureConvBody_diff())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -61,7 +61,7 @@ def nmdqn_pixel_atari_v2(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, NMNatureConvBodyV2())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod2LNatureConvBody_diff())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -82,7 +82,7 @@ def nmdqn_pixel_atari_v2(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, NMNatureConvBodyV2())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod2LNatureConvBody_diff())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -103,7 +103,28 @@ def nmdqn_pixel_atari_v3(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: NMDuelingNet(action_dim, NMNatureConvBodyV3())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod2LNatureConvBody_diffV2())
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps= 50000
+    config.logger = get_logger()
+    # config.double_q = True
+    config.double_q = False
+    run_episodes(NMDQNAgentV3(config))
+
+def nmdqn_pixel_atari_v4(name):
+    config = Config()
+    config.history_length = 4
+    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
+                                        log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
+    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
+    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod2LNatureConvBody_A_diff())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -383,7 +404,7 @@ if __name__ == '__main__':
     #dqn_pixel_atari('BreakoutNoFrameskip-v4')
     #nmdqn_pixel_atari('BreakoutNoFrameskip-v4')
     #nmdqn_pixel_atari_v2('BreakoutNoFrameskip-v4')
-    nmdqn_pixel_atari_v3('BreakoutNoFrameskip-v4')
+    nmdqn_pixel_atari_v4('BreakoutNoFrameskip-v4')
     # a2c_pixel_atari('BreakoutNoFrameskip-v4')
     # categorical_dqn_pixel_atari('BreakoutNoFrameskip-v4')
     # quantile_regression_dqn_pixel_atari('BreakoutNoFrameskip-v4')
@@ -399,4 +420,3 @@ if __name__ == '__main__':
     # action_conditional_video_prediction()
 
     # plot()
-

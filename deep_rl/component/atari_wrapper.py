@@ -5,7 +5,7 @@ import gym
 from gym import spaces
 from gym.spaces import Box
 import cv2
-cv2.ocl.setUseOpenCL(False)
+#cv2.ocl.setUseOpenCL(False)
 from collections import deque
 
 class NoopResetEnv(gym.Wrapper):

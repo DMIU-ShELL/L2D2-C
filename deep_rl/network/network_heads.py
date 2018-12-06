@@ -38,9 +38,9 @@ class DuelingNet(nn.Module, BaseNet):
             return q.cpu().detach().numpy()
         return q
 
-class NMDuelingNet(nn.Module, BaseNet):
+class ModDuelingNet(nn.Module, BaseNet):
     def __init__(self, action_dim, body):
-        super(NMDuelingNet, self).__init__()
+        super(ModDuelingNet, self).__init__()
         self.fc_value = layer_init(nn.Linear(body.feature_dim, 1))
         self.fc_advantage = layer_init(nn.Linear(body.feature_dim, action_dim))
         self.body = body

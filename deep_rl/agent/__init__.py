@@ -7,9 +7,7 @@ from .QuantileRegressionDQN_agent import *
 from .PPO_agent import *
 from .OptionCritic_agent import *
 
-from .DQN_memory_agent import *
+from .L2M_mem import *
 
-from .NMDQN_agent import *
-from .NMDQN_agent_v2 import *
-from .NMDQN_agent_v3 import *
-
+from .L2M_agent_Yang import *
+from .L2M_surprise import *
