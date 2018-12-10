@@ -15,7 +15,7 @@ from .misc import *
 def get_logger(name='MAIN', file_name=None, log_dir='./log', skip=False, level=logging.INFO):
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    if file_name is None:
+    if file_name is not None:
         file_name = '%s-%s' % (file_name, get_time_str())
         fh = logging.FileHandler('%s/%s.txt' % (log_dir, file_name))
         fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: %(message)s'))
