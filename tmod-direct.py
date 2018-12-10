@@ -70,7 +70,7 @@ def mod_dqn_pixel_atari_3l(name):
     config.discount = 0.99
     config.target_network_update_freq = 10000
     config.exploration_steps= 50000
-    config.logger = get_logger()
+    config.logger = get_logger(file_name='test',log_dir=get_default_log_dir(dqn_pixel_atari.__name__)+"ExpCode1234")
     # config.double_q = True
     config.double_q = False
     run_episodes(L2MAgentYang(config))

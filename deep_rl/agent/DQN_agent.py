@@ -40,7 +40,7 @@ class DQNAgent(BaseAgent):
             else:
                 action = self.policy.sample(value)
             #print 'call self.task.step(action)'
-            next_state, reward, done, _ = self.task.step(action)         
+            next_state, reward, done, _ = self.task.step(action)
             #print 'task step'
             total_reward += reward
             reward = self.config.reward_normalizer(reward)
@@ -88,4 +88,7 @@ class DQNAgent(BaseAgent):
         episode_time = time.time() - episode_start_time
         self.config.logger.debug('episode steps %d, episode time %f, time per step %f' %
                           (steps, episode_time, episode_time / float(steps)))
+
+        self.config.logger.scalar_summary('total reward', total_reward)
+
         return total_reward, steps
