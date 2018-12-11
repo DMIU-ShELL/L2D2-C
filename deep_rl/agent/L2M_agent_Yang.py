@@ -110,5 +110,11 @@ class L2MAgentYang(BaseAgent):
                           (steps, episode_time, episode_time / float(steps)))
         print('episode steps %d, episode time %f, time per step %f' %
                                                     (steps, episode_time, episode_time / float(steps)))
+        #L2M changes:
         self.config.logger.scalar_summary('total reward', total_reward)
+        for tag, value in self.network.named_parameters():
+            tag = tag.replace('.', '/')
+            self.config.logger.histo_summary(tag, value.data.cpu().numpy())
+        #    self.config.logger.histo_summary(tag+'/grad', value.grad.data.cpu().numpy())
+
         return total_reward, steps
