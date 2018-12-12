@@ -34,7 +34,11 @@ def run_episodes(agent):
         avg_reward = np.mean(rewards[-window_size:])
         config.logger.info('episode %d, reward %f, avg reward %f, total steps %d, episode step %d' % (
             ep, reward, avg_reward, agent.total_steps, step))
-
+        #L2M changes:
+        self.config.logger.scalar_summary('reward', reward)
+        for tag, value in self.network.named_parameters():
+            tag = tag.replace('.', '/')
+            self.config.logger.histo_summary(tag, value.data.cpu().numpy())
         if config.save_interval and ep % config.save_interval == 0:
             with open('data/%s-%s-online-stats-%s.bin' % (
                     agent_type, config.tag, agent.task.name), 'wb') as f:
@@ -66,7 +70,14 @@ def run_iterations(agent):
                 agent.total_steps, np.mean(agent.last_episode_rewards),
                 np.max(agent.last_episode_rewards),
                 np.min(agent.last_episode_rewards)
-            ))
+        ))
+            config.logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
+            config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
+            config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
+            for tag, value in agent.network.named_parameters():
+                tag = tag.replace('.', '/')
+                config.logger.histo_summary(tag, value.data.cpu().numpy())
+
         if iteration % (config.iteration_log_interval * 100) == 0:
             with open('data/%s-%s-online-stats-%s.bin' % (agent_name, config.tag, agent.task.name), 'wb') as f:
                 pickle.dump({'rewards': rewards,
