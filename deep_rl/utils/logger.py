@@ -31,7 +31,10 @@ class Logger(object):
                     continue
                 os.remove('%s/%s' % (log_dir, f))
         except IOError:
-            os.mkdir(log_dir)
+            try:
+                os.mkdir(log_dir)
+            except IOError:
+                print('Check log folder...')
         if not skip:
             self.writer = SummaryWriter(log_dir)
         self.info = vanilla_logger.info

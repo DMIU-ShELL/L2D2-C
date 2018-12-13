@@ -40,15 +40,23 @@ def run_episodes(agent):
 #            tag = tag.replace('.', '/')
 #            config.logger.histo_summary(tag, value.data.cpu().numpy())
         if config.save_interval and ep % config.save_interval == 0:
-            with open('data/%s-%s-online-stats-%s.bin' % (
+            with open(get_default_log_dir(agent_type) + '/%s-%s-online-stats-%s.bin' % (
                     agent_type, config.tag, agent.task.name), 'wb') as f:
                 pickle.dump([steps, rewards], f)
-            agent.save('data/%s-%s-model-%s.bin' % (agent_type, config.tag, agent.task.name))
+            agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, agent.task.name))
 
         if config.episode_limit and ep > config.episode_limit:
+            with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
+                    agent_type, config.tag, agent.task.name), 'wb') as f:
+                pickle.dump([steps, rewards], f)
+            agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, agent.task.name))
             break
 
         if config.max_steps and agent.total_steps > config.max_steps:
+            with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
+                    agent_type, config.tag, agent.task.name), 'wb') as f:
+                pickle.dump([steps, rewards], f)
+            agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, agent.task.name))
             break
 
     agent.close()
@@ -79,12 +87,16 @@ def run_iterations(agent):
                 config.logger.histo_summary(tag, value.data.cpu().numpy())
 
         if iteration % (config.iteration_log_interval * 100) == 0:
-            with open('data/%s-%s-online-stats-%s.bin' % (agent_name, config.tag, agent.task.name), 'wb') as f:
+            with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (agent_name, config.tag, agent.task.name), 'wb') as f:
                 pickle.dump({'rewards': rewards,
                              'steps': steps}, f)
-            agent.save('data/%s-%s-model-%s.bin' % (agent_name, config.tag, agent.task.name))
+            agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, agent.task.name))
         iteration += 1
         if config.max_steps and agent.total_steps >= config.max_steps:
+            with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
+                agent_name, config.tag, agent.task.name), 'wb') as f:
+                pickle.dump([steps, rewards], f)
+                agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, agent.task.name))
             agent.close()
             break
 
@@ -94,7 +106,7 @@ def get_time_str():
     return datetime.datetime.now().strftime("%y%m%d-%H%M%S")
 
 def get_default_log_dir(name):
-    return './log/%s-%s' % (name, get_time_str())
+    return './log/%s/%s' % (name, get_time_str())
 
 def sync_grad(target_network, src_network):
     for param, src_param in zip(target_network.parameters(), src_network.parameters()):

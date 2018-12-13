@@ -14,9 +14,12 @@ os.environ["CUDA_VISIBLE_DEVICES"]="4"
 
 def dqn_pixel_atari(name):
     config = Config()
+    config.expType = "dqn_pixel_atari"
+    config.expID = "baseline"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+
     config.history_length = 4
-    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
-                                        log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
+    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length, log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
@@ -27,17 +30,24 @@ def dqn_pixel_atari(name):
     config.discount = 0.99
     config.target_network_update_freq = 10000
     config.exploration_steps= 50000
-    config.logger = get_logger()
+    config.max_steps = 10000
+    config.save_interval = 10000
     # config.double_q = True
     config.double_q = False
+    config.logger = get_logger(log_dir=config.log_dir)
+
     run_episodes(DQNAgent(config))
 
 # L2M
 def mod_dqn_pixel_atari_2l(name):
     config = Config()
+    config.expType = "dqn_pixel_atari"
+    config.expID = "mod2Ldirect"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
-                                        log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
+                                        log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
@@ -49,16 +59,22 @@ def mod_dqn_pixel_atari_2l(name):
     config.discount = 0.99
     config.target_network_update_freq = 10000
     config.exploration_steps= 50000
-    config.logger = get_logger()
+    config.max_steps = 20000
+    config.save_interval = 10000
+    config.logger = get_logger(log_dir=config.log_dir)
     # config.double_q = True
     config.double_q = False
     run_episodes(L2MAgentYang(config))
 # L2M
 def mod_dqn_pixel_atari_3l(name):
     config = Config()
+    config.expType = "dqn_pixel_atari"
+    config.expID = "mod3Ldirect"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
-                                        log_dir=get_default_log_dir(dqn_pixel_atari.__name__))
+                                        log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
@@ -70,7 +86,10 @@ def mod_dqn_pixel_atari_3l(name):
     config.discount = 0.99
     config.target_network_update_freq = 10000
     config.exploration_steps= 50000
-    config.logger = get_logger(log_dir=get_default_log_dir(dqn_pixel_atari.__name__)+"exp1")
+    config.max_steps = 10000
+    config.save_interval = 10000
+    config.logger = get_logger(log_dir=config.log_dir)
+
     # config.double_q = True
     config.double_q = False
     run_episodes(L2MAgentYang(config))
@@ -91,18 +110,23 @@ def plot():
 
 def ppo_pixel_atari(name):
     config = Config()
+    config.expType = "ppo_pixel_atari"
+    config.expID = "baseline"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+
     config.history_length = 4
-    task_fn = lambda log_dir: PixelAtari(name, frame_skip=4, history_length=config.history_length, log_dir=log_dir)
+    task_fn = lambda log_dir: PixelAtari(name, frame_skip=4, history_length=config.history_length, log_dir=config.log_dir)
     config.num_workers = 16
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers,
-                                              log_dir=get_default_log_dir(ppo_pixel_atari.__name__))
+                                              log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025)
     config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet(
         state_dim, action_dim, NatureConvBody())
     config.state_normalizer = ImageNormalizer()
     config.reward_normalizer = SignNormalizer()
     config.discount = 0.99
-    config.logger = get_logger(log_dir=get_default_log_dir(dqn_pixel_atari.__name__)+"ppo1")
+    config.max_steps = 10000
+    config.logger = get_logger(log_dir=config.log_dir)
     config.use_gae = True
     config.gae_tau = 0.95
     config.entropy_weight = 0.01
@@ -121,9 +145,9 @@ if __name__ == '__main__':
     set_one_thread()
     select_device(1)
 
-    #dqn_pixel_atari('BreakoutNoFrameskip-v4')
+    dqn_pixel_atari('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_2l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l('BreakoutNoFrameskip-v4')
-    ppo_pixel_atari('BreakoutNoFrameskip-v4')
+    #ppo_pixel_atari('BreakoutNoFrameskip-v4')
 
 #    plot()
