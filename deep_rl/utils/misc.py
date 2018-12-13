@@ -35,10 +35,10 @@ def run_episodes(agent):
         config.logger.info('episode %d, reward %f, avg reward %f, total steps %d, episode step %d' % (
             ep, reward, avg_reward, agent.total_steps, step))
         #L2M changes:
-        self.config.logger.scalar_summary('reward', reward)
-        for tag, value in self.network.named_parameters():
-            tag = tag.replace('.', '/')
-            self.config.logger.histo_summary(tag, value.data.cpu().numpy())
+        config.logger.scalar_summary('reward', reward)
+#        for tag, value in agent.network.named_parameters():
+#            tag = tag.replace('.', '/')
+#            config.logger.histo_summary(tag, value.data.cpu().numpy())
         if config.save_interval and ep % config.save_interval == 0:
             with open('data/%s-%s-online-stats-%s.bin' % (
                     agent_type, config.tag, agent.task.name), 'wb') as f:
