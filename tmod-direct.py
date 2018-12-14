@@ -172,6 +172,38 @@ def ppo_pixel_atari(name):
     config.iteration_log_interval = 1
     run_iterations(PPOAgent(config))
 
+def ppo_pa_mod(name):
+    config = Config()
+    config.seed = 1
+    config.expType = "ppo_pixel_atari"
+    config.expID = "mod2L"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+    config.max_steps = 30 * 1000000
+
+
+    config.history_length = 4
+    task_fn = lambda log_dir: PixelAtari(name, seed=config.seed, frame_skip=4, history_length=config.history_length, log_dir=config.log_dir)
+    config.num_workers = 16
+    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers,
+                                              log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025)
+    config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet_L2M_Mod(
+        state_dim, action_dim, Mod3LNatureConvBody_direct())
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.logger = get_logger(log_dir=config.log_dir)
+    config.use_gae = True
+    config.gae_tau = 0.95
+    config.entropy_weight = 0.01
+    config.gradient_clip = 0.5
+    config.rollout_length = 128
+    config.optimization_epochs = 4
+    config.num_mini_batches = 4
+    config.ppo_ratio_clip = 0.1
+    config.iteration_log_interval = 1
+    run_iterations(PPOAgent_L2M_Mem(config))
+
 if __name__ == '__main__':
     mkdir('data/video')
     mkdir('dataset')
@@ -180,9 +212,10 @@ if __name__ == '__main__':
     select_device(1)
 
     #dqn_pixel_atari('BreakoutNoFrameskip-v4')
-    mod_dqn_pixel_atari_2l('BreakoutNoFrameskip-v4')
+    #mod_dqn_pixel_atari_2l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
     #ppo_pixel_atari('BreakoutNoFrameskip-v4')
+    ppo_pa_mod('BreakoutNoFrameskip-v4')
 
 #    plot()
