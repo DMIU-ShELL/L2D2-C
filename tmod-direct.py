@@ -40,10 +40,12 @@ def dqn_pixel_atari(name):
 # L2M
 def mod_dqn_pixel_atari_2l(name):
     config = Config()
+    config.seed = 123456
     config.expType = "dqn_pixel_atari"
     config.expID = "mod2Ldirect"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
-    config.max_steps = 2 * 1000000
+    #config.max_steps = 5 * 1000000
+    config.episode_limit = 100000
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -66,10 +68,12 @@ def mod_dqn_pixel_atari_2l(name):
 # L2M
 def mod_dqn_pixel_atari_3l(name):
     config = Config()
+    config.seed = 1
     config.expType = "dqn_pixel_atari"
     config.expID = "mod3Ldirect"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
-    config.max_steps = 2 * 1000000
+    #config.max_steps = 5 * 1000000
+    config.episode_limit = 100000
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -94,10 +98,13 @@ def mod_dqn_pixel_atari_3l(name):
 
 def mod_dqn_pixel_atari_3l_diff(name):
     config = Config()
+    config.seed = 1
     config.expType = "dqn_pixel_atari"
     config.expID = "mod3L-DIFF"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
-    config.max_steps = 2 * 1000000
+#    config.max_steps = 5 * 1000000
+    config.episode_limit = 100000
+
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -135,10 +142,11 @@ def plot():
 
 def ppo_pixel_atari(name):
     config = Config()
+    config.seed = 1
     config.expType = "ppo_pixel_atari"
     config.expID = "baseline"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
-    config.max_steps = 30* 1000000
+    config.max_steps = 30 * 1000000
 
 
     config.history_length = 4
@@ -171,8 +179,8 @@ if __name__ == '__main__':
     set_one_thread()
     select_device(1)
 
-    dqn_pixel_atari('BreakoutNoFrameskip-v4')
-    #mod_dqn_pixel_atari_2l('BreakoutNoFrameskip-v4')
+    #dqn_pixel_atari('BreakoutNoFrameskip-v4')
+    mod_dqn_pixel_atari_2l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
     #ppo_pixel_atari('BreakoutNoFrameskip-v4')

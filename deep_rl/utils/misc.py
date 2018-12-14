@@ -18,8 +18,8 @@ except:
     from pathlib2 import Path
 
 def run_episodes(agent):
-    random_seed()
     config = agent.config
+    random_seed(config.seed)
     window_size = 100
     ep = 0
     rewards = []
@@ -63,8 +63,8 @@ def run_episodes(agent):
     return steps, rewards, avg_test_rewards
 
 def run_iterations(agent):
-    random_seed()
     config = agent.config
+    random_seed(config.seed)
     agent_name = agent.__class__.__name__
     iteration = 0
     steps = []

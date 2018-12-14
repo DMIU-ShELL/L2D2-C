@@ -66,6 +66,7 @@ class Config:
         self.evaluation_episodes_interval = 0
         self.evaluation_episodes = 0
         self.sgd_update_frequency = 4
+        self.seed = 1
 
     def add_argument(self, *args, **kwargs):
         self.parser.add_argument(*args, **kwargs)
