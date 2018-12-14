@@ -175,9 +175,9 @@ class ProcessWrapper(mp.Process):
         self.task_fn = task_fn
         self.log_dir = log_dir
 
-    def run(self,seed):
-        np.random.seed(seed)
-#        seed = np.random.randint(0, sys.maxsize)
+    def run(self):
+        np.random.seed()
+        seed = np.random.randint(0, sys.maxsize)
         task = self.task_fn(log_dir=self.log_dir)
         task.seed(seed)
         while True:

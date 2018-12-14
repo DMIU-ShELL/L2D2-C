@@ -208,3 +208,28 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
             action = dist.sample()
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return action, log_prob, dist.entropy().unsqueeze(-1), v
+
+class CategoricalActorCriticNet_L2M_Mod(nn.Module, BaseNet):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 phi_body=None,
+                 actor_body=None,
+                 critic_body=None):
+        super(CategoricalActorCriticNet_L2M_Mod, self).__init__()
+        self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body)
+        self.to(Config.DEVICE)
+
+    def predict(self, obs, mem, action=None):
+        obs = tensor(obs)
+        mem = tensor(mem)
+        phi = self.network.phi_body(obs, mem)
+        phi_a = self.network.actor_body(phi)
+        phi_v = self.network.critic_body(phi)
+        logits = self.network.fc_action(phi_a)
+        v = self.network.fc_critic(phi_v)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        return action, log_prob, dist.entropy().unsqueeze(-1), v
