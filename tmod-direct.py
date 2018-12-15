@@ -96,7 +96,6 @@ def mod_dqn_pixel_atari_3l(name):
     config.double_q = False
     run_episodes(L2MAgentYang(config))
 
-
 def mod_dqn_pixel_atari_3l_diff(name):
     config = Config()
     config.seed = 1
@@ -126,6 +125,32 @@ def mod_dqn_pixel_atari_3l_diff(name):
     # config.double_q = True
     config.double_q = False
     run_episodes(L2MAgentYang(config))
+
+def quantile_regression_dqn_pixel_atari(name):
+    config = Config()
+    config.seed = 1
+    config.expType = "qrdqn_pixel_atari"
+    config.expID = "base"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+#    config.max_steps = 5 * 1000000
+    config.episode_limit = 100000
+    config.history_length = 4
+    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
+                                        log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.Adam(params, lr=0.00005, eps=0.01 / 32)
+    config.network_fn = lambda state_dim, action_dim: \
+        QuantileNet(action_dim, config.num_quantiles, NatureConvBody())
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.01, 1e6))
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps= 50000
+    config.logger = get_logger(log_dir=config.log_dir)
+    config.double_q = False
+    config.num_quantiles = 200
+    run_episodes(QuantileRegressionDQNAgent(config))
 
 def plot():
     import matplotlib.pyplot as plt
@@ -212,10 +237,11 @@ if __name__ == '__main__':
     set_one_thread()
     select_device(1)
 
-    dqn_pixel_atari('BreakoutNoFrameskip-v4')
+    #dqn_pixel_atari('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_2l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
+    quantile_regression_dqn_pixel_atari('BreakoutNoFrameskip-v4')
     #ppo_pixel_atari('BreakoutNoFrameskip-v4')
     #ppo_pa_mod('BreakoutNoFrameskip-v4')
 
