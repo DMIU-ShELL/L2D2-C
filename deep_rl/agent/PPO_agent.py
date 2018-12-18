@@ -66,7 +66,7 @@ class PPOAgent_L2M_Mem(BaseAgent):
             actions = tensor(actions)
             states = tensor(states)
             memory = tensor(memory)
-            next_value = rollout[i + 1][1]
+            next_value = rollout[i + 1][2]
             returns = rewards + config.discount * terminals * returns
             if not config.use_gae:
                 advantages = returns - value.detach()
