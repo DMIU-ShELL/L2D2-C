@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Pdf")
 from deep_rl import *
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="4"
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
 
 def dqn_pixel_atari(name):
     config = Config()
@@ -83,6 +83,35 @@ def mod_dqn_pixel_atari_3l(name):
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
     config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct())
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps= 50000
+    config.logger = get_logger(log_dir=config.log_dir)
+
+    # config.double_q = True
+    config.double_q = False
+    run_episodes(L2MAgentYang(config))
+
+def mod_dqn_pixel_atari_3l_fix(name):
+    config = Config()
+    config.seed = 1
+    config.expType = "dqn_pixel_atari"
+    config.expID = "mod3Ldirect-fix"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+    #config.max_steps = 5 * 1000000
+    config.episode_limit = 100000
+
+    config.history_length = 4
+    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
+                                        log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
+    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
+    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_fix())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -299,9 +328,10 @@ if __name__ == '__main__':
     #mod_dqn_pixel_atari_2l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
+    mod_dqn_pixel_atari_3l_fix('BreakoutNoFrameskip-v4')
 
 #    mod_dqn_pixel_atari_3lTH('BreakoutNoFrameskip-v4')
-    mod_dqn_pixel_atari_3l2Sig('BreakoutNoFrameskip-v4')
+#    mod_dqn_pixel_atari_3l2Sig('BreakoutNoFrameskip-v4')
 
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
 
