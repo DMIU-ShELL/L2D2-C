@@ -301,7 +301,7 @@ def ppo_pa_mod(name):
                                               log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025)
     config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet_L2M_Mod(
-        state_dim, action_dim, Mod3LNatureConvBody_direct())
+        state_dim, action_dim, Mod3LNatureConvBody_direct_fix())
     config.state_normalizer = ImageNormalizer()
     config.reward_normalizer = SignNormalizer()
     config.discount = 0.99
