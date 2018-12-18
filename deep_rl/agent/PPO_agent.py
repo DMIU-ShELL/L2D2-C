@@ -47,24 +47,25 @@ class PPOAgent_L2M_Mem(BaseAgent):
             next_states = config.state_normalizer(next_states)
             memory = config.state_normalizer(memory)
 
-            rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), rewards, 1 - terminals])
+            rollout.append([states, memory, values.detach(), actions.detach(), log_probs.detach(), rewards, 1 - terminals])
             states = next_states
 
         self.states = states
         self.memory = memory
 
         pending_value = self.network.predict(states,memory)[-1]
-        rollout.append([states, pending_value, None, None, None, None])
+        rollout.append([states, memory, pending_value, None, None, None, None])
 
         processed_rollout = [None] * (len(rollout) - 1)
         advantages = tensor(np.zeros((config.num_workers, 1)))
         returns = pending_value.detach()
         for i in reversed(range(len(rollout) - 1)):
-            states, value, actions, log_probs, rewards, terminals = rollout[i]
+            states, memory, value, actions, log_probs, rewards, terminals = rollout[i]
             terminals = tensor(terminals).unsqueeze(1)
             rewards = tensor(rewards).unsqueeze(1)
             actions = tensor(actions)
             states = tensor(states)
+            memory = tensor(memory)
             next_value = rollout[i + 1][1]
             returns = rewards + config.discount * terminals * returns
             if not config.use_gae:
