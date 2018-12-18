@@ -42,7 +42,7 @@ def dqn_pixel_atari(name):
 def mod_dqn_pixel_atari_2l(name):
     config = Config()
     config.seed = 123456
-    config.expType = "dqn_pixel_atari"
+    config.expType = "dqn_pa_" + name
     config.expID = "mod2Ldirect"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
@@ -99,7 +99,7 @@ def mod_dqn_pixel_atari_3l(name):
 def mod_dqn_pixel_atari_3l_fix(name):
     config = Config()
     config.seed = 1
-    config.expType = "dqn_pixel_atari"
+    config.expType = "dqn_pa_" + name
     config.expID = "mod3Ldirect-fix"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
@@ -128,7 +128,7 @@ def mod_dqn_pixel_atari_3l_fix(name):
 def mod_dqn_pixel_atari_3lTH(name):
     config = Config()
     config.seed = 1
-    config.expType = "dqn_pixel_atari"
+    config.expType = "dqn_pa_" + name
     config.expID = "mod3LdirectTH"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
@@ -157,7 +157,7 @@ def mod_dqn_pixel_atari_3lTH(name):
 def mod_dqn_pixel_atari_3l2Sig(name):
     config = Config()
     config.seed = 1
-    config.expType = "dqn_pixel_atari"
+    config.expType = "dqn_pa_" + name
     config.expID = "mod3Ldirect2Sig"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
@@ -186,7 +186,7 @@ def mod_dqn_pixel_atari_3l2Sig(name):
 def mod_dqn_pixel_atari_3l_diff(name):
     config = Config()
     config.seed = 1
-    config.expType = "dqn_pixel_atari"
+    config.expType = "dqn_pa_" + name
     config.expID = "mod3L-DIFF"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
 #    config.max_steps = 5 * 1000000
@@ -216,7 +216,7 @@ def mod_dqn_pixel_atari_3l_diff(name):
 def quantile_regression_dqn_pixel_atari(name):
     config = Config()
     config.seed = 1
-    config.expType = "qrdqn_pixel_atari"
+    config.expType = "qrdqn_pa_" + name
     config.expID = "base"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
 #    config.max_steps = 5 * 1000000
@@ -256,7 +256,7 @@ def plot():
 def ppo_pixel_atari(name):
     config = Config()
     config.seed = 1
-    config.expType = "ppo_pixel_atari"
+    config.expType = "ppo_pa_" + name
     config.expID = "baseline"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     config.max_steps = 30 * 1000000
@@ -288,7 +288,7 @@ def ppo_pixel_atari(name):
 def ppo_pa_mod(name):
     config = Config()
     config.seed = 1
-    config.expType = "ppo_pixel_atari"
+    config.expType = "ppo_pa_" + name
     config.expID = "mod2L"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     config.max_steps = 30 * 1000000
