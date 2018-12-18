@@ -328,7 +328,7 @@ if __name__ == '__main__':
     #mod_dqn_pixel_atari_2l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
-    mod_dqn_pixel_atari_3l_fix('BreakoutNoFrameskip-v4')
+    #mod_dqn_pixel_atari_3l_fix('BreakoutNoFrameskip-v4')
 
 #    mod_dqn_pixel_atari_3lTH('BreakoutNoFrameskip-v4')
 #    mod_dqn_pixel_atari_3l2Sig('BreakoutNoFrameskip-v4')
@@ -337,6 +337,6 @@ if __name__ == '__main__':
 
     #quantile_regression_dqn_pixel_atari('BreakoutNoFrameskip-v4')
     #ppo_pixel_atari('BreakoutNoFrameskip-v4')
-    #ppo_pa_mod('BreakoutNoFrameskip-v4')
+    ppo_pa_mod('BreakoutNoFrameskip-v4')
 
 #    plot()
