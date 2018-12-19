@@ -14,7 +14,7 @@ os.environ["CUDA_VISIBLE_DEVICES"]="3"
 
 def dqn_pixel_atari(name):
     config = Config()
-    config.expType = "dqn_pixel_atari"
+    config.expType = "dqn_pa" + name
     config.expID = "baseline"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
 #    config.max_steps = 2 * 1000000
@@ -54,7 +54,7 @@ def mod_dqn_pixel_atari_2l(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod2LNatureConvBody_direct())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod2LNatureConvBody_direct_sig())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -70,8 +70,8 @@ def mod_dqn_pixel_atari_2l(name):
 def mod_dqn_pixel_atari_3l(name):
     config = Config()
     config.seed = 1
-    config.expType = "dqn_pixel_atari"
-    config.expID = "mod3Ldirect"
+    config.expType = "dqn_pa_" + name
+    config.expID = "mod3Ldirect2sig"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
     config.episode_limit = 100000
@@ -82,7 +82,7 @@ def mod_dqn_pixel_atari_3l(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_2Sig())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -154,35 +154,6 @@ def mod_dqn_pixel_atari_3lTH(name):
     config.double_q = False
     run_episodes(L2MAgentYang(config))
 
-def mod_dqn_pixel_atari_3l2Sig(name):
-    config = Config()
-    config.seed = 1
-    config.expType = "dqn_pa_" + name
-    config.expID = "mod3Ldirect2Sig"
-    config.log_dir = get_default_log_dir(config.expType) + config.expID
-    #config.max_steps = 5 * 1000000
-    config.episode_limit = 100000
-
-    config.history_length = 4
-    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
-                                        log_dir=config.log_dir)
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
-    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
-    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct2Sig())
-    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.state_normalizer = ImageNormalizer()
-    config.reward_normalizer = SignNormalizer()
-    config.discount = 0.99
-    config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
-    config.logger = get_logger(log_dir=config.log_dir)
-
-    # config.double_q = True
-    config.double_q = False
-    run_episodes(L2MAgentYang(config))
-
 def mod_dqn_pixel_atari_3l_diff(name):
     config = Config()
     config.seed = 1
@@ -199,7 +170,7 @@ def mod_dqn_pixel_atari_3l_diff(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_diff())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_diff_sig())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -301,7 +272,7 @@ def ppo_pa_mod(name):
                                               log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025)
     config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet_L2M_Mod(
-        state_dim, action_dim, Mod3LNatureConvBody_direct_fix())
+        state_dim, action_dim, Mod3LNatureConvBody_direct_sig())
     config.state_normalizer = ImageNormalizer()
     config.reward_normalizer = SignNormalizer()
     config.discount = 0.99
