@@ -89,6 +89,4 @@ class DQNAgent(BaseAgent):
         self.config.logger.debug('episode steps %d, episode time %f, time per step %f' %
                           (steps, episode_time, episode_time / float(steps)))
 
-        self.config.logger.scalar_summary('total reward', total_reward)
-
         return total_reward, steps
