@@ -281,7 +281,7 @@ class Mod3LNatureConvBody_direct_2Sig(nn.Module):
 class Mod3LNatureConvBody_direct_4Sig(nn.Module):
     ''' direct modulation going through a sigmoid * 2 so that the modulation can change plasticity in the rage [0,2]'''
     def __init__(self, in_channels=4):
-        super(Mod3LNatureConvBody_direct_2Sig, self).__init__()
+        super(Mod3LNatureConvBody_direct_4Sig, self).__init__()
         self.feature_dim = 512
         self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
         self.conv1_mem_features = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
