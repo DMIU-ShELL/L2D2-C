@@ -210,7 +210,8 @@ class Mod2LNatureConvBody_direct_sig(nn.Module):
 #        return y
 
 class Mod3LNatureConvBody_direct_fix(nn.Module):
-    '''Correction to the Mod3L direct: changing 1+ 0.5sig to 0.5 + 0.5sig'''
+    '''Correction to the Mod3L direct: changing 1+ 0.5sig to 0.5 + 0.5sig
+    19/12/18: does not work, to delete'''
     def __init__(self, in_channels=4):
         super(Mod3LNatureConvBody_direct_fix, self).__init__()
         self.feature_dim = 512
@@ -313,7 +314,8 @@ class Mod3LNatureConvBody_direct_2Sig_control(nn.Module):
 
 
 class Mod3LNatureConvBody_directTH(nn.Module):
-    '''direct neuromodulation with tanh so that plasticity is modulated in the range [-1,1]'''
+    '''direct neuromodulation with tanh so that plasticity is modulated in the range [-1,1].
+    19/12/18 does not work, to delete'''
     def __init__(self, in_channels=4):
         super(Mod3LNatureConvBody_directTH, self).__init__()
         self.feature_dim = 512
