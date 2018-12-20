@@ -140,7 +140,7 @@ def mod_dqn_pixel_atari_3l_new(name):
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
                                         log_dir=config.log_dir)
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.0025, alpha=0.99, eps=0.001)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
     config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_new())
