@@ -374,7 +374,7 @@ class Mod3LNatureConvBody_direct_new(nn.Module):
 
         y1 = F.relu(self.conv2(y))
         ym1 = self.conv2_mem_features(F.relu(ym0))
-        self.y_mod1 = 2 * torch.sigmoid(ym1))
+        self.y_mod1 = 2 * torch.sigmoid(ym1)
         y = y1 * self.y_mod1
 
         y2 = F.relu(self.conv3(y))
