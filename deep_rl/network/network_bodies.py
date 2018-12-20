@@ -368,58 +368,23 @@ class Mod3LNatureConvBody_direct_new(nn.Module):
 
     def forward(self, x, x_mem):
         y0 = F.relu(self.conv1(x))
-        self.y_mod0 = 2 * torch.sigmoid(self.conv1_mem_features(x_mem))
-        #y_mod0 = 4 * torch.sigmoid(y_mem0)
+        ym0 = self.conv1_mem_features(x_mem)
+        self.y_mod0 = 2 * torch.sigmoid(ym0)
         y = y0 * self.y_mod0
 
         y1 = F.relu(self.conv2(y))
-        self.y_mod1 = 2 * torch.sigmoid(self.conv2_mem_features(self.y_mod0 - 1))
-#        y_mod1 = 4 * torch.sigmoid(y_mem1)
+        ym1 = self.conv2_mem_features(F.relu(ym0))
+        self.y_mod1 = 2 * torch.sigmoid(ym1))
         y = y1 * self.y_mod1
 
         y2 = F.relu(self.conv3(y))
-        self.y_mod2 = 2 * torch.sigmoid(self.conv3_mem_features(self.y_mod1 - 1))
-        #y_mod2 = 4 * torch.sigmoid(y_mem2)
+        ym2 = self.conv3_mem_features(F.relu(ym1))
+        self.y_mod2 = 2 * torch.sigmoid(ym2)
         y = y2 * self.y_mod2
 
         y = y.view(y.size(0), -1)
         y = F.relu(self.fc4(y))
         return y
-
-class Mod3LNatureConvBody_direct_2Sig_control(nn.Module):
-    ''' direct modulation going through a sigmoid * 2 so that the modulation can change plasticity in the rage [0,2]'''
-    def __init__(self, in_channels=4):
-        super(Mod3LNatureConvBody_direct_2Sig_control, self).__init__()
-        self.feature_dim = 512
-        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
-        self.conv1_mem_features = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
-        self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
-        self.conv2_mem_features = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
-        self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
-        self.conv3_mem_features = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
-
-        self.fc4 = layer_init(nn.Linear(7 * 7 * 64, self.feature_dim))
-
-    def forward(self, x, x_mem):
-        y0 = F.relu(self.conv1(x))
-        y_mem0 = F.relu(self.conv1_mem_features(x_mem))
-        y_mod0 = 2 * torch.sigmoid(y_mem0)
-        y = y0 * y_mod0
-
-        y1 = F.relu(self.conv2(y))
-        y_mem1 = F.relu(self.conv2_mem_features(y_mem0))
-        y_mod1 = 2 * torch.sigmoid(y_mem1)
-        y = y1 * y_mod1
-
-        y2 = F.relu(self.conv3(y))
-        y_mem2 = F.relu(self.conv3_mem_features(y_mem1))
-        y_mod2 = 2 * torch.sigmoid(y_mem2)
-        y = y2 * y_mod2
-
-        y = y.view(y.size(0), -1)
-        y = F.relu(self.fc4(y))
-        return y
-
 
 class Mod3LNatureConvBody_directTH(nn.Module):
     '''direct neuromodulation with tanh so that plasticity is modulated in the range [-1,1].
