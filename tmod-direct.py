@@ -127,20 +127,21 @@ def mod_dqn_pixel_atari_3l_4sig(name):
     config.double_q = False
     run_episodes(L2MAgentYang(config))
 
-def mod_dqn_pixel_atari_3l_new(name):
+def mod_dqn_pixel_atari_3l_relu_shift1(name):
+    '''increased learning rate by 10 times, increased alpha, decreased eps'''
     config = Config()
     config.seed = 1
-    config.expType = "dqn_pa_" + name
-    config.expID = "newSeparateRELUsig"
+    config.expType = "dqn_pixel_atari"
+    config.expID = "RELUplus1"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
     config.episode_limit = 100000
-    config.save_interval = 20
+    config.save_interval = 50
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
                                         log_dir=config.log_dir)
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.0025, alpha=0.99, eps=0.001)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
     config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_new())
@@ -309,7 +310,7 @@ if __name__ == '__main__':
 
 #    mod_dqn_pixel_atari_3l_2sig('BreakoutNoFrameskip-v4')
 #    mod_dqn_pixel_atari_3l_4sig('BreakoutNoFrameskip-v4')
-    mod_dqn_pixel_atari_3l_new('BreakoutNoFrameskip-v4')
+    mod_dqn_pixel_atari_3l_relu_shift1('BreakoutNoFrameskip-v4')
 
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
 

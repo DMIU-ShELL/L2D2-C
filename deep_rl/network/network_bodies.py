@@ -67,7 +67,7 @@ class Mod1LNatureConvBody_direct(nn.Module):
         return y
 
 class Mod1LNatureConvBody_diff(nn.Module):
-    '''1 layer modulation, simple RELU'''
+    '''1 layer modulation, simple RELU: I doubt this can work because RELU will output close to 0 for 0 input, which reduces the gain of the network'''
     def __init__(self, in_channels=4):
         super(Mod1LNatureConvBody_diff, self).__init__()
         self.feature_dim = 512
@@ -144,6 +144,45 @@ class Mod2LNatureConvBody_diff_sig(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
+class Mod3LNatureConvBody_diff_sig(nn.Module):
+    '''3 layer modulation with mod computed with difference of the conv layers. 2*sigmoid at the end.'''
+    def __init__(self, in_channels=4):
+        super(Mod3LNatureConvBody_diff_sig, self).__init__()
+        self.feature_dim = 512
+        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
+        self.conv1_nm_fea = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
+        self.conv1_nm_comb = layer_init(nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1))
+        self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
+        self.conv2_nm_fea = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
+        self.conv2_nm_comb = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1))
+        self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
+        self.conv3_nm_fea = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
+        self.conv3_nm_comb = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1))
+        self.fc4 = layer_init(nn.Linear(7 * 7 * 64, self.feature_dim))
+
+    def forward(self, x, x_nm):
+        y0 = F.relu(self.conv1(x))
+        y_nm0 = F.relu(self.conv1_nm_fea(x_nm))
+        y_nm = y0 - y_nm0
+        y_nm = 2*torch.sigmoid(self.conv1_nm_comb(y_nm))
+        y = y0*y_nm
+
+        y0 = F.relu(self.conv2(y))
+        y_nm0 = F.relu(self.conv2_nm_fea(y_nm0))
+        y_nm = y0 - y_nm0
+        y_nm = 2*torch.sigmoid(self.conv2_nm_comb(y_nm))
+        y = y0*y_nm
+
+        y0 = F.relu(self.conv3(y))
+        y_nm0 = F.relu(self.conv3_nm_fea(y_nm0))
+        y_nm = y0 - y_nm0
+        y_nm = 2*torch.sigmoid(self.conv3_nm_comb(y_nm))
+        y = y0*y_nm
+
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc4(y))
+        return y
+
 class Mod2LNatureConvBody_direct_sig(nn.Module):
     '''2-layer modulated (AS), memory modulates directly layer 1 and 2 without computing the difference. TODO: this network should be 0.5 + 0.5*sigmoid, and not 1+ 0.5 sigmoid
 '''
@@ -174,40 +213,6 @@ class Mod2LNatureConvBody_direct_sig(nn.Module):
         y = y.view(y.size(0), -1)
         y = F.relu(self.fc4(y))
         return y
-
-#class Mod3LNatureConvBody_direct(nn.Module):
-#    '''This network should also be 0.5+0.5sigmoid, otherwise we have a higher learning rate '''
-#    def __init__(self, in_channels=4):
-#        super(Mod3LNatureConvBody_direct, self).__init__()
-#        self.feature_dim = 512
-#        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
-#        self.conv1_mem_features = layer_init(nn.Conv2d(in_channels, 32, #kernel_size=8, stride=4))
-#        self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))#
-#        self.conv2_mem_features = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
-#        self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
-#        self.conv3_mem_features = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
-
-#        self.fc4 = layer_init(nn.Linear(7 * 7 * 64, self.feature_dim))
-
-#    def forward(self, x, x_mem):
-#        y0 = F.relu(self.conv1(x))
-#        y_mem0 = F.relu(self.conv1_mem_features(x_mem))
-#        y_mod0 = 1 + 0.5 * torch.sigmoid(y_mem0)
-#        y = y0 * y_mod0
-
-#        y1 = F.relu(self.conv2(y))
-#        y_mem1 = F.relu(self.conv2_mem_features(y_mem0))
-#        y_mod1 = 1 + 0.5 * torch.sigmoid(y_mem1)
-#        y = y1 * y_mod1
-
-#        y2 = F.relu(self.conv3(y))
-#        y_mem2 = F.relu(self.conv3_mem_features(y_mem1))
-#        y_mod2 = 1 + 0.5 * torch.sigmoid(y_mem2)
-#        y = y2 * y_mod2
-#
-#        y = y.view(y.size(0), -1)
-#        y = F.relu(self.fc4(y))
-#        return y
 
 class Mod3LNatureConvBody_direct_fix(nn.Module):
     '''Correction to the Mod3L direct: changing 1+ 0.5sig to 0.5 + 0.5sig
@@ -312,10 +317,10 @@ class Mod3LNatureConvBody_direct_4Sig(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
-class Mod3LNatureConvBody_direct_relu(nn.Module):
-    ''' direct modulation going through a relu'''
+class Mod3LNatureConvBody_direct_relu_shift1(nn.Module):
+    ''' direct modulation going through a relu with input shifted so that an input of 0 results in an output of 1'''
     def __init__(self, in_channels=4):
-        super(Mod3LNatureConvBody_direct_relu, self).__init__()
+        super(Mod3LNatureConvBody_direct_relu_shift1, self).__init__()
         self.feature_dim = 512
         self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
         self.conv1_mem_features = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
@@ -331,18 +336,15 @@ class Mod3LNatureConvBody_direct_relu(nn.Module):
 
     def forward(self, x, x_mem):
         y0 = F.relu(self.conv1(x))
-        self.y_mod0 = F.relu(self.conv1_mem_features(x_mem))
-        #y_mod0 = 4 * torch.sigmoid(y_mem0)
+        self.y_mod0 = F.relu(self.conv1_mem_features(x_mem + 1))
         y = y0 * self.y_mod0
 
         y1 = F.relu(self.conv2(y))
-        self.y_mod1 = F.relu(self.conv2_mem_features(self.y_mod0))
-#        y_mod1 = 4 * torch.sigmoid(y_mem1)
+        self.y_mod1 = F.relu(self.conv2_mem_features(self.y_mod0 + 1))
         y = y1 * self.y_mod1
 
         y2 = F.relu(self.conv3(y))
-        self.y_mod2 = F.relu(self.conv3_mem_features(self.y_mod1))
-        #y_mod2 = 4 * torch.sigmoid(y_mem2)
+        self.y_mod2 = F.relu(self.conv3_mem_features(self.y_mod1 + 1))
         y = y2 * self.y_mod2
 
         y = y.view(y.size(0), -1)
@@ -386,80 +388,6 @@ class Mod3LNatureConvBody_direct_new(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
-class Mod3LNatureConvBody_directTH(nn.Module):
-    '''direct neuromodulation with tanh so that plasticity is modulated in the range [-1,1].
-    19/12/18 does not work, to delete'''
-    def __init__(self, in_channels=4):
-        super(Mod3LNatureConvBody_directTH, self).__init__()
-        self.feature_dim = 512
-        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
-        self.conv1_mem_features = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
-        self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
-        self.conv2_mem_features = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
-        self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
-        self.conv3_mem_features = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
-
-        self.fc4 = layer_init(nn.Linear(7 * 7 * 64, self.feature_dim))
-
-    def forward(self, x, x_mem):
-        y0 = F.relu(self.conv1(x))
-        y_mem0 = F.relu(self.conv1_mem_features(x_mem))
-        y_mod0 = torch.tanh(y_mem0)
-        y = y0 * y_mod0
-
-        y1 = F.relu(self.conv2(y))
-        y_mem1 = F.relu(self.conv2_mem_features(y_mem0))
-        y_mod1 = torch.tanh(y_mem1)
-        y = y1 * y_mod1
-
-        y2 = F.relu(self.conv3(y))
-        y_mem2 = F.relu(self.conv3_mem_features(y_mem1))
-        y_mod2 = torch.tanh(y_mem2)
-        y = y2 * y_mod2
-
-        y = y.view(y.size(0), -1)
-        y = F.relu(self.fc4(y))
-        return y
-
-class Mod3LNatureConvBody_diff_sig(nn.Module):
-    '''3 layer modulation with mod computed with difference of the conv layers. 2*sigmoid at the end.'''
-    def __init__(self, in_channels=4):
-        super(Mod3LNatureConvBody_diff_sig, self).__init__()
-        self.feature_dim = 512
-        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
-        self.conv1_nm_fea = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
-        self.conv1_nm_comb = layer_init(nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1))
-        self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
-        self.conv2_nm_fea = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
-        self.conv2_nm_comb = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1))
-        self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
-        self.conv3_nm_fea = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
-        self.conv3_nm_comb = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1))
-        self.fc4 = layer_init(nn.Linear(7 * 7 * 64, self.feature_dim))
-
-    def forward(self, x, x_nm):
-        y0 = F.relu(self.conv1(x))
-        y_nm0 = F.relu(self.conv1_nm_fea(x_nm))
-        y_nm = y0 - y_nm0
-        y_nm = 2*torch.sigmoid(self.conv1_nm_comb(y_nm))
-        y = y0*y_nm
-
-        y0 = F.relu(self.conv2(y))
-        y_nm0 = F.relu(self.conv2_nm_fea(y_nm0))
-        y_nm = y0 - y_nm0
-        y_nm = 2*torch.sigmoid(self.conv2_nm_comb(y_nm))
-        y = y0*y_nm
-
-        y0 = F.relu(self.conv3(y))
-        y_nm0 = F.relu(self.conv3_nm_fea(y_nm0))
-        y_nm = y0 - y_nm0
-        y_nm = 2*torch.sigmoid(self.conv3_nm_comb(y_nm))
-        y = y0*y_nm
-
-        y = y.view(y.size(0), -1)
-        y = F.relu(self.fc4(y))
-        return y
-
 class ModNatureConvBody_Prediction(nn.Module):
     '''Working progress to get the latent space prediction (AS)'''
     def __init__(self, in_channels=4):
@@ -477,7 +405,6 @@ class ModNatureConvBody_Prediction(nn.Module):
         y = y.view(y.size(0), -1)
         y = F.relu(self.fc4(y))
         return y
- #3-layer modulated by AS, memory modulates directly layer 1 and 2 without computing the difference. The sigmoid is reduced in intensity
 
 class DDPGConvBody(nn.Module):
     def __init__(self, in_channels=4):
@@ -538,3 +465,38 @@ class DummyBody(nn.Module):
 
     def forward(self, x):
         return x
+
+class Mod3LNatureConvBody_directTH(nn.Module):
+    '''direct neuromodulation with tanh so that plasticity is modulated in the range [-1,1].
+    19/12/18 does not work, to delete'''
+    def __init__(self, in_channels=4):
+        super(Mod3LNatureConvBody_directTH, self).__init__()
+        self.feature_dim = 512
+        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
+        self.conv1_mem_features = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
+        self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
+        self.conv2_mem_features = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
+        self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
+        self.conv3_mem_features = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
+
+        self.fc4 = layer_init(nn.Linear(7 * 7 * 64, self.feature_dim))
+
+    def forward(self, x, x_mem):
+        y0 = F.relu(self.conv1(x))
+        y_mem0 = F.relu(self.conv1_mem_features(x_mem))
+        y_mod0 = torch.tanh(y_mem0)
+        y = y0 * y_mod0
+
+        y1 = F.relu(self.conv2(y))
+        y_mem1 = F.relu(self.conv2_mem_features(y_mem0))
+        y_mod1 = torch.tanh(y_mem1)
+        y = y1 * y_mod1
+
+        y2 = F.relu(self.conv3(y))
+        y_mem2 = F.relu(self.conv3_mem_features(y_mem1))
+        y_mod2 = torch.tanh(y_mem2)
+        y = y2 * y_mod2
+
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc4(y))
+        return y
