@@ -36,29 +36,52 @@ def run_episodes(agent):
             ep, reward, avg_reward, agent.total_steps, step))
         #L2M changes:
         config.logger.scalar_summary('reward', reward)
-#        print(agent.network.body.y_mod1)
-#        print(torch.mean(agent.network.body.y_mod1))
-#        print(torch.std(agent.network.body.y_mod1))
-#        input()
         if config.save_interval and ep % config.save_interval == 0:
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
                     agent_type, config.tag, agent.task.name), 'wb') as f:
                 pickle.dump([steps, rewards], f)
             agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, agent.task.name))
-        #    for tag, value in agent.network.named_parameters():
-        #                tag = tag.replace('.', '/')
-        #                config.logger.histo_summary(tag, value.data.cpu().numpy())
+            for tag, value in agent.network.named_parameters():
+                tag = tag.replace('.', '/')
+                config.logger.histo_summary(tag, value.data.cpu().numpy())
+            if config.log_modulation:
+                mod_avg = torch.mean(agent.network.body.y_mod0) + torch.mean(agent.network.body.y_mod1) + torch.mean(agent.network.body.y_mod2)
+                mod_std = torch.std(agent.network.body.y_mod0) + torch.std(agent.network.body.y_mod1) + torch.std(agent.network.body.y_mod2)
+                mod_max_l1 = torch.max(agent.network.body.y_mod1)
+                mod_min_l1 = torch.min(agent.network.body.y_mod1)
+                config.logger.scalar_summary('z_mod avg', mod_avg/3)
+                config.logger.scalar_summary('z_mod std', mod_std/3)
+                config.logger.scalar_summary('z_mod min l1', mod_min_l1)
+                config.logger.scalar_summary('z_mod max l1', mod_max_l1)
+        #    conv1MW = agent.network.body.conv1_mem_features.weight
+        #    print('type: ',type(conv1MW))
+        #    print('dir: ', dir(conv1MW))
+        #    print('shape: ', conv1MW.shape)
+        #    print('shape a', conv1MW[0,0].shape)
 
-            mod_avg = torch.mean(agent.network.body.y_mod0) + torch.mean(agent.network.body.y_mod1) + torch.mean(agent.network.body.y_mod2)
-            mod_std = torch.std(agent.network.body.y_mod0) + torch.std(agent.network.body.y_mod1) + torch.std(agent.network.body.y_mod2)
-            mod_max_l1 = torch.max(agent.network.body.y_mod1)
-            mod_min_l1 = torch.min(agent.network.body.y_mod1)
-            config.logger.scalar_summary('z_mod avg', mod_avg/3)
-            config.logger.scalar_summary('z_mod std', mod_std/3)
-            config.logger.scalar_summary('z_mod min l1', mod_min_l1)
-            config.logger.scalar_summary('z_mod max l1', mod_max_l1)
+            #print(agent.network.body.conv1_mem_features.weight)
+        #    print('agent.network.body.conv1_mem_features.weight.mean():',conv1MW.mean())
+                    # 3. Log training images (image summary)
+#            info = { 'images': data.view(-1, 12, 12)[0:32].cpu().numpy()}
 
+#            for tag, images in info.items():
+#                logger.image_summary(tag, images, logger.step+1)
 
+        #    import matplotlib.pyplot as plt
+        #    fig, axs = plt.subplots(nrows=5, ncols=5, figsize=(12.3, 9),
+        #                        subplot_kw={'xticks': [], 'yticks': []})
+
+        #    fig.subplots_adjust(left=0.03, right=0.97, hspace=0.3, wspace=0.05)
+        #    numbers = np.arange(25)
+        #    for ax, image_nr in zip(axs.flat, numbers):
+                # this line shows the standard set
+    #            ax.imshow(imageDataset.getNoisyImage(image_nr))
+                # this line shows the permuted set
+        #        ax.imshow(conv1MW[image_nr,0].detach().numpy())
+    #        plt.tight_layout()
+        #    plt.show()
+        #    input()
+    #        exit()
 
         if config.episode_limit and ep > config.episode_limit:
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (

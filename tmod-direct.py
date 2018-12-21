@@ -76,6 +76,8 @@ def mod_dqn_pixel_atari_3l_2sig(name):
     #config.max_steps = 5 * 1000000
     config.episode_limit = 100000
     config.save_interval = 1000
+    config.log_modulation = 1
+
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -106,6 +108,8 @@ def mod_dqn_pixel_atari_3l_4sig(name):
     #config.max_steps = 5 * 1000000
     config.episode_limit = 100000
     config.save_interval = 20
+    config.log_modulation = 1
+
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -131,12 +135,13 @@ def mod_dqn_pixel_atari_3l_relu_shift1(name):
     '''increased learning rate by 10 times, increased alpha, decreased eps'''
     config = Config()
     config.seed = 1
-    config.expType = "dqn_pa" + names
+    config.expType = "dqn_pa" + name
     config.expID = "RELUplus1"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
     config.episode_limit = 100000
     config.save_interval = 50
+    config.log_modulation = 1
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -168,6 +173,7 @@ def mod_dqn_pixel_atari_3l_diff(name):
 #    config.max_steps = 5 * 1000000
     config.episode_limit = 100000
     config.save_interval = 1000
+    config.log_modulation = 1
 
 
     config.history_length = 4
