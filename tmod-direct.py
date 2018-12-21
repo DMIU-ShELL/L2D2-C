@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Pdf")
 from deep_rl import *
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 def dqn_pixel_atari(name):
     config = Config()
@@ -131,7 +131,7 @@ def mod_dqn_pixel_atari_3l_relu_shift1(name):
     '''increased learning rate by 10 times, increased alpha, decreased eps'''
     config = Config()
     config.seed = 1
-    config.expType = "dqn_pixel_atari"
+    config.expType = "dqn_pa" + names
     config.expID = "RELUplus1"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
