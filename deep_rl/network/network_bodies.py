@@ -370,15 +370,15 @@ class Mod3LNatureConvBody_direct_relu6_shift05p05(nn.Module):
 
     def forward(self, x, x_mem):
         y0 = F.relu(self.conv1(x))
-        self.y_mod0 = 0.5 + F.relu(self.conv1_mem_features(x_mem) + 0.5)
+        self.y_mod0 = 0.5 + F.relu6(self.conv1_mem_features(x_mem) + 0.5)
         y = y0 * self.y_mod0
 
         y1 = F.relu(self.conv2(y))
-        self.y_mod1 = 0.5 + F.relu(self.conv2_mem_features(self.y_mod0) + 0.5)
+        self.y_mod1 = 0.5 + F.relu6(self.conv2_mem_features(self.y_mod0) + 0.5)
         y = y1 * self.y_mod1
 
         y2 = F.relu(self.conv3(y))
-        self.y_mod2 = 0.5 + F.relu(self.conv3_mem_features(self.y_mod1) + 0.5)
+        self.y_mod2 = 0.5 + F.relu6(self.conv3_mem_features(self.y_mod1) + 0.5)
         y = y2 * self.y_mod2
 
         y = y.view(y.size(0), -1)
@@ -404,15 +404,15 @@ class Mod3LNatureConvBody_direct_relu_shift05p05(nn.Module):
 
     def forward(self, x, x_mem):
         y0 = F.relu(self.conv1(x))
-        self.y_mod0 = 0.5 + F.relu6(self.conv1_mem_features(x_mem) + 0.5)
+        self.y_mod0 = 0.5 + F.relu(self.conv1_mem_features(x_mem) + 0.5)
         y = y0 * self.y_mod0
 
         y1 = F.relu(self.conv2(y))
-        self.y_mod1 = 0.5 + F.relu6(self.conv2_mem_features(self.y_mod0) + 0.5)
+        self.y_mod1 = 0.5 + F.relu(self.conv2_mem_features(self.y_mod0) + 0.5)
         y = y1 * self.y_mod1
 
         y2 = F.relu(self.conv3(y))
-        self.y_mod2 = 0.5 + F.relu6(self.conv3_mem_features(self.y_mod1) + 0.5)
+        self.y_mod2 = 0.5 + F.relu(self.conv3_mem_features(self.y_mod1) + 0.5)
         y = y2 * self.y_mod2
 
         y = y.view(y.size(0), -1)
