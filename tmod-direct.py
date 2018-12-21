@@ -168,7 +168,7 @@ def mod_dqn_pixel_atari_3l_relu6_shift05p05(name):
     config = Config()
     config.seed = 1
     config.expType = "dqn_pa_" + name
-    config.expID = "RELUplus1"
+    config.expID = "RELU-SH1P05"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
     config.episode_limit = 100000
