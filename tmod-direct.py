@@ -135,7 +135,7 @@ def mod_dqn_pixel_atari_3l_relu_shift1(name):
     '''increased learning rate by 10 times, increased alpha, decreased eps'''
     config = Config()
     config.seed = 1
-    config.expType = "dqn_pa" + name
+    config.expType = "dqn_pa_" + name
     config.expID = "RELUplus1"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
