@@ -72,3 +72,29 @@ class Logger(object):
         if step is None:
             step = self.get_step(tag)
         self.writer.add_histogram(tag, values, step, bins=1000)
+
+    def image_summary(self, tag, images, step=None):
+        """Log a list of images."""
+        if step is None:
+            step = self.get_step(tag)
+        self.writer.add_image(tag, images, step)
+        #img_summaries = []
+    #    for i, img in enumerate(images):
+            # Write the image to a string
+    ##        try:
+    #            s = StringIO()
+    #        except:
+    #            s = BytesIO()
+    #        scipy.misc.toimage(img).save(s, format="png")
+
+            # Create an Image object
+    #        img_sum = tf.Summary.Image(encoded_image_string=s.getvalue(),
+    #                                   height=img.shape[0],
+    #                                   width=img.shape[1])
+    #        self.writer.add_image(tag, images)
+            # Create a Summary value
+        #    img_summaries.append(tf.Summary.Value(tag='%s/%d' % (tag, i), image=img_sum))
+
+        # Create and write Summary
+        #summary = tf.Summary(value=img_summaries)
+        #self.writer.add_image(summary, step)

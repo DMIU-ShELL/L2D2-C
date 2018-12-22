@@ -259,7 +259,6 @@ def mod_dqn_pixel_atari_3l_relu_shift05p05(name):
     config.double_q = False
     run_episodes(L2MAgentYang(config))
 
-
 def mod_dqn_pixel_atari_3l_diff(name):
     config = Config()
     config.seed = 1
@@ -415,6 +414,7 @@ if __name__ == '__main__':
 #    mod_dqn_pixel_atari_3l_relu_shift1('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l_relu6_shift05p05('BreakoutNoFrameskip-v4')
     mod_dqn_pixel_atari_3l_diff_relu6_shift05p05('BreakoutNoFrameskip-v4')
+
 #    mod_dqn_pixel_atari_3l_relu_shift05p05('BreakoutNoFrameskip-v4')
 
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')

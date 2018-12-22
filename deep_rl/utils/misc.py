@@ -10,6 +10,10 @@ import os
 import datetime
 import torch
 from .torch_utils import *
+#from io import BytesIO
+#import scipy.misc
+#import torchvision
+
 try:
     # python >= 3.5
     from pathlib import Path
@@ -53,35 +57,35 @@ def run_episodes(agent):
                 config.logger.scalar_summary('z_mod std', mod_std/3)
                 config.logger.scalar_summary('z_mod min l1', mod_min_l1)
                 config.logger.scalar_summary('z_mod max l1', mod_max_l1)
-        #    conv1MW = agent.network.body.conv1_mem_features.weight
-        #    print('type: ',type(conv1MW))
-        #    print('dir: ', dir(conv1MW))
-        #    print('shape: ', conv1MW.shape)
-        #    print('shape a', conv1MW[0,0].shape)
 
-            #print(agent.network.body.conv1_mem_features.weight)
-        #    print('agent.network.body.conv1_mem_features.weight.mean():',conv1MW.mean())
+                conv1MW = agent.network.body.conv1_mem_features.weight
+            #    print('type: ',type(conv1MW))
+            #    print('dir: ', dir(conv1MW))
+            #    print('shape: ', conv1MW.shape)
+            #    print('shape a', conv1MW[0,0].shape)
+
+                #print(agent.network.body.conv1_mem_features.weight)
+            #    print('agent.network.body.conv1_mem_features.weight.mean():',conv1MW.mean())
                     # 3. Log training images (image summary)
-#            info = { 'images': data.view(-1, 12, 12)[0:32].cpu().numpy()}
+#                info = { 'images': agent.network.body.conv1_mem_features.weight[0:32,0].detach().numpy()}
+            #    batch_tensor = conv1MW[0:10,0]
+            #    grid_img = torchvision.utils.make_grid(batch_tensor, nrow=5)
+                for i in range(5):
+                    config.logger.image_summary('conv1_sample' + str(i), conv1MW[i,0])
 
-#            for tag, images in info.items():
-#                logger.image_summary(tag, images, logger.step+1)
+    #            import matplotlib.pyplot as plt
+    #            fig, axs = plt.subplots(nrows=5, ncols=5, figsize=(12.3, 9),
+    #                            subplot_kw={'xticks': [], 'yticks': []})
 
-        #    import matplotlib.pyplot as plt
-        #    fig, axs = plt.subplots(nrows=5, ncols=5, figsize=(12.3, 9),
-        #                        subplot_kw={'xticks': [], 'yticks': []})
-
-        #    fig.subplots_adjust(left=0.03, right=0.97, hspace=0.3, wspace=0.05)
-        #    numbers = np.arange(25)
-        #    for ax, image_nr in zip(axs.flat, numbers):
+    #            fig.subplots_adjust(left=0.03, right=0.97, hspace=0.3, wspace=0.05)
+    #            numbers = np.arange(25)
+    #            for ax, image_nr in zip(axs.flat, numbers):
                 # this line shows the standard set
     #            ax.imshow(imageDataset.getNoisyImage(image_nr))
-                # this line shows the permuted set
-        #        ax.imshow(conv1MW[image_nr,0].detach().numpy())
-    #        plt.tight_layout()
-        #    plt.show()
-        #    input()
-    #        exit()
+    #                ax.imshow(conv1MW[image_nr,0].detach().numpy())
+    #            plt.tight_layout()
+    #            plt.show()
+    #            input()
 
         if config.episode_limit and ep > config.episode_limit:
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
