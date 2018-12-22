@@ -4,10 +4,10 @@
 # declaration at the top                                              #
 #######################################################################
 
-'''direct neuromodulation to the first two conv layers'''
+'''Variations with neuromodulation implemented at Loughborough University.'''
 
 import matplotlib
-matplotlib.use("Pdf")
+#matplotlib.use("Pdf")
 from deep_rl import *
 import os
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
@@ -182,6 +182,38 @@ def mod_dqn_pixel_atari_3l_relu6_shift05p05(name):
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
     config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_relu6_shift05p05())
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps= 50000
+    config.logger = get_logger(log_dir=config.log_dir)
+
+    # config.double_q = True
+    config.double_q = False
+    run_episodes(L2MAgentYang(config))
+
+def mod_dqn_pixel_atari_3l_diff_relu6_shift05p05(name):
+    '''computing differential. relu 6 but with a min of 0.5, and a shift of 0.5 plus 0.5 to have avg 1 but lower bond 0.5 instead of 0'''
+    config = Config()
+    config.seed = 1
+    config.expType = "dqn_pa_" + name
+    config.expID = "diff-relu6-s05p05"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+    #config.max_steps = 5 * 1000000
+    config.episode_limit = 100000
+    config.save_interval = 100
+    config.log_modulation = 1
+
+    config.history_length = 4
+    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
+                                        log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
+    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
+    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, diff_relu6_shift05p05())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -381,8 +413,9 @@ if __name__ == '__main__':
 #    mod_dqn_pixel_atari_3l_2sig('BreakoutNoFrameskip-v4')
 #    mod_dqn_pixel_atari_3l_4sig('BreakoutNoFrameskip-v4')
 #    mod_dqn_pixel_atari_3l_relu_shift1('BreakoutNoFrameskip-v4')
-#    mod_dqn_pixel_atari_3l_relu6_shift05p05('BreakoutNoFrameskip-v4')
-    mod_dqn_pixel_atari_3l_relu_shift05p05('BreakoutNoFrameskip-v4')
+    #mod_dqn_pixel_atari_3l_relu6_shift05p05('BreakoutNoFrameskip-v4')
+    mod_dqn_pixel_atari_3l_diff_relu6_shift05p05('BreakoutNoFrameskip-v4')
+#    mod_dqn_pixel_atari_3l_relu_shift05p05('BreakoutNoFrameskip-v4')
 
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
 

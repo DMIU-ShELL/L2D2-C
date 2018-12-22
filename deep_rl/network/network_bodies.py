@@ -385,6 +385,71 @@ class Mod3LNatureConvBody_direct_relu6_shift05p05(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
+class diff_relu6_shift05p05(nn.Module):
+    ''' differetial modulation going through a relu with input shifted so that an input of 0 results in an output of 1 but min mod 0.5, normal relu'''
+    def __init__(self, in_channels=4):
+        super(diff_relu6_shift05p05, self).__init__()
+        self.feature_dim = 512
+        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
+        self.conv1_mem_features = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
+        self.conv1_comb = layer_init(nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1))
+        self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
+        self.conv2_mem_features = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
+        self.conv2_comb = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1))
+        self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
+        self.conv3_mem_features = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
+        self.conv3_comb = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1))
+
+        self.fc4 = layer_init(nn.Linear(7 * 7 * 64, self.feature_dim))
+        self.y_mod0 = []
+        self.y_mod1 = []
+        self.y_mod2 = []
+
+    def forward(self, x, x_mem):
+        y0 = F.relu(self.conv1(x))
+        yf0 = F.relu(self.conv1_mem_features(x_mem))
+        y0diff = y0 - yf0
+
+        self.y_mod0 = 0.5 + F.relu6(self.conv1_comb(y0diff) + 0.5)
+        y = y0 * self.y_mod0
+
+        y1 = F.relu(self.conv2(y))
+        yf1 = F.relu(self.conv2_mem_features(yf0))
+        y1diff = y1 - yf1
+        self.y_mod1 = 0.5 + F.relu6(self.conv2_comb(y1diff) + 0.5)
+        y = y1 * self.y_mod1
+
+        y2 = F.relu(self.conv3(y))
+        yf2 = F.relu(self.conv3_mem_features(yf1))
+
+        self.y_mod2 = 0.5 + F.relu6(self.conv3_comb(yf2) + 0.5)
+        y = y2 * self.y_mod2
+
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc4(y))
+        return y
+
+        y0 = F.relu(self.conv1(x))
+        y_nm0 = F.relu(self.conv1_nm_fea(x_nm))
+        y_nm = y0 - y_nm0
+        y_nm = 2*torch.sigmoid(self.conv1_nm_comb(y_nm))
+        y = y0*y_nm
+
+        y0 = F.relu(self.conv2(y))
+        y_nm0 = F.relu(self.conv2_nm_fea(y_nm0))
+        y_nm = y0 - y_nm0
+        y_nm = 2*torch.sigmoid(self.conv2_nm_comb(y_nm))
+        y = y0*y_nm
+
+        y0 = F.relu(self.conv3(y))
+        y_nm0 = F.relu(self.conv3_nm_fea(y_nm0))
+        y_nm = y0 - y_nm0
+        y_nm = 2*torch.sigmoid(self.conv3_nm_comb(y_nm))
+        y = y0*y_nm
+
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc4(y))
+
 class Mod3LNatureConvBody_direct_relu_shift05p05(nn.Module):
     ''' direct modulation going through a relu with input shifted so that an input of 0 results in an output of 1'''
     def __init__(self, in_channels=4):
