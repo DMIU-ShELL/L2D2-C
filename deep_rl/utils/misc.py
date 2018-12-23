@@ -124,15 +124,33 @@ def run_iterations(agent):
             config.logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
             config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
             config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
-            for tag, value in agent.network.named_parameters():
-                tag = tag.replace('.', '/')
-                config.logger.histo_summary(tag, value.data.cpu().numpy())
 
-        if iteration % (config.iteration_log_interval * 100) == 0:
+        if iteration % (config.iteration_log_interval * 20) == 0:
+
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (agent_name, config.tag, agent.task.name), 'wb') as f:
                 pickle.dump({'rewards': rewards,
                              'steps': steps}, f)
             agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, agent.task.name))
+            for tag, value in agent.network.named_parameters():
+                tag = tag.replace('.', '/')
+                config.logger.histo_summary(tag, value.data.cpu().numpy())
+            if config.log_modulation:
+#                print(dir(agent.network.network))
+#                   input()
+                mod_avg = torch.mean(agent.network.network.phi_body.y_mod0) + torch.mean(agent.network.network.phi_body.y_mod1) + torch.mean(agent.network.network.phi_body.y_mod2)
+                mod_std = torch.std(agent.network.network.phi_body.y_mod0) + torch.std(agent.network.network.phi_body.y_mod1) + torch.std(agent.network.network.phi_body.y_mod2)
+                mod_max_l1 = torch.max(agent.network.network.phi_body.y_mod1)
+                mod_min_l1 = torch.min(agent.network.network.phi_body.y_mod1)
+                config.logger.scalar_summary('z_mod avg', mod_avg/3)
+                config.logger.scalar_summary('z_mod std', mod_std/3)
+                config.logger.scalar_summary('z_mod min l1', mod_min_l1)
+                config.logger.scalar_summary('z_mod max l1', mod_max_l1)
+
+                conv1MW = agent.network.network.phi_body.conv1_mem_features.weight
+                for i in range(10):
+                    config.logger.image_summary('conv1_sample' + str(i), conv1MW[i,0])
+
+
         iteration += 1
         if config.max_steps and agent.total_steps >= config.max_steps:
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
