@@ -372,7 +372,7 @@ def ppo_pa_mod(name):
     config.expID = "mrelu6s05p05"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     config.max_steps = 30 * 1000000
-
+    config.log_modulation = 1
 
     config.history_length = 4
     task_fn = lambda log_dir: PixelAtari(name, seed=config.seed, frame_skip=4, history_length=config.history_length, log_dir=config.log_dir)
@@ -413,7 +413,7 @@ if __name__ == '__main__':
 #    mod_dqn_pixel_atari_3l_4sig('BreakoutNoFrameskip-v4')
 #    mod_dqn_pixel_atari_3l_relu_shift1('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l_relu6_shift05p05('BreakoutNoFrameskip-v4')
-    mod_dqn_pixel_atari_3l_diff_relu6_shift05p05('BreakoutNoFrameskip-v4')
+    #mod_dqn_pixel_atari_3l_diff_relu6_shift05p05('BreakoutNoFrameskip-v4')
 
 #    mod_dqn_pixel_atari_3l_relu_shift05p05('BreakoutNoFrameskip-v4')
 
@@ -421,6 +421,6 @@ if __name__ == '__main__':
 
     #quantile_regression_dqn_pixel_atari('BreakoutNoFrameskip-v4')
     #ppo_pixel_atari('BreakoutNoFrameskip-v4')
-    #ppo_pa_mod('BreakoutNoFrameskip-v4')
+    ppo_pa_mod('BreakoutNoFrameskip-v4')
 
 #    plot()
