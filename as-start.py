@@ -66,7 +66,7 @@ def mod_dqn_pixel_atari_2l(name):
     # config.double_q = True
     config.double_q = False
     run_episodes(L2MAgentYang(config))
-# L2M
+
 def mod_dqn_pixel_atari_3l_2sig(name):
     config = Config()
     config.seed = 1
@@ -369,7 +369,7 @@ def ppo_pa_mod(name):
     config = Config()
     config.seed = 1
     config.expType = "ppo_pa_" + name
-    config.expID = "mod2L"
+    config.expID = "mrelu6s05p05"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     config.max_steps = 30 * 1000000
 
@@ -381,7 +381,7 @@ def ppo_pa_mod(name):
                                               log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025)
     config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet_L2M_Mod(
-        state_dim, action_dim, Mod3LNatureConvBody_direct_sig())
+        state_dim, action_dim, Mod3LNatureConvBody_direct_relu6_shift05p05())
     config.state_normalizer = ImageNormalizer()
     config.reward_normalizer = SignNormalizer()
     config.discount = 0.99

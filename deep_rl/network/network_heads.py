@@ -39,6 +39,7 @@ class DuelingNet(nn.Module, BaseNet):
         return q
 
 class ModDuelingNet(nn.Module, BaseNet):
+    '''Yang implementation to take in two values of the state and the memory'''
     def __init__(self, action_dim, body):
         super(ModDuelingNet, self).__init__()
         self.fc_value = layer_init(nn.Linear(body.feature_dim, 1))
