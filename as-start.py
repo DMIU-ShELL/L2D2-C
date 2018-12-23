@@ -340,7 +340,7 @@ def ppo_pixel_atari(name):
     config.expID = "baseline"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     config.max_steps = 30 * 1000000
-
+    config.log_modulation = 0
 
     config.history_length = 4
     task_fn = lambda log_dir: PixelAtari(name, frame_skip=4, history_length=config.history_length, log_dir=config.log_dir)
