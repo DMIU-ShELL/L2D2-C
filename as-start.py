@@ -327,7 +327,7 @@ def quantile_regression_dqn_pixel_atari_mod(name):
     config.expID = "mod"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
 #    config.max_steps = 5 * 1000000
-    config.episode_limit = 100000
+    config.episode_limit = 120000
     config.save_interval = 20
     config.log_modulation = 1
 
