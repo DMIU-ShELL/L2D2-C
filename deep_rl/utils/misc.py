@@ -40,11 +40,14 @@ def run_episodes(agent):
             ep, reward, avg_reward, agent.total_steps, step))
         #L2M changes:
         config.logger.scalar_summary('reward', reward)
+        config.logger.scalar_summary('max reward', np.max(rewards[-window_size:]))
+        config.logger.scalar_summary('avg reward', avg_reward)
         if config.save_interval and ep % config.save_interval == 0:
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
                     agent_type, config.tag, agent.task.name), 'wb') as f:
                 pickle.dump([steps, rewards], f)
             agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, agent.task.name))
+            np.save(config.log_dir + '/rewards',rewards)
             for tag, value in agent.network.named_parameters():
                 tag = tag.replace('.', '/')
                 config.logger.histo_summary(tag, value.data.cpu().numpy())
