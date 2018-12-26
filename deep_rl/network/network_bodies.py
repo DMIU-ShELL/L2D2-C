@@ -250,7 +250,7 @@ class Mod3LNatureConvBody_direct_fix(nn.Module):
         return y
 
 class Mod3LNatureConvBody_direct_2Sig(nn.Module):
-    ''' direct modulation going through a sigmoid * 2 so that the modulation can change plasticity in the rage [0,2]'''
+    ''' direct modulation going through a sigmoid * 2 so that the modulation can change plasticity in the rage [0,2], but by mistake was used after relu, which means that effectively the mod range is [1,2]'''
     def __init__(self, in_channels=4):
         super(Mod3LNatureConvBody_direct_2Sig, self).__init__()
         self.feature_dim = 512
