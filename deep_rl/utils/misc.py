@@ -54,27 +54,43 @@ def run_episodes(agent):
             if config.log_modulation:
                 mod_avg = torch.mean(agent.network.body.y_mod0) + torch.mean(agent.network.body.y_mod1) + torch.mean(agent.network.body.y_mod2)
                 mod_std = torch.std(agent.network.body.y_mod0) + torch.std(agent.network.body.y_mod1) + torch.std(agent.network.body.y_mod2)
+                mod_max_l0 = torch.max(agent.network.body.y_mod0)
                 mod_max_l1 = torch.max(agent.network.body.y_mod1)
+                mod_max_l2 = torch.max(agent.network.body.y_mod2)
                 mod_min_l1 = torch.min(agent.network.body.y_mod1)
                 config.logger.scalar_summary('z_mod avg', mod_avg/3)
                 config.logger.scalar_summary('z_mod std', mod_std/3)
                 config.logger.scalar_summary('z_mod min l1', mod_min_l1)
+                config.logger.scalar_summary('z_mod max l0', mod_max_l0)
                 config.logger.scalar_summary('z_mod max l1', mod_max_l1)
+                config.logger.scalar_summary('z_mod max l2', mod_max_l2)
 
                 conv1MW = agent.network.body.conv1_mem_features.weight
-            #    print('type: ',type(conv1MW))
-            #    print('dir: ', dir(conv1MW))
-            #    print('shape: ', conv1MW.shape)
-            #    print('shape a', conv1MW[0,0].shape)
+                conv2MW = agent.network.body.conv2_mem_features.weight
+                conv3MW = agent.network.body.conv2_mem_features.weight
+                conv1 = agent.network.body.conv1.weight
+                conv2 = agent.network.body.conv2.weight
+                conv3 = agent.network.body.conv3.weight
+                mod0 = agent.network.body.y_mod0
+                mod1 = agent.network.body.y_mod1
+                mod2 = agent.network.body.y_mod2
 
-                #print(agent.network.body.conv1_mem_features.weight)
-            #    print('agent.network.body.conv1_mem_features.weight.mean():',conv1MW.mean())
-                    # 3. Log training images (image summary)
-#                info = { 'images': agent.network.body.conv1_mem_features.weight[0:32,0].detach().numpy()}
+                #agent.network.body.conv1_mem_features.weight[0:32,0].detach().numpy()}
             #    batch_tensor = conv1MW[0:10,0]
             #    grid_img = torchvision.utils.make_grid(batch_tensor, nrow=5)
-                for i in range(5):
-                    config.logger.image_summary('conv1_sample' + str(i), conv1MW[i,0])
+                for i in range(2):
+                    config.logger.image_summary('conv1_mem_f' + str(i), conv1MW[i,0])
+                    config.logger.image_summary('conv1' + str(i), conv1[i,0])
+#                    print('mod0.shape', mod0.shape)
+                    config.logger.image_summary('mod0' + str(i), mod0[0,i])
+                for i in range(2):
+                    config.logger.image_summary('conv2_mem_f' + str(i), conv2MW[i,0])
+                    config.logger.image_summary('conv2' + str(i), conv2[i,0])
+                    config.logger.image_summary('mod1' + str(i), mod1[0,i])
+                for i in range(2):
+                    config.logger.image_summary('conv3_mem_f' + str(i), conv3MW[i,0])
+                    config.logger.image_summary('conv3' + str(i), conv3[i,0])
+                    config.logger.image_summary('mod2' + str(i), mod2[0,i])
 
     #            import matplotlib.pyplot as plt
     #            fig, axs = plt.subplots(nrows=5, ncols=5, figsize=(12.3, 9),

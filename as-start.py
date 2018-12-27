@@ -7,7 +7,7 @@
 '''Variations with neuromodulation implemented at Loughborough University.'''
 
 import matplotlib
-#matplotlib.use("Pdf")
+matplotlib.use("Pdf")
 from deep_rl import *
 import os
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
