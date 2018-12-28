@@ -4,17 +4,17 @@
 # declaration at the top                                              #
 #######################################################################
 
-'''direct neuromodulation to the first two conv layers'''
+'''Variations with neuromodulation implemented at Loughborough University.'''
 
 import matplotlib
 matplotlib.use("Pdf")
 from deep_rl import *
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 def dqn_pixel_atari(name):
     config = Config()
-    config.expType = "dqn_pixel_atari"
+    config.expType = "dqn_pa" + name
     config.expID = "baseline"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
 #    config.max_steps = 2 * 1000000
@@ -54,7 +54,7 @@ def mod_dqn_pixel_atari_2l(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod2LNatureConvBody_direct())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod2LNatureConvBody_direct_sig())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -66,44 +66,18 @@ def mod_dqn_pixel_atari_2l(name):
     # config.double_q = True
     config.double_q = False
     run_episodes(L2MAgentYang(config))
-# L2M
-def mod_dqn_pixel_atari_3l(name):
-    config = Config()
-    config.seed = 1
-    config.expType = "dqn_pixel_atari"
-    config.expID = "mod3Ldirect"
-    config.log_dir = get_default_log_dir(config.expType) + config.expID
-    #config.max_steps = 5 * 1000000
-    config.episode_limit = 100000
 
-    config.history_length = 4
-    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
-                                        log_dir=config.log_dir)
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
-    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
-    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct())
-    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.state_normalizer = ImageNormalizer()
-    config.reward_normalizer = SignNormalizer()
-    config.discount = 0.99
-    config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
-    config.logger = get_logger(log_dir=config.log_dir)
-
-    # config.double_q = True
-    config.double_q = False
-    run_episodes(L2MAgentYang(config))
-
-def mod_dqn_pixel_atari_3l_fix(name):
+def mod_dqn_pixel_atari_3l_2sig(name):
     config = Config()
     config.seed = 1
     config.expType = "dqn_pa_" + name
-    config.expID = "mod3Ldirect-fix"
+    config.expID = "mod3Ldirect2sig"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
     config.episode_limit = 100000
+    config.save_interval = 1000
+    config.log_modulation = 1
+
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -111,7 +85,7 @@ def mod_dqn_pixel_atari_3l_fix(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_fix())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_2Sig())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -125,14 +99,17 @@ def mod_dqn_pixel_atari_3l_fix(name):
     config.double_q = False
     run_episodes(L2MAgentYang(config))
 
-def mod_dqn_pixel_atari_3lTH(name):
+def mod_dqn_pixel_atari_3l_4sig(name):
     config = Config()
     config.seed = 1
     config.expType = "dqn_pa_" + name
-    config.expID = "mod3LdirectTH"
+    config.expID = "4sigWithLogs"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
     config.episode_limit = 100000
+    config.save_interval = 20
+    config.log_modulation = 1
+
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -140,7 +117,39 @@ def mod_dqn_pixel_atari_3lTH(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_directTH())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_4sig())
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps= 50
+    config.logger = get_logger(log_dir=config.log_dir)
+
+    # config.double_q = True
+    config.double_q = False
+    run_episodes(L2MAgentYang(config))
+
+def mod_dqn_pixel_atari_3l_relu_shift1(name):
+    ''''''
+    config = Config()
+    config.seed = 1
+    config.expType = "dqn_pa_" + name
+    config.expID = "RELUplus1"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+    #config.max_steps = 5 * 1000000
+    config.episode_limit = 100000
+    config.save_interval = 50
+    config.log_modulation = 1
+
+    config.history_length = 4
+    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
+                                        log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
+    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
+    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_relu_shift1())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -154,14 +163,17 @@ def mod_dqn_pixel_atari_3lTH(name):
     config.double_q = False
     run_episodes(L2MAgentYang(config))
 
-def mod_dqn_pixel_atari_3l2Sig(name):
+def mod_dqn_pixel_atari_3l_relu6_shift05p05(name):
+    '''relu 6 but with a min of 0.5, and a shift of 0.5 plus 0.5 to have avg 1 but lower bond 0.5 instead of 0'''
     config = Config()
     config.seed = 1
     config.expType = "dqn_pa_" + name
-    config.expID = "mod3Ldirect2Sig"
+    config.expID = "RELU-SH1P05"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     #config.max_steps = 5 * 1000000
     config.episode_limit = 100000
+    config.save_interval = 100
+    config.log_modulation = 1
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -169,7 +181,71 @@ def mod_dqn_pixel_atari_3l2Sig(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct2Sig())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_relu6_shift05p05())
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps= 50000
+    config.logger = get_logger(log_dir=config.log_dir)
+
+    # config.double_q = True
+    config.double_q = False
+    run_episodes(L2MAgentYang(config))
+
+def mod_dqn_pixel_atari_3l_diff_relu6_shift05p05(name):
+    '''computing differential. relu 6 but with a min of 0.5, and a shift of 0.5 plus 0.5 to have avg 1 but lower bond 0.5 instead of 0'''
+    config = Config()
+    config.seed = 1
+    config.expType = "dqn_pa_" + name
+    config.expID = "diff-relu6-s05p05"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+    #config.max_steps = 5 * 1000000
+    config.episode_limit = 100000
+    config.save_interval = 100
+    config.log_modulation = 1
+
+    config.history_length = 4
+    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
+                                        log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
+    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
+    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, diff_relu6_shift05p05())
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps= 50000
+    config.logger = get_logger(log_dir=config.log_dir)
+
+    # config.double_q = True
+    config.double_q = False
+    run_episodes(L2MAgentYang(config))
+
+def mod_dqn_pixel_atari_3l_relu_shift05p05(name):
+    '''relu 6 but with a min of 0.5, and a shift of 0.5 plus 0.5 to have avg 1 but lower bond 0.5 instead of 0'''
+    config = Config()
+    config.seed = 1
+    config.expType = "dqn_pa_" + name
+    config.expID = "RELUnon6-SH1P05"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+    #config.max_steps = 5 * 1000000
+    config.episode_limit = 100000
+    config.save_interval = 100
+    config.log_modulation = 1
+
+    config.history_length = 4
+    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
+                                        log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
+    # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
+    # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_direct_relu_shift05p05())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -191,6 +267,8 @@ def mod_dqn_pixel_atari_3l_diff(name):
     config.log_dir = get_default_log_dir(config.expType) + config.expID
 #    config.max_steps = 5 * 1000000
     config.episode_limit = 100000
+    config.save_interval = 1000
+    config.log_modulation = 1
 
 
     config.history_length = 4
@@ -199,7 +277,7 @@ def mod_dqn_pixel_atari_3l_diff(name):
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.95, eps=0.01)
     # config.network_fn = lambda state_dim, action_dim: VanillaNet(action_dim, NatureConvBody())
     # config.network_fn = lambda state_dim, action_dim: DuelingNet(action_dim, NatureConvBody())
-    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_diff())
+    config.network_fn = lambda state_dim, action_dim: ModDuelingNet(action_dim, Mod3LNatureConvBody_diff_sig())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -221,8 +299,100 @@ def quantile_regression_dqn_pixel_atari(name):
     config.log_dir = get_default_log_dir(config.expType) + config.expID
 #    config.max_steps = 5 * 1000000
     config.episode_limit = 100000
+    config.save_interval = 20
+
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
+                                        log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.Adam(params, lr=0.00005, eps=0.01 / 32)
+    config.network_fn = lambda state_dim, action_dim: \
+        QuantileNet(action_dim, config.num_quantiles, NatureConvBody())
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.01, 1e6))
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps= 50000
+    config.logger = get_logger(log_dir=config.log_dir)
+    config.double_q = False
+    config.num_quantiles = 200
+    run_episodes(QuantileRegressionDQNAgent(config))
+
+def quantile_regression_dqn_pixel_atari_mod(name):
+    '''first version of the QR with modulation, using the relu6s05p05'''
+    config = Config()
+    config.seed = 1
+    config.expType = "qrdqn_pa_" + name
+    config.expID = "mod"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+#    config.max_steps = 5 * 1000000
+    config.episode_limit = 120000
+    config.save_interval = 100
+    config.log_modulation = 1
+
+    config.history_length = 4
+    config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
+                                        log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.Adam(params, lr=0.00005, eps=0.01 / 32)
+    config.network_fn = lambda state_dim, action_dim: \
+        QuantileNetMod(action_dim, config.num_quantiles, Mod3LNatureConvBody_direct_relu6_shift05p05())
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.01, 1e6))
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps= 50000
+    config.logger = get_logger(log_dir=config.log_dir)
+    config.double_q = False
+    config.num_quantiles = 200
+    run_episodes(QuantileRegressionDQNAgent_mod(config))
+
+def quantile_regression_dqn_pixel_atari_mod_noframeskip(name):
+    '''first version of the QR with modulation, using the relu6s05p05'''
+    config = Config()
+    config.seed = 1
+    config.expType = "qrdqn_pa_" + name
+    config.expID = "mod"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+#    config.max_steps = 5 * 1000000
+    config.episode_limit = 120000
+    config.save_interval = 100
+    config.log_modulation = 1
+
+    config.history_length = 4
+    config.task_fn = lambda: PixelAtari(name, frame_skip=0, history_length=config.history_length,
+                                        log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.Adam(params, lr=0.00005, eps=0.01 / 32)
+    config.network_fn = lambda state_dim, action_dim: \
+        QuantileNetMod(action_dim, config.num_quantiles, Mod3LNatureConvBody_direct_relu6_shift05p05())
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.01, 1e6))
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps= 50000
+    config.logger = get_logger(log_dir=config.log_dir)
+    config.double_q = False
+    config.num_quantiles = 200
+    run_episodes(QuantileRegressionDQNAgent_mod(config))
+
+def quantile_regression_dqn_pixel_atari_noframeskip(name):
+    '''first version of the QR with modulation, using the relu6s05p05'''
+    config = Config()
+    config.seed = 1
+    config.expType = "qrdqn_pa_" + name
+    config.expID = "base"
+    config.log_dir = get_default_log_dir(config.expType) + config.expID
+#    config.max_steps = 5 * 1000000
+    config.episode_limit = 120000
+    config.save_interval = 100
+    config.log_modulation = 1
+
+    config.history_length = 4
+    config.task_fn = lambda: PixelAtari(name, frame_skip=0, history_length=config.history_length,
                                         log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.Adam(params, lr=0.00005, eps=0.01 / 32)
     config.network_fn = lambda state_dim, action_dim: \
@@ -260,7 +430,7 @@ def ppo_pixel_atari(name):
     config.expID = "baseline"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     config.max_steps = 30 * 1000000
-
+    config.log_modulation = 0
 
     config.history_length = 4
     task_fn = lambda log_dir: PixelAtari(name, frame_skip=4, history_length=config.history_length, log_dir=config.log_dir)
@@ -289,10 +459,10 @@ def ppo_pa_mod(name):
     config = Config()
     config.seed = 1
     config.expType = "ppo_pa_" + name
-    config.expID = "mod2L"
+    config.expID = "mrelu6s05p05"
     config.log_dir = get_default_log_dir(config.expType) + config.expID
     config.max_steps = 30 * 1000000
-
+    config.log_modulation = 1
 
     config.history_length = 4
     task_fn = lambda log_dir: PixelAtari(name, seed=config.seed, frame_skip=4, history_length=config.history_length, log_dir=config.log_dir)
@@ -301,7 +471,7 @@ def ppo_pa_mod(name):
                                               log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025)
     config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet_L2M_Mod(
-        state_dim, action_dim, Mod3LNatureConvBody_direct_fix())
+        state_dim, action_dim, Mod3LNatureConvBody_direct_relu6_shift05p05())
     config.state_normalizer = ImageNormalizer()
     config.reward_normalizer = SignNormalizer()
     config.discount = 0.99
@@ -328,11 +498,22 @@ if __name__ == '__main__':
     #mod_dqn_pixel_atari_2l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l('BreakoutNoFrameskip-v4')
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
-    mod_dqn_pixel_atari_3l2Sig('BreakoutNoFrameskip-v4')
+
+#    mod_dqn_pixel_atari_3l_2sig('BreakoutNoFrameskip-v4')
+#    mod_dqn_pixel_atari_3l_4sig('BreakoutNoFrameskip-v4')
+#    mod_dqn_pixel_atari_3l_relu_shift1('BreakoutNoFrameskip-v4')
+    #mod_dqn_pixel_atari_3l_relu6_shift05p05('BreakoutNoFrameskip-v4')
+    #mod_dqn_pixel_atari_3l_diff_relu6_shift05p05('BreakoutNoFrameskip-v4')
+
+#    mod_dqn_pixel_atari_3l_relu_shift05p05('BreakoutNoFrameskip-v4')
 
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
 
     #quantile_regression_dqn_pixel_atari('BreakoutNoFrameskip-v4')
+    quantile_regression_dqn_pixel_atari_mod('BreakoutNoFrameskip-v4')
+#    quantile_regression_dqn_pixel_atari_mod_noframeskip('Riverraid-v4')
+    #quantile_regression_dqn_pixel_atari_noframeskip('Riverraid-v4')
+
     #ppo_pixel_atari('BreakoutNoFrameskip-v4')
     #ppo_pa_mod('BreakoutNoFrameskip-v4')
 
