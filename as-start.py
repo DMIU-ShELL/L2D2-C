@@ -336,7 +336,7 @@ def quantile_regression_dqn_pixel_atari_mod(name):
                                         log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.Adam(params, lr=0.00005, eps=0.01 / 32)
     config.network_fn = lambda state_dim, action_dim: \
-        QuantileNetMod(action_dim, config.num_quantiles, diff_relu6_shift05p05())
+        QuantileNetMod(action_dim, config.num_quantiles, Mod3LNatureConvBody_direct_relu6_shift05p05())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.01, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -366,7 +366,7 @@ def quantile_regression_dqn_pixel_atari_mod_noframeskip(name):
                                         log_dir=config.log_dir)
     config.optimizer_fn = lambda params: torch.optim.Adam(params, lr=0.00005, eps=0.01 / 32)
     config.network_fn = lambda state_dim, action_dim: \
-        QuantileNetMod(action_dim, config.num_quantiles, diff_relu6_shift05p05())
+        QuantileNetMod(action_dim, config.num_quantiles, Mod3LNatureConvBody_direct_relu6_shift05p05())
     config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.01, 1e6))
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.state_normalizer = ImageNormalizer()
@@ -510,9 +510,9 @@ if __name__ == '__main__':
     #mod_dqn_pixel_atari_3l_diff('BreakoutNoFrameskip-v4')
 
     #quantile_regression_dqn_pixel_atari('BreakoutNoFrameskip-v4')
-    #quantile_regression_dqn_pixel_atari_mod('BreakoutNoFrameskip-v4')
+    quantile_regression_dqn_pixel_atari_mod('BreakoutNoFrameskip-v4')
 #    quantile_regression_dqn_pixel_atari_mod_noframeskip('Riverraid-v4')
-    quantile_regression_dqn_pixel_atari_noframeskip('Riverraid-v4')
+    #quantile_regression_dqn_pixel_atari_noframeskip('Riverraid-v4')
 
     #ppo_pixel_atari('BreakoutNoFrameskip-v4')
     #ppo_pa_mod('BreakoutNoFrameskip-v4')
