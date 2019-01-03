@@ -384,7 +384,7 @@ class Mod3LNatureConvBody_direct_relu6_shift05p05(nn.Module):
         y2 = F.relu(self.conv3(y))
 #        self.y_mod2 = 0.5 + F.relu6(self.conv3_mem_features(self.y_mod1) + 0.5)
 #        y = y2 * self.y_mod2
-        y_mod2 = 0.5 + F.relu6(self.conv3_mem_features(self) + 0.5)
+        y_mod2 = 0.5 + F.relu6(self.conv3_mem_features(y_mod1) + 0.5)
         y = y2 * y_mod2
 
 
