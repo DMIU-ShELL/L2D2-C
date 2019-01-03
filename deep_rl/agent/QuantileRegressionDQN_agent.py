@@ -203,7 +203,6 @@ class QuantileRegressionDQNAgent_mod_surp(BaseAgent):
                           (steps, episode_time, episode_time / float(steps)))
         return total_reward, steps
 
-
 class QuantileRegressionDQNAgent(BaseAgent):
     def __init__(self, config):
         BaseAgent.__init__(self, config)

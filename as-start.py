@@ -299,7 +299,8 @@ def quantile_regression_dqn_pixel_atari(name):
     config.log_dir = get_default_log_dir(config.expType) + config.expID
 #    config.max_steps = 5 * 1000000
     config.episode_limit = 100000
-    config.save_interval = 20
+    config.save_interval = 100
+    config.log_modulation = 0
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -329,7 +330,7 @@ def quantile_regression_dqn_pixel_atari_mod(name):
 #    config.max_steps = 5 * 1000000
     config.episode_limit = 120000
     config.save_interval = 100
-    config.log_modulation = 1
+    config.log_modulation = 0
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
@@ -568,8 +569,8 @@ if __name__ == '__main__':
 
     #quantile_regression_dqn_pixel_atari('BreakoutNoFrameskip-v4')
 #    ddpg_pixel()
-#    quantile_regression_dqn_pixel_atari_mod('BreakoutNoFrameskip-v4')
-    quantile_regression_dqn_pixel_atari_mod_surprise('BreakoutNoFrameskip-v4')
+    quantile_regression_dqn_pixel_atari_mod('BreakoutNoFrameskip-v4')
+#    quantile_regression_dqn_pixel_atari_mod_surprise('BreakoutNoFrameskip-v4')
 
 #    quantile_regression_dqn_pixel_atari_mod_noframeskip('Riverraid-v4')
     #quantile_regression_dqn_pixel_atari_noframeskip('Riverraid-v4')
