@@ -330,7 +330,7 @@ def quantile_regression_dqn_pixel_atari_mod(name):
 #    config.max_steps = 5 * 1000000
     config.episode_limit = 120000
     config.save_interval = 100
-    config.log_modulation = 0
+    config.log_modulation = 1
 
     config.history_length = 4
     config.task_fn = lambda: PixelAtari(name, frame_skip=4, history_length=config.history_length,
