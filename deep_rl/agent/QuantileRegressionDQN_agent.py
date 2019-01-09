@@ -45,7 +45,8 @@ class QuantileRegressionDQNAgent_mod(BaseAgent):
         total_reward = 0.0
         steps = 0
         while True:
-            memory = np.asarray((1-self.mem_update_rate)*memory+self.mem_update_rate*np.asarray(state))
+#            memory = np.asarray((1-self.mem_update_rate)*memory+self.mem_update_rate*np.asarray(state))
+            memory = (np.multiply(1-self.mem_update_rate,memory)+np.multiply(self.mem_update_rate,np.asarray(state))).astype(np.uint8)
             value = self.network.predict(np.stack([self.config.state_normalizer(state)]),np.stack([self.config.state_normalizer(memory)])).squeeze(0).detach()
             value = (value * self.quantile_weight).sum(-1).cpu().detach().numpy().flatten()
             if deterministic:
