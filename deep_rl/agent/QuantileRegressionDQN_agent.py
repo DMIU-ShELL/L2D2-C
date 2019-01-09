@@ -142,7 +142,7 @@ class QuantileRegressionDQNAgent_mod_surp(BaseAgent):
         total_reward = 0.0
         steps = 0
         while True:
-            memory = np.asarray((1-self.mem_update_rate)*memory+self.mem_update_rate*np.asarray(state))
+            memory = (np.multiply(1-self.mem_update_rate,memory)+np.multiply(self.mem_update_rate,np.asarray(state))).astype(np.uint8)
             novel_x = state - memory
             value = self.network.predict(np.stack([self.config.state_normalizer(state)]),np.stack([self.config.state_normalizer(novel_x)])).squeeze(0).detach()
             value = (value * self.quantile_weight).sum(-1).cpu().detach().numpy().flatten()
