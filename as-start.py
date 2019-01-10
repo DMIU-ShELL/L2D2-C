@@ -442,66 +442,6 @@ def categorical_dqn_pixel_atari_mod(name):
     config.categorical_n_atoms = 51
     run_episodes(CategoricalDQNAgent_mod(config))
 
-def quantile_regression_dqn_pixel_atari_mod_noframeskip(name):
-    '''first version of the QR with modulation, using the relu6s05p05'''
-    config = Config()
-    config.seed = 1
-    config.expType = "qrdqn_pa_" + name
-    config.expID = "mod"
-    config.log_dir = get_default_log_dir(config.expType) + config.expID
-#    config.max_steps = 5 * 1000000
-    config.episode_limit = 120000
-    config.save_interval = 100
-    config.log_modulation = 1
-
-    config.history_length = 4
-    config.task_fn = lambda: PixelAtari(name, frame_skip=0, history_length=config.history_length,
-                                        log_dir=config.log_dir)
-    config.optimizer_fn = lambda params: torch.optim.Adam(params, lr=0.00005, eps=0.01 / 32)
-    config.network_fn = lambda state_dim, action_dim: \
-        QuantileNetMod(action_dim, config.num_quantiles, Mod3LNatureConvBody_direct_relu6_shift05p05())
-    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.01, 1e6))
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.state_normalizer = ImageNormalizer()
-    config.reward_normalizer = SignNormalizer()
-    config.discount = 0.99
-    config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
-    config.logger = get_logger(log_dir=config.log_dir)
-    config.double_q = False
-    config.num_quantiles = 200
-    run_episodes(QuantileRegressionDQNAgent_mod(config))
-
-def quantile_regression_dqn_pixel_atari_noframeskip(name):
-    '''first version of the QR with modulation, using the relu6s05p05'''
-    config = Config()
-    config.seed = 1
-    config.expType = "qrdqn_pa_" + name
-    config.expID = "base"
-    config.log_dir = get_default_log_dir(config.expType) + config.expID
-#    config.max_steps = 5 * 1000000
-    config.episode_limit = 120000
-    config.save_interval = 100
-    config.log_modulation = 1
-
-    config.history_length = 4
-    config.task_fn = lambda: PixelAtari(name, frame_skip=0, history_length=config.history_length,
-                                        log_dir=config.log_dir)
-    config.optimizer_fn = lambda params: torch.optim.Adam(params, lr=0.00005, eps=0.01 / 32)
-    config.network_fn = lambda state_dim, action_dim: \
-        QuantileNet(action_dim, config.num_quantiles, NatureConvBody())
-    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.01, 1e6))
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.state_normalizer = ImageNormalizer()
-    config.reward_normalizer = SignNormalizer()
-    config.discount = 0.99
-    config.target_network_update_freq = 10000
-    config.exploration_steps= 50000
-    config.logger = get_logger(log_dir=config.log_dir)
-    config.double_q = False
-    config.num_quantiles = 200
-    run_episodes(QuantileRegressionDQNAgent(config))
-
 def plot():
     import matplotlib.pyplot as plt
     plotter = Plotter()
@@ -633,11 +573,11 @@ if __name__ == '__main__':
     #quantile_regression_dqn_pixel_atari_mod('BreakoutNoFrameskip-v4')
 #    quantile_regression_dqn_pixel_atari_mod_surprise('BreakoutNoFrameskip-v4')
 
-#    quantile_regression_dqn_pixel_atari_mod_noframeskip('Riverraid-v4')
+    quantile_regression_dqn_pixel_atari_mod('RiverraidNoFrameskip-v0')
     #quantile_regression_dqn_pixel_atari_noframeskip('Riverraid-v4')
 
     #categorical_dqn_pixel_atari('BreakoutNoFrameskip-v4')
-    categorical_dqn_pixel_atari_mod('BreakoutNoFrameskip-v4')
+#    categorical_dqn_pixel_atari_mod('BreakoutNoFrameskip-v4')
 
     #ppo_pixel_atari('BreakoutNoFrameskip-v4')
     #ppo_pa_mod('BreakoutNoFrameskip-v4')
