@@ -73,6 +73,23 @@ class CategoricalNet(nn.Module, BaseNet):
             return prob.cpu().detach().numpy()
         return prob
 
+class CategoricalNetMod(nn.Module, BaseNet):
+    def __init__(self, action_dim, num_atoms, body):
+        super(CategoricalNetMod, self).__init__()
+        self.fc_categorical = layer_init(nn.Linear(body.feature_dim, action_dim * num_atoms))
+        self.action_dim = action_dim
+        self.num_atoms = num_atoms
+        self.body = body
+        self.to(Config.DEVICE)
+
+    def predict(self, x, x_mem, to_numpy=False):
+        phi = self.body(tensor(x), tensor(x_mem))
+        pre_prob = self.fc_categorical(phi).view((-1, self.action_dim, self.num_atoms))
+        prob = F.softmax(pre_prob, dim=-1)
+        if to_numpy:
+            return prob.cpu().detach().numpy()
+        return prob
+        
 class QuantileNet(nn.Module, BaseNet):
     def __init__(self, action_dim, num_quantiles, body):
         super(QuantileNet, self).__init__()
