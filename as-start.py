@@ -404,7 +404,7 @@ def categorical_dqn_pixel_atari(name):
     config.reward_normalizer = SignNormalizer()
     config.target_network_update_freq = 10000
     config.exploration_steps= 50000
-    config.logger = get_logger()
+    config.logger = get_logger(log_dir=config.log_dir)
     config.double_q = True
     config.categorical_v_max = 10
     config.categorical_v_min = -10
@@ -435,7 +435,7 @@ def categorical_dqn_pixel_atari_mod(name):
     config.reward_normalizer = SignNormalizer()
     config.target_network_update_freq = 10000
     config.exploration_steps= 50000
-    config.logger = get_logger()
+    config.logger = get_logger(log_dir=config.log_dir)
     config.double_q = False
     config.categorical_v_max = 10
     config.categorical_v_min = -10
