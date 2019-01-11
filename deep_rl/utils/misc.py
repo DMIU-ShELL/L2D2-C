@@ -48,9 +48,9 @@ def run_episodes(agent):
                 pickle.dump([steps, rewards], f)
             agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, agent.task.name))
             np.save(config.log_dir + '/rewards',rewards)
-            for tag, value in agent.network.named_parameters():
-                tag = tag.replace('.', '/')
-                config.logger.histo_summary(tag, np.nan_to_num(value.data.cpu().numpy()))
+        #    for tag, value in agent.network.named_parameters():
+        #        tag = tag.replace('.', '/')
+        #        config.logger.histo_summary(tag, np.nan_to_num(value.data.cpu().numpy()))
             if config.log_modulation:
                 mod_avg = torch.mean(agent.network.body.y_mod0) + torch.mean(agent.network.body.y_mod1) + torch.mean(agent.network.body.y_mod2)
                 mod_std = torch.std(agent.network.body.y_mod0) + torch.std(agent.network.body.y_mod1) + torch.std(agent.network.body.y_mod2)
