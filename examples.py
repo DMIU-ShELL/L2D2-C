@@ -34,8 +34,9 @@ def a2c_cart_pole():
     config = Config()
     name = 'CartPole-v0'
     # name = 'MountainCar-v0'
+    # name = 'DynamicGrid-v0'
     task_fn = lambda log_dir: ClassicalControl(name, max_steps=200, log_dir=log_dir)
-    config.num_workers = 5
+    config.num_workers = 1
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers,
                                               log_dir=get_default_log_dir(a2c_cart_pole.__name__))
     config.optimizer_fn = lambda params: torch.optim.Adam(params, 0.001)
@@ -312,7 +313,8 @@ def dqn_ram_atari(name):
 
 def ppo_continuous():
     config = Config()
-    config.num_workers = 1
+    config.num_workers = 0
+    # Switched to 0 as multi processing not supported windows appartenlty
     # task_fn = lambda log_dir: Pendulum(log_dir=log_dir)
     # task_fn = lambda log_dir: Bullet('AntBulletEnv-v0', log_dir=log_dir)
     task_fn = lambda log_dir: Roboschool('RoboschoolHopper-v1', log_dir=log_dir)
@@ -418,34 +420,47 @@ def action_conditional_video_prediction():
 
 
 if __name__ == '__main__':
-    mkdir('data/video')
-    mkdir('dataset')
     mkdir('log')
+    mkdir('tf_log')
     set_one_thread()
-    select_device(1)
+    random_seed(42)
+    # -1 is CPU, a positive integer is the index of GPU
+    select_device(-1)
+    # select_device(0)
 
-    # dqn_cart_pole()
-    # a2c_cart_pole()
-    # categorical_dqn_cart_pole()
-    # quantile_regression_dqn_cart_pole()
-    # n_step_dqn_cart_pole()
-    # ppo_cart_pole()
-    # option_critic_cart_pole()
 
-    dqn_pixel_atari('BreakoutNoFrameskip-v4')
-    # a2c_pixel_atari('BreakoutNoFrameskip-v4')
-    # categorical_dqn_pixel_atari('BreakoutNoFrameskip-v4')
-    # quantile_regression_dqn_pixel_atari('BreakoutNoFrameskip-v4')
-    # n_step_dqn_pixel_atari('BreakoutNoFrameskip-v4')
-    # ppo_pixel_atari('BreakoutNoFrameskip-v4')
-    # option_ciritc_pixel_atari('BreakoutNoFrameskip-v4')
-    # dqn_ram_atari('Breakout-ramNoFrameskip-v4')
+    #game = 'CartPole-v0'
+    # dqn_feature(game=game, n_step=1, replay_cls=UniformReplay, async_replay=True, noisy_linear=True)
+    # quantile_regression_dqn_feature(game=game)
+    # categorical_dqn_feature(game=game)
+    # rainbow_feature(game=game)
+    # a2c_feature(game=game)
+    # n_step_dqn_feature(game=game)
+    # option_critic_feature(game=game)
 
-    # ddpg_low_dim_state()
-    # ddpg_pixel()
-    # ppo_continuous()
+    #game = 'HalfCheetah-v2'
+    # game = 'Hopper-v2'
+    # a2c_continuous(game=game)
+    # ppo_continuous(game=game)
+    # ddpg_continuous(game=game)
+    # td3_continuous(game=game)
 
-    # action_conditional_video_prediction()
+    # game = 'BreakoutNoFrameskip-v4'
+    # dqn_pixel(game=game, n_step=1, replay_cls=UniformReplay, async_replay=False)
+    # quantile_regression_dqn_pixel(game=game)
+    # categorical_dqn_pixel(game=game)
+    # rainbow_pixel(game=game, async_replay=False)
+    # a2c_pixel(game=game)
+    # n_step_dqn_pixel(game=game)
+    # option_critic_pixel(game=game)
+    # ppo_pixel(game=game)
+    import dynamic_grid
+    #game = 'DynamicGrid-v0'
+    env = gym.make('DynamicGrid-v0')
+    #a2c_cart_pole()
 
-    # plot()
+
+    dqn_cart_pole()
+    #n_step_dqn_cart_pole()
+
 

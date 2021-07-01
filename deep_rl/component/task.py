@@ -37,13 +37,25 @@ class BaseTask:
         return self.env.seed(random_seed)
 
 class ClassicalControl(BaseTask):
-    def __init__(self, name='CartPole-v0', max_steps=200, log_dir=None):
+    def __init__(self, name, max_steps=200, log_dir=None):
+        # Removed from name = "Cart_Pole-v0"
         BaseTask.__init__(self)
         self.name = name
         self.env = gym.make(self.name)
         self.env._max_episode_steps = max_steps
         self.action_dim = self.env.action_space.n
         self.state_dim = self.env.observation_space.shape[0]
+        self.env = self.set_monitor(self.env, log_dir)
+
+class DynamicGrid(BaseTask):
+    def __init__(self, name, max_steps=200, log_dir=None):
+        # Removed from name = "Cart_Pole-v0"
+        BaseTask.__init__(self)
+        self.name = name
+        self.env = gym.make(self.name)
+        self.env._max_episode_steps = max_steps
+        self.action_dim = self.env.action_space.n
+        self.state_dim = self.env.observation_space.shape
         self.env = self.set_monitor(self.env, log_dir)
 
 class PixelAtari(BaseTask):
@@ -196,6 +208,7 @@ class ProcessWrapper(mp.Process):
 
 class ParallelizedTask:
     def __init__(self, task_fn, num_workers, log_dir=None, single_process=False):
+
         if single_process:
             self.tasks = [task_fn(log_dir=log_dir) for _ in range(num_workers)]
         else:

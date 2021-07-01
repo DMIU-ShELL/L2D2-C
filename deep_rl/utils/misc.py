@@ -30,6 +30,8 @@ def run_episodes(agent):
     steps = []
     avg_test_rewards = []
     agent_type = agent.__class__.__name__
+
+
     while True:
         ep += 1
         reward, step = agent.episode()
@@ -122,14 +124,15 @@ def run_episodes(agent):
 
     agent.close()
     return steps, rewards, avg_test_rewards
-
 def run_iterations(agent):
+    # UPDATE THE ENVIRONMENT USING THIS FUNCTION.
     config = agent.config
     random_seed(config.seed)
     agent_name = agent.__class__.__name__
     iteration = 0
     steps = []
     rewards = []
+
     while True:
         agent.iteration()
         steps.append(agent.total_steps)
@@ -154,8 +157,8 @@ def run_iterations(agent):
                 tag = tag.replace('.', '/')
                 config.logger.histo_summary(tag, value.data.cpu().numpy())
             if config.log_modulation:
-#                print(dir(agent.network.network))
-#                   input()
+    #                print(dir(agent.network.network))
+    #                   input()
                 mod_avg = torch.mean(agent.network.network.phi_body.y_mod0) + torch.mean(agent.network.network.phi_body.y_mod1) + torch.mean(agent.network.network.phi_body.y_mod2)
                 mod_std = torch.std(agent.network.network.phi_body.y_mod0) + torch.std(agent.network.network.phi_body.y_mod1) + torch.std(agent.network.network.phi_body.y_mod2)
                 mod_max_l1 = torch.max(agent.network.network.phi_body.y_mod1)
@@ -176,8 +179,84 @@ def run_iterations(agent):
                 agent_name, config.tag, agent.task.name), 'wb') as f:
                 pickle.dump([steps, rewards], f)
                 agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, agent.task.name))
-            agent.close()
+                agent.close()
+
             break
+    agent.close()
+    return steps, rewards
+
+def run_iterations_experiment(agent):
+    # UPDATE THE ENVIRONMENT USING THIS FUNCTION.
+    config = agent.config
+    random_seed(config.seed)
+    agent_name = agent.__class__.__name__
+    iteration = 0
+    steps = []
+    rewards = []
+    for i in range(0,3):
+        # Starting a loop to run the agent in each version of the environment.
+        # Run the loop 4 times since we want a normal environment which is the first loop, then each loop after triggers one of the changes we specified.
+        if i == 1:
+            agent.task.env.reset_task(goal_location=True, transition_dynamics=False, permute_input=False)
+            # Changing the goal location. The task gets the task, and then from here we can access the enviroinment since it is a paramter within the Task Class
+        elif i == 2:
+            agent.task.env.reset_task(goal_location = False, transition_dynamics = True, permute_input = False)
+            # Changing the transition dynamics
+        elif i == 3 :
+            self.task.env.reset_task(goal_location=False, transition_dynamics=False, permute_input=True)
+            # Permuting the input.
+        # From here I think I should update the steps and the iterations, but I'm not 100% Sure. I will try to figure this out tomorrow if I can get the environment
+        # To properly run.
+        while True:
+            agent.iteration()
+            steps.append(agent.total_steps)
+            rewards.append(np.mean(agent.last_episode_rewards))
+            if iteration % config.iteration_log_interval == 0:
+                config.logger.info('total steps %d, mean/max/min reward %f/%f/%f' % (
+                    agent.total_steps, np.mean(agent.last_episode_rewards),
+                    np.max(agent.last_episode_rewards),
+                    np.min(agent.last_episode_rewards)
+            ))
+                config.logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
+                config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
+                config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
+
+            if iteration % (config.iteration_log_interval * 20) == 0:
+
+                with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (agent_name, config.tag, agent.task.name), 'wb') as f:
+                    pickle.dump({'rewards': rewards,
+                                 'steps': steps}, f)
+                agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, agent.task.name))
+                for tag, value in agent.network.named_parameters():
+                    tag = tag.replace('.', '/')
+                    config.logger.histo_summary(tag, value.data.cpu().numpy())
+                if config.log_modulation:
+        #                print(dir(agent.network.network))
+        #                   input()
+                    mod_avg = torch.mean(agent.network.network.phi_body.y_mod0) + torch.mean(agent.network.network.phi_body.y_mod1) + torch.mean(agent.network.network.phi_body.y_mod2)
+                    mod_std = torch.std(agent.network.network.phi_body.y_mod0) + torch.std(agent.network.network.phi_body.y_mod1) + torch.std(agent.network.network.phi_body.y_mod2)
+                    mod_max_l1 = torch.max(agent.network.network.phi_body.y_mod1)
+                    mod_min_l1 = torch.min(agent.network.network.phi_body.y_mod1)
+                    config.logger.scalar_summary('z_mod avg', mod_avg/3)
+                    config.logger.scalar_summary('z_mod std', mod_std/3)
+                    config.logger.scalar_summary('z_mod min l1', mod_min_l1)
+                    config.logger.scalar_summary('z_mod max l1', mod_max_l1)
+
+                    conv1MW = agent.network.network.phi_body.conv1_mem_features.weight
+                    for i in range(10):
+                        config.logger.image_summary('conv1_sample' + str(i), conv1MW[i,0])
+
+
+            iteration += 1
+            if config.max_steps and agent.total_steps >= config.max_steps:
+                with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
+                    agent_name, config.tag, agent.task.name), 'wb') as f:
+                    pickle.dump([steps, rewards], f)
+                    agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, agent.task.name))
+
+                break
+    agent.close()
+    # Only want to close the agent after the entire experiment has been finished, aka all 3 variations have happened.
 
     return steps, rewards
 
