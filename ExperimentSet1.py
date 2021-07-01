@@ -20,6 +20,7 @@ def experiment():
 
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers,
                                               log_dir=get_default_log_dir(experiment.__name__), single_process=True)
+    config.log_dir = get_default_log_dir(experiment.__name__)
 
 
     config.optimizer_fn = lambda params: torch.optim.Adam(params, 0.001)

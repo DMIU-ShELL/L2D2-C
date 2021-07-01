@@ -230,21 +230,21 @@ def run_iterations_experiment(agent):
                 for tag, value in agent.network.named_parameters():
                     tag = tag.replace('.', '/')
                     config.logger.histo_summary(tag, value.data.cpu().numpy())
-                if config.log_modulation:
-        #                print(dir(agent.network.network))
-        #                   input()
-                    mod_avg = torch.mean(agent.network.network.phi_body.y_mod0) + torch.mean(agent.network.network.phi_body.y_mod1) + torch.mean(agent.network.network.phi_body.y_mod2)
-                    mod_std = torch.std(agent.network.network.phi_body.y_mod0) + torch.std(agent.network.network.phi_body.y_mod1) + torch.std(agent.network.network.phi_body.y_mod2)
-                    mod_max_l1 = torch.max(agent.network.network.phi_body.y_mod1)
-                    mod_min_l1 = torch.min(agent.network.network.phi_body.y_mod1)
-                    config.logger.scalar_summary('z_mod avg', mod_avg/3)
-                    config.logger.scalar_summary('z_mod std', mod_std/3)
-                    config.logger.scalar_summary('z_mod min l1', mod_min_l1)
-                    config.logger.scalar_summary('z_mod max l1', mod_max_l1)
+                #if config.log_modulation:
+                #    print(dir(agent.network.network))
+                #    input()
+                #    mod_avg = torch.mean(agent.network.network.phi_body.y_mod0) + torch.mean(agent.network.network.phi_body.y_mod1) + torch.mean(agent.network.network.phi_body.y_mod2)
+                #    mod_std = torch.std(agent.network.network.phi_body.y_mod0) + torch.std(agent.network.network.phi_body.y_mod1) + torch.std(agent.network.network.phi_body.y_mod2)
+                #    mod_max_l1 = torch.max(agent.network.network.phi_body.y_mod1)
+                #    mod_min_l1 = torch.min(agent.network.network.phi_body.y_mod1)
+                #    config.logger.scalar_summary('z_mod avg', mod_avg/3)
+                #    config.logger.scalar_summary('z_mod std', mod_std/3)
+                #    config.logger.scalar_summary('z_mod min l1', mod_min_l1)
+                #    config.logger.scalar_summary('z_mod max l1', mod_max_l1)
 
-                    conv1MW = agent.network.network.phi_body.conv1_mem_features.weight
-                    for i in range(10):
-                        config.logger.image_summary('conv1_sample' + str(i), conv1MW[i,0])
+                #    conv1MW = agent.network.network.phi_body.conv1_mem_features.weight
+                #    for i in range(10):
+                #        config.logger.image_summary('conv1_sample' + str(i), conv1MW[i,0])
 
 
             iteration += 1
