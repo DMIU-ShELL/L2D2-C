@@ -147,7 +147,7 @@ def run_iterations(agent):
             config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
             config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
 
-        if iteration % (config.iteration_log_interval * 20) == 0:
+        if iteration % (config.iteration_log_interval * 100) == 0:
 
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (agent_name, config.tag, agent.task.name), 'wb') as f:
                 pickle.dump({'rewards': rewards,
@@ -190,20 +190,23 @@ def run_iterations_experiment(agent):
     config = agent.config
     random_seed(config.seed)
     agent_name = agent.__class__.__name__
-    iteration = 0
+    iteration = 1
     steps = []
     rewards = []
-    for i in range(0,3):
+    num_tasks = 3
+    max_steps_per_task = config.max_steps // num_tasks
+    for task_idx in range(0,num_tasks):
+        print('task idx:', task_idx)
         # Starting a loop to run the agent in each version of the environment.
         # Run the loop 4 times since we want a normal environment which is the first loop, then each loop after triggers one of the changes we specified.
-        if i == 1:
-            agent.task.env.reset_task(goal_location=True, transition_dynamics=False, permute_input=False)
+        if task_idx == 0:
+            agent.task.reset_task(goal_location=True, transition_dynamics=False, permute_input=False)
             # Changing the goal location. The task gets the task, and then from here we can access the enviroinment since it is a paramter within the Task Class
-        elif i == 2:
-            agent.task.env.reset_task(goal_location = False, transition_dynamics = True, permute_input = False)
+        elif task_idx == 1:
+            agent.task.reset_task(goal_location=False, transition_dynamics=True, permute_input=False)
             # Changing the transition dynamics
-        elif i == 3 :
-            self.task.env.reset_task(goal_location=False, transition_dynamics=False, permute_input=True)
+        elif task_idx == 2 :
+            agent.task.reset_task(goal_location=False, transition_dynamics=False, permute_input=True)
             # Permuting the input.
         # From here I think I should update the steps and the iterations, but I'm not 100% Sure. I will try to figure this out tomorrow if I can get the environment
         # To properly run.
@@ -216,12 +219,12 @@ def run_iterations_experiment(agent):
                     agent.total_steps, np.mean(agent.last_episode_rewards),
                     np.max(agent.last_episode_rewards),
                     np.min(agent.last_episode_rewards)
-            ))
+                ))
                 config.logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
                 config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
                 config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
 
-            if iteration % (config.iteration_log_interval * 20) == 0:
+            if iteration % (config.iteration_log_interval * 100) == 0:
 
                 with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (agent_name, config.tag, agent.task.name), 'wb') as f:
                     pickle.dump({'rewards': rewards,
@@ -248,7 +251,8 @@ def run_iterations_experiment(agent):
 
 
             iteration += 1
-            if config.max_steps and agent.total_steps >= config.max_steps:
+            #if config.max_steps and agent.total_steps >= config.max_steps:
+            if config.max_steps and agent.total_steps >= ((task_idx+1) * max_steps_per_task):
                 with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
                     agent_name, config.tag, agent.task.name), 'wb') as f:
                     pickle.dump([steps, rewards], f)

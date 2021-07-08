@@ -58,6 +58,10 @@ class DynamicGrid(BaseTask):
         self.state_dim = self.env.observation_space.shape
         self.env = self.set_monitor(self.env, log_dir)
 
+    def reset_task(self, goal_location=True, transition_dynamics=False, permute_input=False):
+        ret=self.env.unwrapped.unwrapped.reset_task(goal_location, transition_dynamics,permute_input)
+        return ret
+
 class PixelAtari(BaseTask):
     def __init__(self, name, seed=0, log_dir=None,
                  frame_skip=4, history_length=4, dataset=False):
@@ -173,6 +177,10 @@ class ProcessTask:
         self.pipe.send([ProcessWrapper.RESET, None])
         return self.pipe.recv()
 
+    def reset_task(self, **kwargs):
+        self.pipe.send([ProcessWrapper.RESET_TASK, kwargs])
+        return self.pipe.recv()
+
     def close(self):
         self.pipe.send([ProcessWrapper.EXIT, None])
 
@@ -181,6 +189,7 @@ class ProcessWrapper(mp.Process):
     RESET = 1
     EXIT = 2
     SPECS = 3
+    RESET_TASK = 4
     def __init__(self, pipe, task_fn, log_dir):
         mp.Process.__init__(self)
         self.pipe = pipe
@@ -203,6 +212,8 @@ class ProcessWrapper(mp.Process):
                 return
             elif op == self.SPECS:
                 self.pipe.send([task.state_dim, task.action_dim, task.name])
+            elif op == self.RESET_TASK:
+                self.pipe.send(task.reset_task(**data))
             else:
                 raise Exception('Unknown command')
 
@@ -225,6 +236,10 @@ class ParallelizedTask:
 
     def reset(self):
         results = [task.reset() for task in self.tasks]
+        return np.stack(results)
+
+    def reset_task(self, **kwargs):
+        results = [task.reset_task(**kwargs) for task in self.tasks]
         return np.stack(results)
 
     def close(self):
