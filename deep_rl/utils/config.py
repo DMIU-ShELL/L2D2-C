@@ -68,6 +68,11 @@ class Config:
         self.sgd_update_frequency = 4
         self.seed = 1
 
+        # extra config for continual learning (cl) experiments
+        self.cl_apha = 0.5
+        self.cl_n_slices = 50
+        self.cl_loss_coeff = 1e6
+
     def add_argument(self, *args, **kwargs):
         self.parser.add_argument(*args, **kwargs)
 

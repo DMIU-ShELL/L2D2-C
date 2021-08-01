@@ -70,3 +70,11 @@ class BaseAgent:
                 self.evaluation_state = self.evaluation_env.reset()
                 self.config.logger.info('evaluation episode return: %f' % (self.evaluation_return))
                 self.evaluation_return = 0
+
+class BaseContinualLearnerAgent:
+    def consolidate(self, config=None):
+        raise NotImplementedError
+
+    def penalty(self):
+        raise NotImplementedError
+
