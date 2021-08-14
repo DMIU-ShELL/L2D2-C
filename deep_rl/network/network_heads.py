@@ -244,6 +244,34 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return action, log_prob, dist.entropy().unsqueeze(-1), v
 
+# actor-critic net for continual learning where tasks are labelled
+class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 task_label_dim=None,
+                 phi_body=None,
+                 actor_body=None,
+                 critic_body=None):
+        super(CategoricalActorCriticNet_CL, self).__init__()
+        self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body)
+        self.task_label_dim = task_label_dim
+        self.to(Config.DEVICE)
+
+    def predict(self, obs, action=None, task_label=None):
+        obs = tensor(obs)
+        task_label = tensor(task_label)
+        phi = self.network.phi_body(obs, task_label)
+        phi_a = self.network.actor_body(phi)
+        phi_v = self.network.critic_body(phi)
+        logits = self.network.fc_action(phi_a)
+        v = self.network.fc_critic(phi_v)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        return logits, action, log_prob, dist.entropy().unsqueeze(-1), v
+
 class CategoricalActorCriticNet_L2M_Mod(nn.Module, BaseNet):
     def __init__(self,
                  state_dim,

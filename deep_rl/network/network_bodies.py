@@ -23,6 +23,23 @@ class NatureConvBody(nn.Module):
         y = F.relu(self.fc4(y))
         return y
 
+class CTgraphConvBody(nn.Module):
+    def __init__(self, in_channels=1):
+        super(CTgraphConvBody, self).__init__()
+        self.feature_dim = 16
+        self.conv1 = layer_init(nn.Conv2d(in_channels, 4, kernel_size=5, stride=1))
+        self.conv2 = layer_init(nn.Conv2d(4, 8, kernel_size=3, stride=1))
+        self.conv3 = layer_init(nn.Conv2d(8, 16, kernel_size=3, stride=1))
+        self.fc4 = layer_init(nn.Linear(4 * 4 * 16, self.feature_dim))
+
+    def forward(self, x):
+        y = F.relu(self.conv1(x))
+        y = F.relu(self.conv2(y))
+        y = F.relu(self.conv3(y))
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc4(y))
+        return y
+
 class MNISTConvBody(nn.Module):
     def __init__(self, in_channels=1, noisy_linear=False):
         super(MNISTConvBody, self).__init__()
@@ -592,6 +609,23 @@ class FCBody(nn.Module):
         self.feature_dim = dims[-1]
 
     def forward(self, x):
+        for layer in self.layers:
+            x = self.gate(layer(x))
+        return x
+
+class FCBody_CL(nn.Module): # fcbody for continual learning setup
+    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu):
+        super(FCBody_CL, self).__init__()
+        if task_label_dim is None:
+            dims = (state_dim, ) + hidden_units
+        else:
+            dims = (state_dim + task_label_dim, ) + hidden_units
+        self.layers = nn.ModuleList([layer_init(nn.Linear(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.gate = gate
+        self.feature_dim = dims[-1]
+
+    def forward(self, x, task_label=None):
+        if task_label is not None: x = torch.cat([x, task_label], dim=1)
         for layer in self.layers:
             x = self.gate(layer(x))
         return x

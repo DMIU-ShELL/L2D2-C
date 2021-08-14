@@ -4,6 +4,7 @@
 # declaration at the top                                              #
 #######################################################################
 
+from copy import deepcopy
 from ..network import *
 from ..component import *
 from .BaseAgent import *
@@ -80,7 +81,10 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
         BaseAgent.__init__(self, config)
         self.config = config
         self.task = config.task_fn()
-        self.network = config.network_fn(self.task.state_dim, self.task.action_dim)
+        if config.cl_requires_task_label:
+            label_dim = len(self.task.get_all_tasks(config.cl_requires_task_label)) 
+        else: label_dim=0
+        self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)
         self.optimizer = config.optimizer_fn(self.network.parameters())
         self.total_steps = 0
         self.states = self.task.reset()
@@ -93,18 +97,25 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
         self.means = {}
         for n, p in deepcopy(self.params).items():
             p.data.zero_()
-            self.precision_matrices[n] = p.data.to(config.device)
+            self.precision_matrices[n] = p.data.to(config.DEVICE)
         for n, p in deepcopy(self.params).items():
             p.data.zero_()
-            self.means[n] = p.data.to(config.device)
+            self.means[n] = p.data.to(config.DEVICE)
 
     def iteration(self):
+        # TODO in here will be a good place to concatenate task label to states before it is passed
+        # to the policy network.
         config = self.config
         rollout = []
         states = self.states
-        ret_states = [config.state_normalizer(states), ]
+        current_task_label = self.task.get_task()['task_label']
+        if len(states) == 1:
+            current_task_label = current_task_label.reshape(1, -1)
+        else:
+            current_task_label = np.repeat(current_task_label, [len(states), ], axis=0)
+        ret_states = [[config.state_normalizer(states), current_task_label] ]
         for _ in range(config.rollout_length):
-            actions, log_probs, entropy, values = self.network.predict(config.state_normalizer(states))
+            _, actions, log_probs, entropy, values = self.network.predict(config.state_normalizer(states), task_label=current_task_label)
             next_states, rewards, terminals, _ = self.task.step(actions.detach().cpu().numpy())
             self.episode_rewards += rewards
             rewards = config.reward_normalizer(rewards)
@@ -115,10 +126,10 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
 
             rollout.append([log_probs, values, actions, rewards, 1 - terminals, entropy])
             states = next_states
-            ret_states.append(config.state_normalizer(states))
+            ret_states.append([config.state_normalizer(states), current_task_label])
 
         self.states = states
-        pending_value = self.network.predict(config.state_normalizer(states))[-1]
+        pending_value = self.network.predict(config.state_normalizer(states), task_label=current_task_label)[-1]
         rollout.append([None, pending_value, None, None, None, None])
 
         processed_rollout = [None] * (len(rollout) - 1)
@@ -155,28 +166,30 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
 
-        return np.concatenate(ret_states, axis=0)
+        #return np.concatenate(ret_states, axis=0)
+        return ret_states
 
     def consolidate(self, data, batch_size=32):
+        states, task_label = data
         config = self.config
         precision_matrices = {}
         for n, p in deepcopy(self.params).items():
             p.data.zero_()
-            precision_matrices[n] = p.data.to(config.device)
+            precision_matrices[n] = p.data.to(config.DEVICE)
 
         # Set the model in the evaluation mode
         self.network.eval()
 
         # Get network outputs
-        if isinstance(data, list): data = np.array(data)
-        idxs = np.arange(len(data))
+        idxs = np.arange(len(states))
         np.random.shuffle(idxs)
-        num_batches = len(data) // batch_size
+        num_batches = len(states) // batch_size
         #z = []
         #for batch_idx in range(num_batches):
         #    start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
-        #    states = data[start:end ,...]
-        #    z.append(self.network(states))            
+        #    states_ = states[start:end ,...]
+        #    task_label_ = task_label[start:end ,...]
+        #    z.append(self.network(states_, task_label_))            
         #z = torch.cat(z)
         #zmean = z.mean(dim=0)
         #K = zmean.shape[0]
@@ -192,15 +205,16 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
         #        precision_matrices[n].data+=p.grad.data ** 2 / float(len(data) * config.cl_n_slices)
         for batch_idx in range(num_batches):
             start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
-            states = data[start:end, ...]
-            actions, _, _, values = self.network.predict(states)
-            actions_mean = actions.mean(dim=0)
-            K = actions_mean.shape[0]
-            for _ in range(confg.cl_n_slices)):
-                xi = torch.randn(K, ).to(config.device)
+            states_ = states[start:end, ...]
+            task_label_ = task_label[start:end, ...]
+            logits, actions, _, _, values = self.network.predict(states_, task_label=task_label_)
+            logits_mean = logits.type(torch.float32).mean(dim=0)
+            K = logits_mean.shape[0]
+            for _ in range(config.cl_n_slices):
+                xi = torch.randn(K, ).to(config.DEVICE)
                 xi /= torch.sqrt((xi**2).sum())
                 self.network.zero_grad()
-                out = torch.matmul(actions_mean, xi)
+                out = torch.matmul(logits_mean, xi)
                 out.backward(retain_graph=True)
                 # Update the temporary precision matrix
                 for n, p in self.params.items():
@@ -212,7 +226,7 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
             self.precision_matrices[n] = config.cl_alpha*self.precision_matrices[n] + \
                 (1 - config.cl_alpha) * precision_matrices[n]
             # Update the means
-            self.means[n] = deepcopy(p.data).to(self.device)
+            self.means[n] = deepcopy(p.data).to(config.DEVICE)
 
         self.network.train()
         return

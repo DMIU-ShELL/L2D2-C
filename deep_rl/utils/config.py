@@ -69,7 +69,9 @@ class Config:
         self.seed = 1
 
         # extra config for continual learning (cl) experiments
-        self.cl_apha = 0.5
+        self.cl_requires_task_label = True
+        self.cl_num_tasks = 1
+        self.cl_alpha = 0.5
         self.cl_n_slices = 50
         self.cl_loss_coeff = 1e6
 
