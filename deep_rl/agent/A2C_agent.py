@@ -103,8 +103,8 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
             self.means[n] = p.data.to(config.DEVICE)
 
     def iteration(self):
-        # TODO in here will be a good place to concatenate task label to states before it is passed
-        # to the policy network.
+        # TODO in here will be a good place to concatenate task 
+        # label to states before it is passed to the policy network.
         config = self.config
         rollout = []
         states = self.states
@@ -115,7 +115,8 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
             current_task_label = np.repeat(current_task_label, [len(states), ], axis=0)
         ret_states = [[config.state_normalizer(states), current_task_label] ]
         for _ in range(config.rollout_length):
-            _, actions, log_probs, entropy, values = self.network.predict(config.state_normalizer(states), task_label=current_task_label)
+            _, actions, log_probs, entropy, values = self.network.predict(\
+                config.state_normalizer(states), task_label=current_task_label)
             next_states, rewards, terminals, _ = self.task.step(actions.detach().cpu().numpy())
             self.episode_rewards += rewards
             rewards = config.reward_normalizer(rewards)
@@ -129,7 +130,8 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
             ret_states.append([config.state_normalizer(states), current_task_label])
 
         self.states = states
-        pending_value = self.network.predict(config.state_normalizer(states), task_label=current_task_label)[-1]
+        pending_value = self.network.predict(config.state_normalizer(states), \
+            task_label=current_task_label)[-1]
         rollout.append([None, pending_value, None, None, None, None])
 
         processed_rollout = [None] * (len(rollout) - 1)
@@ -144,11 +146,12 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
             if not config.use_gae:
                 advantages = returns - value.detach()
             else:
-                td_error = rewards + config.discount * terminals * next_value.detach() - value.detach()
+                td_error=rewards + config.discount * terminals * next_value.detach() - value.detach()
                 advantages = advantages * config.gae_tau * config.discount * terminals + td_error
             processed_rollout[i] = [log_prob, value, returns, advantages, entropy]
 
-        log_prob, value, returns, advantages, entropy = map(lambda x: torch.cat(x, dim=0), zip(*processed_rollout))
+        log_prob, value, returns, advantages, entropy = map(lambda x: torch.cat(x, dim=0), \
+            zip(*processed_rollout))
         policy_loss = -log_prob * advantages
         value_loss = 0.5 * (returns - value).pow(2)
         entropy_loss = entropy.mean()
@@ -169,6 +172,24 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
         #return np.concatenate(ret_states, axis=0)
         return ret_states
 
+    def penalty(self):
+        loss = 0
+        for n, p in self.network.named_parameters():
+            _loss = self.precision_matrices[n] * (p - self.means[n]) ** 2
+            loss += _loss.sum()
+        return loss * self.config.cl_loss_coeff
+
+    def consolidate(self, data, batch_size=32):
+        raise NotImplementedError
+
+class A2CAgentSCP(A2CContinualLearnerAgent):
+    '''
+    A2C continual learning agent using sliced cramer preservation (SCP)
+    weight preservation mechanism
+    '''
+    def __init__(self, config):
+        A2CContinualLearnerAgent.__init__(self, config)
+
     def consolidate(self, data, batch_size=32):
         states, task_label = data
         config = self.config
@@ -184,36 +205,19 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
         idxs = np.arange(len(states))
         np.random.shuffle(idxs)
         num_batches = len(states) // batch_size
-        #z = []
-        #for batch_idx in range(num_batches):
-        #    start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
-        #    states_ = states[start:end ,...]
-        #    task_label_ = task_label[start:end ,...]
-        #    z.append(self.network(states_, task_label_))            
-        #z = torch.cat(z)
-        #zmean = z.mean(dim=0)
-        #K = zmean.shape[0]
-        #xi = torch.stack([(xi_/torch.sqrt((xi_**2).sum())).to(self.device) \
-        #       for xi_ in torch.randn((K,self.n_slices))])
-        #for l in tqdm(range(config.cl_n_slices)):
-        #    self.network.zero_grad()
-        #    out = torch.matmul(zmean,xi[:,l])
-        #    out.backward(retain_graph=True)
-
-        #    # Update the temporary precision matrix
-        #    for n, p in self.model.named_parameters():
-        #        precision_matrices[n].data+=p.grad.data ** 2 / float(len(data) * config.cl_n_slices)
+        num_batches = num_batches + 1 if len(state) % batch_size > 0 else num_batches
         for batch_idx in range(num_batches):
             start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
             states_ = states[start:end, ...]
             task_label_ = task_label[start:end, ...]
+            self.network.zero_grad()
             logits, actions, _, _, values = self.network.predict(states_, task_label=task_label_)
             logits_mean = logits.type(torch.float32).mean(dim=0)
             K = logits_mean.shape[0]
             for _ in range(config.cl_n_slices):
                 xi = torch.randn(K, ).to(config.DEVICE)
                 xi /= torch.sqrt((xi**2).sum())
-                self.network.zero_grad()
+                #self.network.zero_grad()
                 out = torch.matmul(logits_mean, xi)
                 out.backward(retain_graph=True)
                 # Update the temporary precision matrix
@@ -229,12 +233,56 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
             self.means[n] = deepcopy(p.data).to(config.DEVICE)
 
         self.network.train()
-        return
+        # return task precision matrices and general precision matrices across tasks agent has
+        # been explosed to so far
+        return precision_matrices, self.precision_matrices
 
-    def penalty(self):
-        loss = 0
+class A2CAgentMAS(A2CContinualLearnerAgent):
+    '''
+    A2C continual learning agent using memory aware synapse (MAS)
+    weight preservation mechanism
+    '''
+    def __init__(self, config):
+        A2CContinualLearnerAgent.__init__(self, config)
+
+    def consolidate(self, data, batch_size=32):
+        states, task_label = data
+        config = self.config
+        precision_matrices = {}
+        for n, p in deepcopy(self.params).items():
+            p.data.zero_()
+            precision_matrices[n] = p.data.to(config.DEVICE)
+
+        # Set the model in the evaluation mode
+        self.network.eval()
+
+        # Get network outputs
+        idxs = np.arange(len(states))
+        np.random.shuffle(idxs)
+        num_batches = len(states) // batch_size
+        num_batches = num_batches + 1 if len(state) % batch_size > 0 else num_batches
+        for batch_idx in range(num_batches):
+            start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
+            states_ = states[start:end, ...]
+            task_label_ = task_label[start:end, ...]
+            self.network.zero_grad()
+            logits, actions, _, _, values = self.network.predict(states_, task_label=task_label_)
+            loss = torch.softmax(logits, dim=1)
+            loss = (torch.linalg.norm(loss, ord=2, dim=1)).mean()
+            loss.backward(retain_graph=True)
+            # Update the temporary precision matrix
+            for n, p in self.params.items():
+                precision_matrices[n].data += p.grad.data ** 2 / float(len(states))
+
         for n, p in self.network.named_parameters():
-            _loss = self.precision_matrices[n] * (p - self.means[n]) ** 2
-            loss += _loss.sum()
-        return loss * self.config.cl_loss_coeff
+            if p.requires_grad is False: continue
+            # Update the precision matrix
+            self.precision_matrices[n] = config.cl_alpha*self.precision_matrices[n] + \
+                (1 - config.cl_alpha) * precision_matrices[n]
+            # Update the means
+            self.means[n] = deepcopy(p.data).to(config.DEVICE)
 
+        self.network.train()
+        # return task precision matrices and general precision matrices across tasks agent has
+        # been explosed to so far
+        return precision_matrices, self.precision_matrices

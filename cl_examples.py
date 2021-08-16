@@ -74,7 +74,7 @@ def a2c_ctgraph_1dstates_cl(name, env_config_path=None):
     config.gradient_clip = 5
     config.max_steps = int(5e4) # note, max steps per task
     config.logger = get_logger(log_dir=config.log_dir)
-    agent = A2CContinualLearnerAgent(config)
+    agent = A2CAgentMAS(config)
     config.cl_num_tasks = 3
     config.cl_requires_task_label = True
     tasks = agent.task.get_all_tasks(config.cl_requires_task_label)
