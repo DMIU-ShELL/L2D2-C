@@ -76,16 +76,35 @@ class A2CAgent(BaseAgent):
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
 
-class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
+class A2CContinualLearnerAgent(BaseContinualLearnerAgent):
     def __init__(self, config):
-        BaseAgent.__init__(self, config)
+        BaseContinualLearnerAgent.__init__(self, config)
         self.config = config
-        self.task = config.task_fn()
-        if config.cl_requires_task_label:
-            label_dim = len(self.task.get_all_tasks(config.cl_requires_task_label)) 
-        else: label_dim=0
+        # this will be set to None only during evaluation (test run) after training
+        if config.task_fn is not None: 
+            self.task = config.task_fn()
+        else:
+            self.task = None
+        if config.eval_task_fn is not None:
+            self.evaluation_env = config.eval_task_fn(config.log_dir)
+            if self.task is None:
+                self.task = self.evaluation_env # NOTE, hack to allow code run in eval mode
+        else:
+            self.evaluation_env = None
+
+        tasks = self.task.get_all_tasks(config.cl_requires_task_label)
+        tasks = tasks[ : config.cl_num_tasks]
+        label_dim = tasks[0]['task_label']
+        label_dim = 0 if label_dim is None else len(label_dim)
+        self.config.cl_tasks_info = tasks
+        #if config.cl_requires_task_label:
+        #    if self.task is not None:
+        #        label_dim = len(self.task.get_all_tasks(config.cl_requires_task_label)) 
+        #    else:
+        #        label_dim = len(self.evaluation_env.get_all_tasks(config.cl_requires_task_label)) 
+        #else: label_dim=0
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)
-        self.optimizer = config.optimizer_fn(self.network.parameters())
+        self.optimizer = config.optimizer_fn(self.network.parameters(), config.lr)
         self.total_steps = 0
         self.states = self.task.reset()
         self.episode_rewards = np.zeros(config.num_workers)
@@ -103,8 +122,6 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
             self.means[n] = p.data.to(config.DEVICE)
 
     def iteration(self):
-        # TODO in here will be a good place to concatenate task 
-        # label to states before it is passed to the policy network.
         config = self.config
         rollout = []
         states = self.states
@@ -112,7 +129,7 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
         if len(states) == 1:
             current_task_label = current_task_label.reshape(1, -1)
         else:
-            current_task_label = np.repeat(current_task_label, [len(states), ], axis=0)
+            current_task_label = np.repeat(current_task_label.reshape(1, -1), len(states), axis=0)
         ret_states = [[config.state_normalizer(states), current_task_label] ]
         for _ in range(config.rollout_length):
             _, actions, log_probs, entropy, values = self.network.predict(\
@@ -155,6 +172,7 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
         policy_loss = -log_prob * advantages
         value_loss = 0.5 * (returns - value).pow(2)
         entropy_loss = entropy.mean()
+        weight_pres_loss = self.penalty()
 
         self.policy_loss = np.mean(policy_loss.cpu().detach().numpy())
         self.entropy_loss = np.mean(entropy_loss.cpu().detach().numpy())
@@ -162,7 +180,7 @@ class A2CContinualLearnerAgent(BaseAgent, BaseContinualLearnerAgent):
 
         self.optimizer.zero_grad()
         (policy_loss - config.entropy_weight * entropy_loss +
-         config.value_loss_weight * value_loss).mean().backward()
+         config.value_loss_weight * value_loss + weight_pres_loss).mean().backward()
         nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
         self.optimizer.step()
 
@@ -204,8 +222,12 @@ class A2CAgentSCP(A2CContinualLearnerAgent):
         # Get network outputs
         idxs = np.arange(len(states))
         np.random.shuffle(idxs)
+        # shuffle data
+        states = states[idxs]
+        task_label = task_label[idxs]
+
         num_batches = len(states) // batch_size
-        num_batches = num_batches + 1 if len(state) % batch_size > 0 else num_batches
+        num_batches = num_batches + 1 if len(states) % batch_size > 0 else num_batches
         for batch_idx in range(num_batches):
             start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
             states_ = states[start:end, ...]
@@ -214,11 +236,17 @@ class A2CAgentSCP(A2CContinualLearnerAgent):
             logits, actions, _, _, values = self.network.predict(states_, task_label=task_label_)
             logits_mean = logits.type(torch.float32).mean(dim=0)
             K = logits_mean.shape[0]
+            values_mean = values.type(torch.float32).mean(dim=0)
+            L = values_mean.shape[0]
             for _ in range(config.cl_n_slices):
                 xi = torch.randn(K, ).to(config.DEVICE)
                 xi /= torch.sqrt((xi**2).sum())
-                #self.network.zero_grad()
-                out = torch.matmul(logits_mean, xi)
+                vi = torch.randn(L, ).to(config.DEVICE)
+                vi /= torch.sqrt((vi**2).sum())
+                out_actor = torch.matmul(logits_mean, xi)
+                out_value = torch.matmul(values_mean, vi) 
+                out = out_actor + out_value
+                self.network.zero_grad()
                 out.backward(retain_graph=True)
                 # Update the temporary precision matrix
                 for n, p in self.params.items():
@@ -247,6 +275,10 @@ class A2CAgentMAS(A2CContinualLearnerAgent):
 
     def consolidate(self, data, batch_size=32):
         states, task_label = data
+
+        states = states[-2000 : ]
+        task_label = task_label[-2000 : ]
+
         config = self.config
         precision_matrices = {}
         for n, p in deepcopy(self.params).items():
@@ -259,20 +291,47 @@ class A2CAgentMAS(A2CContinualLearnerAgent):
         # Get network outputs
         idxs = np.arange(len(states))
         np.random.shuffle(idxs)
+        # shuffle data
+        states = states[idxs]
+        task_label = task_label[idxs]
+
         num_batches = len(states) // batch_size
-        num_batches = num_batches + 1 if len(state) % batch_size > 0 else num_batches
+        num_batches = num_batches + 1 if len(states) % batch_size > 0 else num_batches
         for batch_idx in range(num_batches):
             start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
             states_ = states[start:end, ...]
             task_label_ = task_label[start:end, ...]
-            self.network.zero_grad()
             logits, actions, _, _, values = self.network.predict(states_, task_label=task_label_)
-            loss = torch.softmax(logits, dim=1)
-            loss = (torch.linalg.norm(loss, ord=2, dim=1)).mean()
-            loss.backward(retain_graph=True)
+            logits = torch.softmax(logits, dim=1)
+            # get value loss
+            value_loss = values.sum()
+            # get actor loss: l2 norm of each row of logits
+            try:
+                actor_loss = (torch.linalg.norm(logits, ord=2, dim=1)).sum()
+            except:
+                # older version of pytorch, we calculate l2 norm as API is not available
+                actor_loss = (logits ** 2).sum(dim=1).sqrt().sum()
+            #loss = actor_loss
+            #loss = actor_loss + value_loss
+            #self.network.zero_grad()
+            #loss.backward()
+            ## Update the temporary precision matrix
+            #for n, p in self.params.items():
+            #    precision_matrices[n].data += p.grad.data ** 2 / float(len(states))
+            #    #precision_matrices[n].data += p.grad.data ** 2
+
+            self.network.zero_grad()
+            actor_loss.backward()
             # Update the temporary precision matrix
             for n, p in self.params.items():
-                precision_matrices[n].data += p.grad.data ** 2 / float(len(states))
+                #precision_matrices[n].data += p.grad.data ** 2 / float(len(states))
+                precision_matrices[n].data += p.grad.data ** 2
+            self.network.zero_grad()
+            value_loss.backward()
+            # Update the temporary precision matrix
+            for n, p in self.params.items():
+                #precision_matrices[n].data += p.grad.data ** 2 / float(len(states))
+                precision_matrices[n].data += p.grad.data ** 2
 
         for n, p in self.network.named_parameters():
             if p.requires_grad is False: continue

@@ -127,6 +127,7 @@ class CTgraph(BaseTask):
         else:
             self.state_dim = env.observation_space.shape
 
+        self.task_label_dim = 64
         self.env = self.set_monitor(env, log_dir)
 
         # get all tasks in graph environment instance
@@ -134,7 +135,7 @@ class CTgraph(BaseTask):
         depth = env_config['graph_shape']['depth']
         branch = env_config['graph_shape']['depth']
         tasks = list(product(list(range(branch)), repeat=depth))
-        self.tasks = [{'goal': np.array(task)} for task in tasks]
+        self.tasks = [{'goal': np.array(task), 'task_label': None} for task in tasks]
         self.current_task = self.tasks[0]
 
     def step(self, action):
@@ -162,7 +163,9 @@ class CTgraph(BaseTask):
 
     def get_all_tasks(self, requires_task_label=False):
         if requires_task_label:
-            tasks_label = np.eye(len(self.tasks)).astype(np.float32)
+            #tasks_label = np.eye(len(self.tasks)).astype(np.float32)
+            tasks_label=np.random.uniform(low=-1.,high=1.,size=(len(self.tasks),self.task_label_dim))
+            tasks_label = tasks_label.astype(np.float32)
             tasks = copy.deepcopy(self.tasks)
             for task, label in zip(tasks, tasks_label):
                 task['task_label'] = label
@@ -174,7 +177,9 @@ class CTgraph(BaseTask):
         tasks_idx = np.random.randint(low=0, high=len(self.tasks), size=(num_tasks,))
         if requires_task_label:
             all_tasks = copy.deepcopy(self.tasks)
-            tasks_label = np.eye(len(all_tasks)).astype(np.float32)
+            #tasks_label = np.eye(len(all_tasks)).astype(np.float32)
+            tasks_label =np.random.uniform(low=-1.,high=1.,size=(len(all_tasks),self.task_label_dim))
+            tasks_label = tasks_label.astype(np.float32)
             tasks = []
             for idx in tasks_idx:
                 task = all_tasks[idx]
@@ -184,6 +189,87 @@ class CTgraph(BaseTask):
         else:
             tasks = [self.tasks[idx] for idx in tasks_idx]
             return tasks
+
+class CTgraphPermutedStates(BaseTask):
+    def __init__(self, name, env_config_path, log_dir=None):
+        BaseTask.__init__(self)
+        self.name = name
+        from gym_CTgraph import CTgraph_env
+        from gym_CTgraph.CTgraph_conf import CTgraph_conf
+        from gym_CTgraph.CTgraph_images import CTgraph_images
+        env = gym.make(name)
+        env_config = CTgraph_conf(env_config_path)
+        env_config = env_config.getParameters()
+        imageDataset = CTgraph_images(env_config)
+        self.env_config=env_config
+
+        state, _, _, _ = env.init(env_config, imageDataset)
+        env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape)
+        self.action_dim = env.action_space.n
+        if env_config['image_dataset']['1D']:
+            self.state_dim = int(np.prod(env.observation_space.shape))
+        else:
+            self.state_dim = env.observation_space.shape
+
+        self.env = self.set_monitor(env, log_dir)
+
+        # get all tasks in graph environment instance
+        num_tasks = 4
+        self.tasks = []
+        flat_statedim= self.state_dim if isinstance(self.state_dim, int) else np.prod(self.state_dim)
+        permute = np.arange(flat_statedim)
+        goal = self.env.unwrapped.get_high_reward_path()
+        self.tasks.append({'permute_mask': permute, 'goal': goal})
+        for _ in range(num_tasks-1):
+            permute = np.arange(flat_statedim)
+            np.random.shuffle(permute)
+            self.tasks.append({'permute_mask': permute, 'goal': goal})
+        self.current_task = self.tasks[0]
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        if self.env_config['image_dataset']['1D']: state = state.ravel()
+        # apply permute mask to state
+        sh = state.shape
+        state = state.ravel()
+        state = state[self.current_task['permute_mask']]
+        state = state.reshape(sh)
+        return state, reward, done, info
+
+    def reset(self):
+        state, _, _, _ = self.env.reset() # ctgraph returns state, reward, done, info in reset
+        if self.env_config['image_dataset']['1D']: state = state.ravel()
+        # apply permute mask to state
+        sh = state.shape
+        state = state.ravel()
+        state = state[self.current_task['permute_mask']]
+        state = state.reshape(sh)
+        # return only state when reset is called to conform with other env in the repo
+        return state
+
+    def reset_task(self, taskinfo):
+        self.set_task(taskinfo)
+        return self.reset()
+
+    def set_task(self, taskinfo):
+        self.current_task = taskinfo
+    
+    def get_task(self):
+        return self.current_task
+
+    def get_all_tasks(self, requires_task_label=False):
+        if requires_task_label:
+            tasks_label = np.eye(len(self.tasks)).astype(np.float32)
+            tasks = copy.deepcopy(self.tasks)
+            for task, label in zip(tasks, tasks_label):
+                task['task_label'] = label
+            return tasks
+        else:
+            return self.tasks
+    
+    def random_tasks(self, num_tasks, requires_task_label=True):
+        raise NotImplementedError
 
 class PixelAtari(BaseTask):
     def __init__(self, name, seed=0, log_dir=None,
@@ -401,8 +487,11 @@ class ParallelizedTask:
         for task in self.tasks:
             task.set_task(task_info)
 
-    def get_task(self):
-        return self.tasks[0].get_task()
+    def get_task(self, all_workers=False):
+        if not all_workers:
+            return self.tasks[0].get_task()
+        else:
+            return [task.get_task() for task in self.tasks]
 
     def get_all_tasks(self, requires_task_label):
         return self.tasks[0].get_all_tasks(requires_task_label)

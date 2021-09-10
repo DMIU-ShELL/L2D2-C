@@ -173,13 +173,13 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
     random_seed(config.seed)
     agent_name = agent.__class__.__name__
 
-
     iteration = 0
     steps = []
     rewards = []
     task_start_idx = 0
+    eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
     for task_idx, task_info in enumerate(tasks_info):
-        print('\nstart training on task {0}'.format(task_idx))
+        config.logger.info('\nstart training on task {0}'.format(task_idx))
         states_for_weight_pres = []
         states = agent.task.reset_task(task_info)
         agent.states = states
@@ -218,9 +218,57 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                 task_start_idx = len(rewards)
                 break
         states_for_weight_pres = list(map(lambda x: np.concatenate(x), zip(*states_for_weight_pres)))
-        agent.consolidate(states_for_weight_pres)
+        config.logger.info('preserving learned weights for current task')
+        ret = agent.consolidate(states_for_weight_pres)
+        with open(config.log_dir + '/%s-%s-precision-matrices-%s-task-%d.bin' % \
+            (agent_name, config.tag, agent.task.name, task_idx+1), 'wb') as f:
+            pickle.dump(ret[0], f)
+        with open(config.log_dir + '/%s-%s-precision-matrices-movavg-%s-task-%d.bin' % \
+            (agent_name, config.tag, agent.task.name, task_idx+1), 'wb') as f:
+            pickle.dump(ret[1], f)
+        # evaluate agent across task exposed to agent so far
+        config.logger.info('evaluating agent across all tasks exposed so far to agent')
+        for j in range(task_idx+1):
+            eval_states = agent.evaluation_env.reset_task(tasks_info[j])
+            agent.evaluation_states = eval_states
+            rewards, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+            eval_results[j] += rewards
+
+            with open(config.log_dir+'/rewards-task{0}_{1}.bin'.format(task_idx+1, j+1), 'wb') as f:
+                pickle.dump(rewards, f)
+            with open(config.log_dir+'/episodes-task{0}_{1}.bin'.format(task_idx+1, j+1), 'wb') as f:
+                pickle.dump(episodes, f)
+            
     agent.close()
+    for k, v in eval_results.items():
+        print('{0}: {1}'.format(k, np.mean(v)))
+    print(eval_results)
     return steps, rewards
+
+def run_evals_cl(agent, tasks_info, num_evals): 
+    #run evaluations of agent across multiple task it has been trained (exposed to)
+    # in continual learning, weight preservation setting
+    config = agent.config
+    random_seed(config.seed)
+    rewards = []
+    episodes = []
+    for task_idx in range(len(tasks_info)):
+        eval_states = agent.evaluation_env.reset_task(tasks_info[task_idx])
+        agent.evaluation_states = eval_states
+        task_rewards, task_episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+        rewards.append(task_rewards)
+        episodes.append(task_episodes)
+        config.logger.info('task {0} / mean reward(across episodes): {1}'.format(
+            task_idx+1, np.mean(task_rewards)))
+    agent.close()
+    with open(config.log_dir + '/rewards.bin', 'wb') as f:
+        pickle.dump(rewards, f)
+    with open(config.log_dir + '/episodes.bin', 'wb') as f:
+        pickle.dump(episodes, f)
+    for task_idx, task_rewards in enumerate(rewards):
+        print('task {0}'.format(task_idx+1))
+        print(task_rewards)
+    return rewards
 
 def get_time_str():
     return datetime.datetime.now().strftime("%y%m%d-%H%M%S")

@@ -68,12 +68,21 @@ class Config:
         self.sgd_update_frequency = 4
         self.seed = 1
 
+        # extra config
+        self.lr = 0.00025
+        self.agent_name = None
+        self.env_name = None
+        self.env_config_path = None
+        self.eval_task_fn = None
+
         # extra config for continual learning (cl) experiments
         self.cl_requires_task_label = True
         self.cl_num_tasks = 1
-        self.cl_alpha = 0.5
+        self.cl_alpha = 0.25
         self.cl_n_slices = 50
         self.cl_loss_coeff = 1e6
+        self.cl_preservation = 'mas' # note, this should be 'mas' or 'scp'
+        self.cl_tasks_info = None
 
     def add_argument(self, *args, **kwargs):
         self.parser.add_argument(*args, **kwargs)

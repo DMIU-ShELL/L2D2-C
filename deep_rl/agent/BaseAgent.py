@@ -71,10 +71,54 @@ class BaseAgent:
                 self.config.logger.info('evaluation episode return: %f' % (self.evaluation_return))
                 self.evaluation_return = 0
 
-class BaseContinualLearnerAgent:
+class BaseContinualLearnerAgent(BaseAgent):
+    def __init__(self, config):
+        BaseAgent.__init__(self, config)
+
     def consolidate(self, config=None):
         raise NotImplementedError
 
     def penalty(self):
         raise NotImplementedError
 
+    def evaluation_action(self, state, task_label):
+        self.config.state_normalizer.set_read_only()
+        state = self.config.state_normalizer(np.stack([state]))
+        task_label = np.stack([task_label])
+        out = self.network.predict(state, task_label=task_label)
+        logits = out[0]
+        self.config.state_normalizer.unset_read_only()
+        action = np.argmax(logits.numpy().flatten())
+        ret = {'logits': out[0], 'sampled_action': out[1], 'log_prob': out[2], 
+            'entropy': out[3], 'value': out[4], 'deterministic_action': action}
+        return action, ret
+
+    def deterministic_episode(self):
+        epi_info = {'logits': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
+            'value': [], 'deterministic_action': [], 'reward': [], 'terminal': []}
+
+        #env = self.config.evaluation_env
+        env = self.evaluation_env
+        state = env.reset()
+        task_label = env.get_task()['task_label']
+        total_rewards = 0
+        while True:
+            action, output_info = self.evaluation_action(state, task_label)
+            state, reward, done, _ = env.step(action)
+            total_rewards += reward
+            for k, v in output_info.items(): epi_info[k].append(v)
+            epi_info['reward'].append(reward)
+            epi_info['terminal'].append(done)
+            if done: break
+        return total_rewards, epi_info
+
+    def evaluate_cl(self, num_iterations=100):
+        # evaluation method for continual learning agents
+        rewards = []
+        episodes = []
+        with torch.no_grad():
+            for ep in range(num_iterations):
+                total_episode_reward, episode_info = self.deterministic_episode()
+                rewards.append(total_episode_reward)
+                episodes.append(episode_info)
+        return rewards, episodes
