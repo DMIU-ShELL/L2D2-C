@@ -21,7 +21,7 @@ except:
     # python == 2.7
     from pathlib2 import Path
 
-def run_episodes(agent):
+def run_episodes(agent): # run episodes in single task setting
     config = agent.config
     random_seed(config.seed)
     window_size = 100
@@ -30,7 +30,7 @@ def run_episodes(agent):
     steps = []
     avg_test_rewards = []
     agent_type = agent.__class__.__name__
-
+    task_name = agent.task.name
 
     while True:
         ep += 1
@@ -38,91 +38,118 @@ def run_episodes(agent):
         rewards.append(reward)
         steps.append(step)
         avg_reward = np.mean(rewards[-window_size:])
-        config.logger.info('episode %d, reward %f, avg reward %f, total steps %d, episode step %d' % (
-            ep, reward, avg_reward, agent.total_steps, step))
-        #L2M changes:
+        config.logger.info('episode %d, reward %f, avg reward %f, total steps %d, episode step %d' %
+            (ep, reward, avg_reward, agent.total_steps, step))
+        # tensorboard log
         config.logger.scalar_summary('reward', reward)
         config.logger.scalar_summary('max reward', np.max(rewards[-window_size:]))
         config.logger.scalar_summary('avg reward', avg_reward)
+        # other logs
         if config.save_interval and ep % config.save_interval == 0:
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
-                    agent_type, config.tag, agent.task.name), 'wb') as f:
+                    agent_type, config.tag, task_name), 'wb') as f:
                 pickle.dump([steps, rewards], f)
-            agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, agent.task.name))
-            np.save(config.log_dir + '/rewards',rewards)
-        #    for tag, value in agent.network.named_parameters():
-        #        tag = tag.replace('.', '/')
-        #        config.logger.histo_summary(tag, np.nan_to_num(value.data.cpu().numpy()))
-            if config.log_modulation:
-                mod_avg = torch.mean(agent.network.body.y_mod0) + torch.mean(agent.network.body.y_mod1) + torch.mean(agent.network.body.y_mod2)
-                mod_std = torch.std(agent.network.body.y_mod0) + torch.std(agent.network.body.y_mod1) + torch.std(agent.network.body.y_mod2)
-                mod_max_l0 = torch.max(agent.network.body.y_mod0)
-                mod_max_l1 = torch.max(agent.network.body.y_mod1)
-                mod_max_l2 = torch.max(agent.network.body.y_mod2)
-                mod_min_l1 = torch.min(agent.network.body.y_mod1)
-                config.logger.scalar_summary('z_mod avg', mod_avg/3)
-                config.logger.scalar_summary('z_mod std', mod_std/3)
-                config.logger.scalar_summary('z_mod min l1', mod_min_l1)
-                config.logger.scalar_summary('z_mod max l0', mod_max_l0)
-                config.logger.scalar_summary('z_mod max l1', mod_max_l1)
-                config.logger.scalar_summary('z_mod max l2', mod_max_l2)
-
-                conv1MW = agent.network.body.conv1_mem_features.weight
-                conv2MW = agent.network.body.conv2_mem_features.weight
-                conv3MW = agent.network.body.conv2_mem_features.weight
-                conv1 = agent.network.body.conv1.weight
-                conv2 = agent.network.body.conv2.weight
-                conv3 = agent.network.body.conv3.weight
-                mod0 = agent.network.body.y_mod0
-                mod1 = agent.network.body.y_mod1
-                mod2 = agent.network.body.y_mod2
-
-                #agent.network.body.conv1_mem_features.weight[0:32,0].detach().numpy()}
-            #    batch_tensor = conv1MW[0:10,0]
-            #    grid_img = torchvision.utils.make_grid(batch_tensor, nrow=5)
-                for i in range(2):
-                    config.logger.image_summary('conv1_mem_f' + str(i), conv1MW[i,0])
-                    config.logger.image_summary('conv1' + str(i), conv1[i,0])
-#                    print('mod0.shape', mod0.shape)
-                    config.logger.image_summary('mod0' + str(i), mod0[0,i])
-                for i in range(2):
-                    config.logger.image_summary('conv2_mem_f' + str(i), conv2MW[i,0])
-                    config.logger.image_summary('conv2' + str(i), conv2[i,0])
-                    config.logger.image_summary('mod1' + str(i), mod1[0,i])
-                for i in range(2):
-                    config.logger.image_summary('conv3_mem_f' + str(i), conv3MW[i,0])
-                    config.logger.image_summary('conv3' + str(i), conv3[i,0])
-                    config.logger.image_summary('mod2' + str(i), mod2[0,i])
-
-    #            import matplotlib.pyplot as plt
-    #            fig, axs = plt.subplots(nrows=5, ncols=5, figsize=(12.3, 9),
-    #                            subplot_kw={'xticks': [], 'yticks': []})
-
-    #            fig.subplots_adjust(left=0.03, right=0.97, hspace=0.3, wspace=0.05)
-    #            numbers = np.arange(25)
-    #            for ax, image_nr in zip(axs.flat, numbers):
-                # this line shows the standard set
-    #            ax.imshow(imageDataset.getNoisyImage(image_nr))
-    #                ax.imshow(conv1MW[image_nr,0].detach().numpy())
-    #            plt.tight_layout()
-    #            plt.show()
-    #            input()
+            agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, task_name))
+            np.save(config.log_dir + '/rewards', rewards)
 
         if config.episode_limit and ep > config.episode_limit:
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
-                    agent_type, config.tag, agent.task.name), 'wb') as f:
+                    agent_type, config.tag, task_name), 'wb') as f:
                 pickle.dump([steps, rewards], f)
-            agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, agent.task.name))
+            agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, task_name))
             break
 
         if config.max_steps and agent.total_steps > config.max_steps:
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
-                    agent_type, config.tag, agent.task.name), 'wb') as f:
+                    agent_type, config.tag, task_name), 'wb') as f:
                 pickle.dump([steps, rewards], f)
-            agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, agent.task.name))
+            agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_type, config.tag, task_name))
             break
 
     agent.close()
+    return steps, rewards, avg_test_rewards
+
+def run_episodes_cl(agent, tasks_info): # run episodes in continual learning (mulitple tasks) setting
+    config = agent.config
+    random_seed(config.seed)
+    window_size = 100
+    ep = 0
+    rewards = []
+    steps = []
+    avg_test_rewards = []
+    agent_name = agent.__class__.__name__
+    task_name = agent.task.name
+
+    task_start_idx = 0
+    eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
+    for task_idx, task_info in enumerate(tasks_info):
+        config.logger.info('\nstart training on task {0}'.format(task_idx))
+        states = agent.task.reset_task(task_info)
+        agent.states = states
+        del agent.replay
+        agent.replay = agent.config.replay_fn()
+        del agent.policy
+        agent.policy = agent.config.policy_fn()
+
+        while True:
+            ep += 1
+            reward, step = agent.episode()
+            rewards.append(reward)
+            steps.append(step)
+            avg_reward = np.mean(rewards[-window_size:])
+            if ep % config.episode_log_interval == 0:
+                config.logger.info('episode %d, reward %f, avg reward %f, total steps %d,' \
+                    'episode step %d' % (ep, reward, avg_reward, agent.total_steps, step))
+                # tensorboard log
+                config.logger.scalar_summary('reward', reward)
+                config.logger.scalar_summary('max reward', np.max(rewards[-window_size:]))
+                config.logger.scalar_summary('avg reward', avg_reward)
+            # other logs
+            if config.save_interval and ep % config.save_interval == 0:
+                with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
+                        agent_name, config.tag, task_name), 'wb') as f:
+                    pickle.dump([steps, rewards], f)
+                agent.save(config.log_dir+'/%s-%s-model-%s.bin'%(agent_name, config.tag, task_name))
+                np.save(config.log_dir + '/rewards', rewards)
+
+            if config.episode_limit and ep > (config.episode_limit*(task_idx+1)):
+                with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
+                        agent_name, config.tag, task_name), 'wb') as f:
+                    pickle.dump([steps, rewards], f)
+                agent.save(config.log_dir+'/%s-%s-model-%s.bin'%(agent_name, config.tag, task_name))
+                break
+
+            if config.max_steps and agent.total_steps > (config.max_steps*(task_idx+1)):
+                with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % (
+                        agent_name, config.tag, task_name), 'wb') as f:
+                    pickle.dump([steps, rewards], f)
+                agent.save(config.log_dir+'/%s-%s-model-%s.bin'%(agent_name, config.tag, task_name))
+                break
+        config.logger.info('preserving learned weights for current task')
+        config.logger.info('epsilon greedy status: {0}'.format(agent.policy.epsilon.current))
+        ret = agent.consolidate()
+        with open(config.log_dir + '/%s-%s-precision-matrices-%s-task-%d.bin' % \
+            (agent_name, config.tag, task_name, task_idx+1), 'wb') as f:
+            pickle.dump(ret[0], f)
+        with open(config.log_dir + '/%s-%s-precision-matrices-movavg-%s-task-%d.bin' % \
+            (agent_name, config.tag, task_name, task_idx+1), 'wb') as f:
+            pickle.dump(ret[1], f)
+        # evaluate agent across task exposed to agent so far
+        config.logger.info('evaluating agent across all tasks exposed so far to agent')
+        for j in range(task_idx+1):
+            eval_states = agent.evaluation_env.reset_task(tasks_info[j])
+            agent.evaluation_states = eval_states
+            rewards, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+            eval_results[j] += rewards
+            with open(config.log_dir+'/rewards-task{0}_{1}.bin'.format(task_idx+1, j+1), 'wb') as f:
+                pickle.dump(rewards, f)
+            with open(config.log_dir+'/episodes-task{0}_{1}.bin'.format(task_idx+1, j+1), 'wb') as f:
+                pickle.dump(episodes, f)
+
+    agent.close()
+    for k, v in eval_results.items():
+        print('{0}: {1}'.format(k, np.mean(v)))
+    print(eval_results)
     return steps, rewards, avg_test_rewards
 
 def run_iterations(agent): # run iterations single task setting
@@ -180,11 +207,14 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
     eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
     for task_idx, task_info in enumerate(tasks_info):
         config.logger.info('\nstart training on task {0}'.format(task_idx))
-        states_for_weight_pres = []
+        config.logger.info('task: {0}'.format(task_info['goal']))
+
         states = agent.task.reset_task(task_info)
-        agent.states = states
+        agent.states = config.state_normalizer(states)
+        agent.data_buffer.clear()
         while True:
-            states_for_weight_pres += agent.iteration()
+            #states_for_weight_pres += agent.iteration()
+            agent.iteration()
             steps.append(agent.total_steps)
             rewards.append(np.mean(agent.last_episode_rewards))
             if iteration % config.iteration_log_interval == 0:
@@ -215,11 +245,12 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     'steps': steps[task_start_idx : ]}, f)
                 agent.save(config.log_dir + '/%s-%s-model-%s-task-%d.bin'%(agent_name, config.tag, \
                     agent.task.name, task_idx+1))
+                agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
+                    agent.task.name))
                 task_start_idx = len(rewards)
                 break
-        states_for_weight_pres = list(map(lambda x: np.concatenate(x), zip(*states_for_weight_pres)))
         config.logger.info('preserving learned weights for current task')
-        ret = agent.consolidate(states_for_weight_pres)
+        ret = agent.consolidate()
         with open(config.log_dir + '/%s-%s-precision-matrices-%s-task-%d.bin' % \
             (agent_name, config.tag, agent.task.name, task_idx+1), 'wb') as f:
             pickle.dump(ret[0], f)

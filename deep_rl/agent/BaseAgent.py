@@ -86,12 +86,19 @@ class BaseContinualLearnerAgent(BaseAgent):
         state = self.config.state_normalizer(np.stack([state]))
         task_label = np.stack([task_label])
         out = self.network.predict(state, task_label=task_label)
-        logits = out[0]
         self.config.state_normalizer.unset_read_only()
-        action = np.argmax(logits.numpy().flatten())
-        ret = {'logits': out[0], 'sampled_action': out[1], 'log_prob': out[2], 
-            'entropy': out[3], 'value': out[4], 'deterministic_action': action}
-        return action, ret
+        if isinstance(out, dict) or isinstance(out, list) or isinstance(out, tuple):
+            # for actor-critic and policy gradient approaches
+            logits = out[0]
+            action = np.argmax(logits.numpy().flatten())
+            ret = {'logits': out[0], 'sampled_action': out[1], 'log_prob': out[2], 
+                'entropy': out[3], 'value': out[4], 'deterministic_action': action}
+            return action, ret
+        else:
+            # for dqn approaches
+            q = out
+            q = out.detach().cpu().numpy().ravel()
+            return np.argmax(q), {'logits': q}
 
     def deterministic_episode(self):
         epi_info = {'logits': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],

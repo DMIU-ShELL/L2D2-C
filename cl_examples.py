@@ -18,6 +18,73 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"]="3"
 
 
+## dqn
+def dqn_ctgraph_1dstates_cl(name, env_config_path=None):
+    config = Config()
+    config.env_name = name
+    config.env_config_path = env_config_path
+    config.lr = 0.00015
+    #config.cl_preservation = 'baseline'
+    #config.cl_preservation = 'mas'
+    config.cl_preservation = 'ewc'
+    #config.cl_preservation = 'scp'
+    config.seed = 4185
+    random_seed(config.seed)
+    #exp_id = '-wo_pres'
+    exp_id = '-pres_ac'
+    log_name = name + '-dqn' + '-' + config.cl_preservation + exp_id
+    config.log_dir = get_default_log_dir(log_name)
+    config.task_fn = lambda log_dir: CTgraph(name, env_config_path=env_config_path, log_dir=log_dir)
+    config.eval_task_fn = config.task_fn
+    config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr, alpha=0.95, eps=0.01)
+    config.network_fn = lambda state_dim, action_dim, label_dim: VanillaNet_CL(action_dim, label_dim,
+        body=FCBody_CL(state_dim, task_label_dim=label_dim, hidden_units=(512,1024,1024,32)))
+    #config.network_fn =lambda state_dim, action_dim, label_dim: DuelingNet_CL(action_dim, label_dim\
+    #    body=FCBody_CL(state_dim, task_label_dim=label_dim, hidden_units=(512,1024,1024,32)))
+    config.policy_fn = lambda: GreedyPolicy(LinearSchedule(1.0, 0.1, 7e4))
+    config.replay_fn = lambda: Replay(memory_size=int(7e4), batch_size=32)
+    config.state_normalizer = ImageNormalizer()
+    #config.reward_normalizer = SignNormalizer()
+    config.reward_normalizer = RescaleNormalizer()
+    config.discount = 0.99
+    #config.target_network_update_freq = 10000
+    config.target_network_update_freq = 5000
+    #config.exploration_steps= 50000
+    config.exploration_steps= 15000
+    config.logger = get_logger(log_dir=config.log_dir)
+    config.double_q = False
+    config.sgd_update_frequency = 7
+    config.max_steps = 1e5 # note, max steps per task
+    config.episode_log_interval = 100
+    config.evaluation_episodes = 10
+
+    config.cl_num_tasks = 4
+    config.cl_requires_task_label = True
+    config.cl_alpha = 0.25
+    #config.cl_loss_coeff = 1e8 # for ewc
+    #config.cl_loss_coeff = 0.5 # for mas
+    config.cl_loss_coeff = 0.5 # for scp
+    if config.cl_preservation == 'mas': agent = DQNAgentMAS(config)
+    elif config.cl_preservation == 'scp': agent = DQNAgentSCP(config)
+    elif config.cl_preservation == 'ewc': agent = DQNAgentEWC(config)
+    elif config.cl_preservation == 'baseline': agent = DQNAgentBaseline(config)
+    else: raise ValueError('config.cl_preservation should be set to \'mas\' or \'scp\' or \'ewc\'.')
+    config.agent_name = agent.__class__.__name__
+    tasks = agent.config.cl_tasks_info
+    shutil.copy(env_config_path, config.log_dir + '/env_config.json')
+    with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
+        pickle.dump(tasks, f)
+    run_episodes_cl(agent, tasks)
+
+    # save config
+    with open('{0}/config.json'.format(config.log_dir), 'w') as f:
+        dict_config = vars(config)
+        for k in dict_config.keys():
+            if not isinstance(dict_config[k], int) \
+            and not isinstance(dict_config[k], float) and dict_config[k] is not None:
+                dict_config[k] = str(dict_config[k])
+        json.dump(dict_config, f)
+
 ## dynamic-grid
 def a2c_dynamic_grid_cl(name, env_config_path=None):
     config = Config()
@@ -40,14 +107,16 @@ def a2c_ctgraph_1dstates_cl(name, env_config_path=None):
     config.env_config_path = env_config_path
     #config.lr = 0.0007
     config.lr = 0.00015
-    config.cl_preservation = 'mas'
-    config.seed = 9183
+    config.cl_preservation = 'baseline'
+    #config.cl_preservation = 'mas'
+    #config.cl_preservation = 'ewc'
+    config.seed = 4185
     random_seed(config.seed)
-    #exp_id = 'baseline_wo_pres'
-    exp_id = '-mas_pres_ac'
+    exp_id = '-wo_pres'
+    #exp_id = '-pres_ac_neuromod'
+    #exp_id = '-pres_ac_4task_rep3'
     log_name = name + '-a2c' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
-    #config.num_workers = 4
     config.num_workers = 8
     assert env_config_path is not None, '`env_config_path` should be set for the CTgraph environnent'
     task_fn = lambda log_dir: CTgraph(name, env_config_path=env_config_path, log_dir=log_dir)
@@ -57,7 +126,7 @@ def a2c_ctgraph_1dstates_cl(name, env_config_path=None):
     #config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL(
     #    state_dim, action_dim, label_dim, 
     #    FCBody_CL(state_dim, label_dim, hidden_units=(64, 128, 16)))
-    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL(
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL_NM(
         state_dim, action_dim, label_dim, 
         phi_body=None,
         actor_body=FCBody_CL(state_dim, task_label_dim=label_dim, hidden_units=(512,1024,1024,32)), 
@@ -71,8 +140,6 @@ def a2c_ctgraph_1dstates_cl(name, env_config_path=None):
     config.rollout_length = 7
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    #config.max_steps = int(5e4) # note, max steps per task
-    #config.max_steps = int(7.5e4) # note, max steps per task
     config.max_steps = int(1e5) # note, max steps per task
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
@@ -80,14 +147,16 @@ def a2c_ctgraph_1dstates_cl(name, env_config_path=None):
     config.cl_num_tasks = 4
     config.cl_requires_task_label = True
     config.cl_alpha = 0.25
-    config.cl_loss_coeff = 1e1
+    #config.cl_loss_coeff = 1e8 # for ewc
+    config.cl_loss_coeff = 2e8 # for ewc with nm
+    #config.cl_loss_coeff = 1e1 # for mas
     if config.cl_preservation == 'mas': agent = A2CAgentMAS(config)
     elif config.cl_preservation == 'scp': agent = A2CAgentSCP(config)
-    else: raise ValueError('config.cl_preservation should be set to \'mas\' or \'scp\'.')
+    elif config.cl_preservation == 'ewc': agent = A2CAgentEWC(config)
+    elif config.cl_preservation == 'baseline': agent = A2CAgentBaseline(config)
+    else: raise ValueError('config.cl_preservation should be set to \'mas\' or \'scp\' or \'ewc\'.')
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
-    #tasks = agent.task.get_all_tasks(config.cl_requires_task_label)
-    #tasks = tasks[ : config.cl_num_tasks]
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
@@ -130,4 +199,4 @@ if __name__ == '__main__':
     game = 'CTgraph-v0'
     env_config_path = './ctgraph.json'
     a2c_ctgraph_1dstates_cl(name=game, env_config_path=env_config_path)
-    # a2c_ctgraph_cl(name=game, env_config_path=env_config_path)
+    #dqn_ctgraph_1dstates_cl(name=game, env_config_path=env_config_path)

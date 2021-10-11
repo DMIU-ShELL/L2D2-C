@@ -630,6 +630,34 @@ class FCBody_CL(nn.Module): # fcbody for continual learning setup
             x = self.gate(layer(x))
         return x
 
+class FCBody_CL_NM(nn.Module): # fcbody for continual learning setup with neuromodulation
+    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu):
+        super(FCBody_CL_NM, self).__init__()
+        if task_label_dim is None:
+            dims = (state_dim, ) + hidden_units
+        else:
+            dims = (state_dim + task_label_dim, ) + hidden_units
+        #self.layers = nn.ModuleList([layer_init(nn.Linear(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.layers = []
+        for dim_in, dim_out in zip(dims[:-1], dims[1:]):
+            l = NMLinear(dim_in, dim_out, 64)
+            l = layer_init_nm(l)
+            self.layers.append(l)
+        self.layers = nn.ModuleList(self.layers)
+
+        self.gate = gate
+        self.feature_dim = dims[-1]
+
+    def forward(self, x, task_label=None):
+        if task_label is not None: x = torch.cat([x, task_label], dim=1)
+
+        importance_parameters = []
+        for layer in self.layers:
+            x, impt_params = layer(x, task_label)
+            x = self.gate(x)
+            importance_parameters.append(impt_params)
+        return x, importance_parameters # TODO give importance params name of the module
+
 class TwoLayerFCBodyWithAction(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_units=(64, 64), gate=F.relu):
         super(TwoLayerFCBodyWithAction, self).__init__()

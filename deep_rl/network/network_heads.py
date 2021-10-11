@@ -6,6 +6,7 @@
 
 from .network_utils import *
 from .network_bodies import *
+from .nmlinear import *
 
 class VanillaNet(nn.Module, BaseNet):
     def __init__(self, output_dim, body):
@@ -21,6 +22,23 @@ class VanillaNet(nn.Module, BaseNet):
             y = y.cpu().detach().numpy()
         return y
 
+class VanillaNet_CL(nn.Module, BaseNet):
+    def __init__(self, output_dim, task_label_dim, body):
+        super(VanillaNet_CL, self).__init__()
+        self.fc_head = layer_init(nn.Linear(body.feature_dim, output_dim))
+        self.body = body
+        self.task_label_dim = task_label_dim
+        self.to(Config.DEVICE)
+
+    def predict(self, x, task_label=None, to_numpy=False):
+        x = tensor(x)
+        task_label = tensor(task_label)
+        phi = self.body(x, task_label)
+        y = self.fc_head(phi)
+        if to_numpy:
+            y = y.cpu().detach().numpy()
+        return y
+
 class DuelingNet(nn.Module, BaseNet):
     def __init__(self, action_dim, body):
         super(DuelingNet, self).__init__()
@@ -31,6 +49,26 @@ class DuelingNet(nn.Module, BaseNet):
 
     def predict(self, x, to_numpy=False):
         phi = self.body(tensor(x))
+        value = self.fc_value(phi)
+        advantange = self.fc_advantage(phi)
+        q = value.expand_as(advantange) + (advantange - advantange.mean(1, keepdim=True).expand_as(advantange))
+        if to_numpy:
+            return q.cpu().detach().numpy()
+        return q
+
+class DuelingNet_CL(nn.Module, BaseNet):
+    def __init__(self, action_dim, task_label_dim, body):
+        super(DuelingNet_CL, self).__init__()
+        self.fc_value = layer_init(nn.Linear(body.feature_dim, 1))
+        self.fc_advantage = layer_init(nn.Linear(body.feature_dim, action_dim))
+        self.body = body
+        self.task_label_dim = task_label_dim
+        self.to(Config.DEVICE)
+
+    def predict(self, x, task_label=None, to_numpy=False):
+        x = tensor(x)
+        task_label = tensor(task_label)
+        phi = self.body(x, task_label)
         value = self.fc_value(phi)
         advantange = self.fc_advantage(phi)
         q = value.expand_as(advantange) + (advantange - advantange.mean(1, keepdim=True).expand_as(advantange))
@@ -160,6 +198,23 @@ class ActorCriticNet(nn.Module):
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
 
+class ActorCriticNetNM(nn.Module):
+    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body):
+        super(ActorCriticNetNM, self).__init__()
+        if phi_body is None: phi_body = DummyBody(state_dim)
+        if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
+        if critic_body is None: critic_body = DummyBody(phi_body.feature_dim)
+        self.phi_body = phi_body
+        self.actor_body = actor_body
+        self.critic_body = critic_body
+        input('nm actor crtiic nm importance param:')
+        self.fc_action = layer_init_nm(NMLinear(actor_body.feature_dim, action_dim, 32), 1e-3)
+        self.fc_critic = layer_init_nm(NMLinear(critic_body.feature_dim, 1, 32), 1e-3)
+
+        self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
+        self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
+        self.phi_params = list(self.phi_body.parameters())
+
 class DeterministicActorCriticNet(nn.Module, BaseNet):
     def __init__(self,
                  state_dim,
@@ -274,6 +329,19 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
             action = dist.sample()
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v
+
+class CategoricalActorCriticNet_CL_NM(CategoricalActorCriticNet_CL):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 task_label_dim=None,
+                 phi_body=None,
+                 actor_body=None,
+                 critic_body=None):
+        super(CategoricalActorCriticNet_CL_NM, self).__init__()
+        self.network = ActorCriticNetNM(state_dim, action_dim, phi_body, actor_body, critic_body)
+        self.task_label_dim = task_label_dim
+        self.to(Config.DEVICE)
 
 class CategoricalActorCriticNet_L2M_Mod(nn.Module, BaseNet):
     def __init__(self,

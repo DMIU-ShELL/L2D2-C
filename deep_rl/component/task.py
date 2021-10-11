@@ -127,7 +127,8 @@ class CTgraph(BaseTask):
         else:
             self.state_dim = env.observation_space.shape
 
-        self.task_label_dim = 64
+        #self.task_label_dim = 64
+        self.task_label_dim = 4
         self.env = self.set_monitor(env, log_dir)
 
         # get all tasks in graph environment instance
@@ -163,9 +164,10 @@ class CTgraph(BaseTask):
 
     def get_all_tasks(self, requires_task_label=False):
         if requires_task_label:
+            #tasks_label=np.random.uniform(low=0.,high=1.,size=(len(self.tasks),self.task_label_dim))
+            #tasks_label = tasks_label.astype(np.float32)
             #tasks_label = np.eye(len(self.tasks)).astype(np.float32)
             tasks_label=np.random.uniform(low=-1.,high=1.,size=(len(self.tasks),self.task_label_dim))
-            tasks_label = tasks_label.astype(np.float32)
             tasks = copy.deepcopy(self.tasks)
             for task, label in zip(tasks, tasks_label):
                 task['task_label'] = label
