@@ -38,7 +38,6 @@ class NMLinear(Module):
         x = self.fc(x)
         impt_params = self.nm(task_label)
         return x, impt_params
-    
 
 class NMLinearPNN(Module):
     def __init__(self, in_features, out_features, nm_features, bias=True, gate='soft'):

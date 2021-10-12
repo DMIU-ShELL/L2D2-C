@@ -201,9 +201,9 @@ class ActorCriticNet(nn.Module):
 class ActorCriticNetNM(nn.Module):
     def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body):
         super(ActorCriticNetNM, self).__init__()
-        if phi_body is None: phi_body = DummyBody(state_dim)
-        if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
-        if critic_body is None: critic_body = DummyBody(phi_body.feature_dim)
+        if phi_body is None: phi_body = DummyBody_CL(state_dim)
+        if actor_body is None: actor_body = DummyBody_CL(phi_body.feature_dim)
+        if critic_body is None: critic_body = DummyBody_CL(phi_body.feature_dim)
         self.phi_body = phi_body
         self.actor_body = actor_body
         self.critic_body = critic_body
@@ -342,6 +342,20 @@ class CategoricalActorCriticNet_CL_NM(CategoricalActorCriticNet_CL):
         self.network = ActorCriticNetNM(state_dim, action_dim, phi_body, actor_body, critic_body)
         self.task_label_dim = task_label_dim
         self.to(Config.DEVICE)
+
+    def predict(self, obs, action=None, task_label=None):
+        obs = tensor(obs)
+        task_label = tensor(task_label)
+        phi, body_impt_params = self.network.phi_body(obs)
+        phi_a, actor_body_impt_params = self.network.actor_body(phi, task_label)
+        phi_v, critic_body_impt_params = self.network.critic_body(phi, task_label)
+        logits, actor_head_impt_params = self.network.fc_action(phi_a, task_label)
+        v, critic_head_impt_params = self.network.fc_critic(phi_v, task_label)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        return logits, action, log_prob, dist.entropy().unsqueeze(-1), v
 
 class CategoricalActorCriticNet_L2M_Mod(nn.Module, BaseNet):
     def __init__(self,

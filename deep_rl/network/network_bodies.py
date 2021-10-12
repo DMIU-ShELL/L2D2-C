@@ -692,6 +692,15 @@ class DummyBody(nn.Module):
     def forward(self, x):
         return x
 
+class DummyBody_CL(nn.Module):
+    def __init__(self, state_dim):
+        super(DummyBody_CL, self).__init__()
+        self.feature_dim = state_dim
+
+    def forward(self, x, task_label=None):
+        impt_params = []
+        return x, impt_params
+
 class Mod3LNatureConvBody_directTH(nn.Module):
     '''direct neuromodulation with tanh so that plasticity is modulated in the range [-1,1].
     19/12/18 does not work, to delete'''
