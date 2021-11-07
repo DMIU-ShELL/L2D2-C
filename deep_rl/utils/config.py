@@ -77,6 +77,7 @@ class Config:
         self.eval_task_fn = None
 
         # extra config for continual learning (cl) experiments
+        self.cl_num_learn_blocks = 1
         self.cl_requires_task_label = True
         self.cl_num_tasks = 1
         self.cl_alpha = 0.25

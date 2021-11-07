@@ -204,76 +204,81 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
     steps = []
     rewards = []
     task_start_idx = 0
-    eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
-    for task_idx, task_info in enumerate(tasks_info):
-        config.logger.info('\nstart training on task {0}'.format(task_idx))
-        config.logger.info('task: {0}'.format(task_info['goal']))
 
-        states = agent.task.reset_task(task_info)
-        agent.states = config.state_normalizer(states)
-        agent.data_buffer.clear()
-        while True:
-            #states_for_weight_pres += agent.iteration()
-            agent.iteration()
-            steps.append(agent.total_steps)
-            rewards.append(np.mean(agent.last_episode_rewards))
-            if iteration % config.iteration_log_interval == 0:
-                config.logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f' % (
-                    iteration, agent.total_steps, np.mean(agent.last_episode_rewards),
-                    np.max(agent.last_episode_rewards),
-                    np.min(agent.last_episode_rewards)
-                ))
-                config.logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
-                config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
-                config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
+    for learn_block_idx in range(config.cl_num_learn_blocks):
+        config.logger.info('********** start of learning block {0}'.format(learn_block_idx))
+        eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
+        for task_idx, task_info in enumerate(tasks_info):
+            config.logger.info('*****start training on task {0}'.format(task_idx))
+            config.logger.info('task: {0}'.format(task_info['goal']))
 
-            if iteration % (config.iteration_log_interval * 100) == 0:
-                with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
-                    (agent_name, config.tag, agent.task.name), 'wb') as f:
-                    pickle.dump({'rewards': rewards, 'steps': steps}, f)
-                agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
-                    agent.task.name))
-                for tag, value in agent.network.named_parameters():
-                    tag = tag.replace('.', '/')
-                    config.logger.histo_summary(tag, value.data.cpu().numpy())
-            iteration += 1
-            #if config.max_steps and agent.total_steps >= config.max_steps:
-            if config.max_steps and agent.total_steps >= (config.max_steps*(task_idx+1)):
-                with open(config.log_dir + '/%s-%s-online-stats-%s-task-%d.bin' % \
-                    (agent_name, config.tag, agent.task.name, task_idx+1), 'wb') as f:
-                    pickle.dump({'rewards': rewards[task_start_idx : ], \
-                    'steps': steps[task_start_idx : ]}, f)
-                agent.save(config.log_dir + '/%s-%s-model-%s-task-%d.bin'%(agent_name, config.tag, \
-                    agent.task.name, task_idx+1))
-                agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
-                    agent.task.name))
-                task_start_idx = len(rewards)
-                break
-        config.logger.info('preserving learned weights for current task')
-        ret = agent.consolidate()
-        with open(config.log_dir + '/%s-%s-precision-matrices-%s-task-%d.bin' % \
-            (agent_name, config.tag, agent.task.name, task_idx+1), 'wb') as f:
-            pickle.dump(ret[0], f)
-        with open(config.log_dir + '/%s-%s-precision-matrices-movavg-%s-task-%d.bin' % \
-            (agent_name, config.tag, agent.task.name, task_idx+1), 'wb') as f:
-            pickle.dump(ret[1], f)
-        # evaluate agent across task exposed to agent so far
-        config.logger.info('evaluating agent across all tasks exposed so far to agent')
-        for j in range(task_idx+1):
-            eval_states = agent.evaluation_env.reset_task(tasks_info[j])
-            agent.evaluation_states = eval_states
-            rewards, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
-            eval_results[j] += rewards
+            states = agent.task.reset_task(task_info)
+            agent.states = config.state_normalizer(states)
+            agent.data_buffer.clear()
+            while True:
+                agent.iteration()
+                steps.append(agent.total_steps)
+                rewards.append(np.mean(agent.last_episode_rewards))
+                if iteration % config.iteration_log_interval == 0:
+                    config.logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f'%(
+                        iteration, agent.total_steps, np.mean(agent.last_episode_rewards),
+                        np.max(agent.last_episode_rewards),
+                        np.min(agent.last_episode_rewards)
+                    ))
+                    config.logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
+                    config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
+                    config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
 
-            with open(config.log_dir+'/rewards-task{0}_{1}.bin'.format(task_idx+1, j+1), 'wb') as f:
-                pickle.dump(rewards, f)
-            with open(config.log_dir+'/episodes-task{0}_{1}.bin'.format(task_idx+1, j+1), 'wb') as f:
-                pickle.dump(episodes, f)
-            
+                if iteration % (config.iteration_log_interval * 100) == 0:
+                    with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
+                        (agent_name, config.tag, agent.task.name), 'wb') as f:
+                        pickle.dump({'rewards': rewards, 'steps': steps}, f)
+                    agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
+                        agent.task.name))
+                    for tag, value in agent.network.named_parameters():
+                        tag = tag.replace('.', '/')
+                        config.logger.histo_summary(tag, value.data.cpu().numpy())
+                iteration += 1
+                #if config.max_steps and agent.total_steps >= config.max_steps:
+                if config.max_steps and agent.total_steps >= (config.max_steps*(task_idx+1)):
+                    with open(config.log_dir + '/%s-%s-online-stats-%s-task-%d.bin' % \
+                        (agent_name, config.tag, agent.task.name, task_idx+1), 'wb') as f:
+                        pickle.dump({'rewards': rewards[task_start_idx : ], \
+                        'steps': steps[task_start_idx : ]}, f)
+                    agent.save(config.log_dir + '/%s-%s-model-%s-task-%d.bin' % (agent_name, \
+                        config.tag, agent.task.name, task_idx+1))
+                    agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
+                        agent.task.name))
+                    task_start_idx = len(rewards)
+                    break
+            config.logger.info('preserving learned weights for current task')
+            ret = agent.consolidate()
+            with open(config.log_dir + '/%s-%s-precision-matrices-%s-task-%d.bin' % \
+                (agent_name, config.tag, agent.task.name, task_idx+1), 'wb') as f:
+                pickle.dump(ret[0], f)
+            with open(config.log_dir + '/%s-%s-precision-matrices-movavg-%s-task-%d.bin' % \
+                (agent_name, config.tag, agent.task.name, task_idx+1), 'wb') as f:
+                pickle.dump(ret[1], f)
+            # evaluate agent across task exposed to agent so far
+            config.logger.info('evaluating agent across all tasks exposed so far to agent')
+            for j in range(task_idx+1):
+                eval_states = agent.evaluation_env.reset_task(tasks_info[j])
+                agent.evaluation_states = eval_states
+                rewards, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+                eval_results[j] += rewards
+
+                with open(config.log_dir+'/rewards-task{0}_{1}.bin'.format(\
+                    task_idx+1, j+1), 'wb') as f:
+                    pickle.dump(rewards, f)
+                with open(config.log_dir+'/episodes-task{0}_{1}.bin'.format(\
+                    task_idx+1, j+1), 'wb') as f:
+                    pickle.dump(episodes, f)
+        print('eval stats')
+        for k, v in eval_results.items():
+            print('{0}: {1}'.format(k, np.mean(v)))
+        print(eval_results)
+        config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
     agent.close()
-    for k, v in eval_results.items():
-        print('{0}: {1}'.format(k, np.mean(v)))
-    print(eval_results)
     return steps, rewards
 
 def run_evals_cl(agent, tasks_info, num_evals): 

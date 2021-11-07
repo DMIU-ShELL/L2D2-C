@@ -22,7 +22,7 @@
   },
   "image_dataset": {
     "seed": 1,
-    "1D": true,
+    "1D": false,
     "nr_of_images": 16,
     "noise_on_images_on_read": 0,
     "small_rotation_on_read": 1

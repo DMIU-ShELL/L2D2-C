@@ -7,6 +7,7 @@
 from ..network import *
 from ..component import *
 from .BaseAgent import *
+from copy import deepcopy
 
 class PPOAgent(BaseAgent):
     def __init__(self, config):
@@ -105,8 +106,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.config.cl_tasks_info = tasks
         label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label'])
 
-        self.network = config.network_fn(self.task.state_dim, self.task.action_dim)
-        self.opt = config.optimizer_fn(self.network.parameters())
+        self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)
+        self.opt = config.optimizer_fn(self.network.parameters(), config.lr)
         self.total_steps = 0
         self.episode_rewards = np.zeros(config.num_workers)
         self.last_episode_rewards = np.zeros(config.num_workers)
@@ -129,17 +130,17 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        current_task_label = self.task.get_task()['task_label']
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
-            current_task_label = current_task_label.reshape(1, -1)
+            batch_task_label = task_label.reshape(1, -1)
         else:
-            current_task_label = np.repeat(current_task_label.reshape(1, -1), batch_dim, axis=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.append(states)
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values = self.network.predict(states, \
-                task_label=current_task_label)
+                task_label=batch_task_label)
             next_states, rewards, terminals, _ = self.task.step(actions.cpu().detach().numpy())
             self.episode_rewards += rewards
             rewards = config.reward_normalizer(rewards)
@@ -154,7 +155,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             if config.cl_preservation != 'ewc': self.data_buffer.append(states)
 
         self.states = states
-        pending_value = self.network.predict(states, task_label=current_task_label)[-1]
+        pending_value = self.network.predict(states, task_label=batch_task_label)[-1]
         rollout.append([states, pending_value, None, None, None, None])
         processed_rollout = [None] * (len(rollout) - 1)
         advantages = tensor(np.zeros((config.num_workers, 1)))
@@ -190,8 +191,10 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                 sampled_returns = returns[batch_indices]
                 sampled_advantages = advantages[batch_indices]
 
-                _, log_probs, entropy_loss, values = self.network.predict(sampled_states, \
-                    sampled_actions)
+                batch_dim = sampled_states.shape[0]
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
+                _, _, log_probs, entropy_loss, values = self.network.predict(sampled_states, \
+                    sampled_actions, task_label=batch_task_label)
                 ratio = (log_probs - sampled_log_probs_old).exp()
                 obj = ratio * sampled_advantages
                 obj_clipped = ratio.clamp(1.0 - self.config.ppo_ratio_clip,
@@ -220,6 +223,19 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
     def consolidate(self, batch_size=32):
         raise NotImplementedError
+
+class PPOAgentBaseline(PPOContinualLearnerAgent):
+    '''
+    PPO continual learning agent without preservation/consolidation
+    '''
+    def __init__(self, config):
+        PPOContinualLearnerAgent.__init__(self, config)
+
+    def consolidate(self, batch_size=32):
+        print('sanity check, calling consolidate in agent w/o preservation')
+        # NOTE, the return values are zeros and do no consolidate any weights
+        # therefore, all parameters are retrained/finetuned per task.
+        return self.precision_matrices, self.precision_matrices
 
 class PPOAgentMAS(PPOContinualLearnerAgent):
     '''
@@ -301,7 +317,9 @@ class PPOAgentSCP(PPOContinualLearnerAgent):
         PPOContinualLearnerAgent.__init__(self, config)
 
     def consolidate(self, batch_size=32):
+        print('sanity check, in scp consolidation')
         states = np.concatenate(self.data_buffer)
+        states = states[-512 : ] # NOTE, hack downsizing buffer. please remove later
         task_label = self.task.get_task()['task_label']
         task_label = np.repeat(task_label.reshape(1, -1), len(states), axis=0)
         config = self.config
@@ -328,23 +346,25 @@ class PPOAgentSCP(PPOContinualLearnerAgent):
             task_label_ = task_label[start:end, ...]
             self.network.zero_grad()
             logits, actions, _, _, values = self.network.predict(states_, task_label=task_label_)
+            # actor consolidation
             logits_mean = logits.type(torch.float32).mean(dim=0)
             K = logits_mean.shape[0]
-            values_mean = values.type(torch.float32).mean(dim=0)
-            L = values_mean.shape[0]
             for _ in range(config.cl_n_slices):
                 xi = torch.randn(K, ).to(config.DEVICE)
                 xi /= torch.sqrt((xi**2).sum())
-                vi = torch.randn(L, ).to(config.DEVICE)
-                vi /= torch.sqrt((vi**2).sum())
-                out_actor = torch.matmul(logits_mean, xi)
-                out_value = torch.matmul(values_mean, vi) 
-                out = out_actor + out_value
                 self.network.zero_grad()
+                out = torch.matmul(logits_mean, xi)
                 out.backward(retain_graph=True)
                 # Update the temporary precision matrix
                 for n, p in self.params.items():
-                    precision_matrices[n].data += p.grad.data ** 2 / float(len(states))
+                    precision_matrices[n].data += p.grad.data ** 2
+            # critic consolidation
+            values_mean = values.type(torch.float32).mean(dim=0)
+            self.network.zero_grad()
+            values_mean.backward(retain_graph=True)
+            # Update the temporary precision matrix
+            for n, p in self.params.items():
+                precision_matrices[n].data += p.grad.data ** 2
 
         for n, p in self.network.named_parameters():
             if p.requires_grad is False: continue
@@ -383,15 +403,24 @@ class PPOAgentEWC(PPOContinualLearnerAgent):
         for _ in range(batch_size):
             rollout = []
             states = self.states
-            current_task_label = self.task.get_task()['task_label']
+
+            #current_task_label = self.task.get_task()['task_label']
+            #batch_dim = len(states) # same as config.num_workers
+            #if batch_dim == 1:
+            #    current_task_label = current_task_label.reshape(1, -1)
+            #else:
+            #    current_task_label = np.repeat(current_task_label.reshape(1, -1), batch_dim, axis=0)
+            task_label = self.task.get_task()['task_label'] # current task
             batch_dim = len(states) # same as config.num_workers
             if batch_dim == 1:
-                current_task_label = current_task_label.reshape(1, -1)
+                batch_task_label = task_label.reshape(1, -1)
             else:
-                current_task_label = np.repeat(current_task_label.reshape(1, -1), batch_dim, axis=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
+
+
             for _ in range(config.rollout_length):
                 _, actions, log_probs, _, values = self.network.predict(states, \
-                    task_label=current_task_label)
+                    task_label=batch_task_label)
                 next_states, rewards, terminals, _ = self.task.step(actions.cpu().detach().numpy())
                 self.episode_rewards += rewards
                 rewards = config.reward_normalizer(rewards)
@@ -405,7 +434,7 @@ class PPOAgentEWC(PPOContinualLearnerAgent):
                 states = next_states
 
             self.states = states
-            pending_value = self.network.predict(states, task_label=current_task_label)[-1]
+            pending_value = self.network.predict(states, task_label=batch_task_label)[-1]
             rollout.append([states, pending_value, None, None, None, None])
             processed_rollout = [None] * (len(rollout) - 1)
             advantages = tensor(np.zeros((config.num_workers, 1)))
@@ -441,8 +470,12 @@ class PPOAgentEWC(PPOContinualLearnerAgent):
                     sampled_returns = returns[batch_indices]
                     sampled_advantages = advantages[batch_indices]
 
-                    _, log_probs, entropy_loss, values = self.network.predict(sampled_states, \
-                        sampled_actions)
+                    #_, log_probs, entropy_loss, values = self.network.predict(sampled_states, \
+                    #    sampled_actions)
+                    batch_dim = sampled_states.shape[0]
+                    batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
+                    _, _, log_probs, entropy_loss, values = self.network.predict(sampled_states, \
+                        sampled_actions, task_label=batch_task_label)
                     ratio = (log_probs - sampled_log_probs_old).exp()
                     obj = ratio * sampled_advantages
                     obj_clipped = ratio.clamp(1.0 - self.config.ppo_ratio_clip,

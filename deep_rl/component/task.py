@@ -127,8 +127,8 @@ class CTgraph(BaseTask):
         else:
             self.state_dim = env.observation_space.shape
 
-        #self.task_label_dim = 64
-        self.task_label_dim = 4
+        self.task_label_dim = 64
+        #self.task_label_dim = 4
         self.env = self.set_monitor(env, log_dir)
 
         # get all tasks in graph environment instance
@@ -191,6 +191,23 @@ class CTgraph(BaseTask):
         else:
             tasks = [self.tasks[idx] for idx in tasks_idx]
             return tasks
+
+class CTgraphFlatObs(CTgraph):
+    # CTgraph environment with flattend (1d vector) observations.
+    # observations are flattenend whether 1D or 2D observations.
+    def __init__(self, name, env_config_path, log_dir=None):
+        super(CTgraphFlatObs, self).__init__(name, env_config_path, log_dir)
+        # overwrite previous written statedim to be flat 1d vector observations
+        self.state_dim = int(np.prod(self.env.observation_space.shape))
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        return state.ravel(), reward, done, info
+
+    def reset(self):
+        state, _, _, _ = self.env.reset() # ctgraph returns state, reward, done, info in reset
+        return state.ravel()
 
 class CTgraphPermutedStates(BaseTask):
     def __init__(self, name, env_config_path, log_dir=None):

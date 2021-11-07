@@ -11,7 +11,7 @@ import torch.nn as nn
 
 class Hypernet_(nn.Module):
     def __init__(self, weight_shape, z_dim=64):
-        super(Hypernet_, self).__init__():
+        super(Hypernet_, self).__init__()
         self.weight_shape = weight_shape
         self.z_dim = z_dim
         self.fc1 = nn.Linear(z_dim, z_dim * weight_shape[0] )

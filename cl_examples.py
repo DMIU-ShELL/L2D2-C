@@ -17,7 +17,21 @@ from deep_rl import *
 import os
 os.environ["CUDA_VISIBLE_DEVICES"]="3"
 
+########## dynamic_grid
+def a2c_dynamic_grid_cl(name, env_config_path=None):
+    config = Config()
+    config.log_dir = get_default_log_dir(name + '-a2c')
+    config.num_workers = 1
+    task_fn = lambda log_dir: DynamicGrid(name, max_steps=200, log_dir=log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.0007)
+    config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet(
+        state_dim, action_dim, MNISTConvBody())
+    config.policy_fn = SamplePolicy
+    config.state_normalizer = ImageNormalizer()
+    raise NotImplementedError
 
+########## ctgraph
 ## dqn
 def dqn_ctgraph_1dstates_cl(name, env_config_path=None):
     config = Config()
@@ -85,21 +99,6 @@ def dqn_ctgraph_1dstates_cl(name, env_config_path=None):
                 dict_config[k] = str(dict_config[k])
         json.dump(dict_config, f)
 
-## dynamic-grid
-def a2c_dynamic_grid_cl(name, env_config_path=None):
-    config = Config()
-    config.log_dir = get_default_log_dir(name + '-a2c')
-    config.num_workers = 1
-    task_fn = lambda log_dir: DynamicGrid(name, max_steps=200, log_dir=log_dir)
-    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.0007)
-    config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet(
-        state_dim, action_dim, MNISTConvBody())
-    config.policy_fn = SamplePolicy
-    config.state_normalizer = ImageNormalizer()
-    raise NotImplementedError
-
-## ctgraph
 def a2c_ctgraph_1dstates_cl(name, env_config_path=None):
     # states are 1d feature vectors in this ctgraph configuration.
     config = Config()
@@ -114,7 +113,6 @@ def a2c_ctgraph_1dstates_cl(name, env_config_path=None):
     random_seed(config.seed)
     exp_id = '-wo_pres'
     #exp_id = '-pres_ac_neuromod'
-    #exp_id = '-pres_ac_4task_rep3'
     log_name = name + '-a2c' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 8
@@ -123,9 +121,6 @@ def a2c_ctgraph_1dstates_cl(name, env_config_path=None):
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
     config.eval_task_fn = task_fn
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
-    #config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL(
-    #    state_dim, action_dim, label_dim, 
-    #    FCBody_CL(state_dim, label_dim, hidden_units=(64, 128, 16)))
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL_NM(
         state_dim, action_dim, label_dim, 
         phi_body=None,
@@ -171,19 +166,73 @@ def a2c_ctgraph_1dstates_cl(name, env_config_path=None):
                 dict_config[k] = str(dict_config[k])
         json.dump(dict_config, f)
 
-def a2c_ctgraph_cl(name, env_config_path=None):
+## ppo
+def ppo_ctgraph_cl(name, env_config_path=None):
     config = Config()
-    config.log_dir = get_default_log_dir(name + '-a2c')
-    config.num_workers = 1
+    config.env_name = name
+    config.env_config_path = env_config_path
+    config.lr = 0.00015
+    config.cl_preservation = 'scp' # or 'mas' or 'ewc' or 'baseline'
+    config.seed = 8379
+    random_seed(config.seed)
+    exp_id = ''
+    log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
+    config.log_dir = get_default_log_dir(log_name)
+    config.num_workers = 16
     assert env_config_path is not None, '`env_config_path` should be set for the CTgraph environnent'
-    task_fn = lambda log_dir: CTgraph(name, env_config_path=env_config_path, log_dir=log_dir)
+    task_fn = lambda log_dir: CTgraphFlatObs(name, env_config_path=env_config_path, log_dir=log_dir)
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.0007)
-    config.network_fn = lambda state_dim, action_dim: CategoricalActorCriticNet(
-        state_dim, action_dim, CTgraphConvBody())
+    config.eval_task_fn = task_fn
+    config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL(
+        state_dim, action_dim, label_dim, 
+        phi_body=FCBody_CL(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200)), 
+        actor_body=DummyBody(200), 
+        critic_body=DummyBody(200))
     config.policy_fn = SamplePolicy
     config.state_normalizer = ImageNormalizer()
-    raise NotImplementedError
+    config.discount = 0.99
+    config.use_gae = True
+    config.gae_tau = 0.99
+    #config.entropy_weight = 0.01
+    config.entropy_weight = 0.75
+    config.rollout_length = 7
+    config.optimization_epochs = 4
+    config.num_mini_batches = 4
+    config.cl_num_learn_blocks = 1
+    config.ppo_ratio_clip = 0.1
+    config.iteration_log_interval = 100
+    config.gradient_clip = 5
+    config.max_steps = int(5e4) # note, max steps per task
+    config.evaluation_episodes = 10
+    config.logger = get_logger(log_dir=config.log_dir)
+    config.cl_num_learn_blocks = 1
+    config.cl_num_tasks = 4
+    config.cl_requires_task_label = True
+    config.cl_alpha = 0.25
+    config.cl_loss_coeff = 0.5 # for scp
+    config.cl_n_slices = 200
+    if config.cl_preservation == 'mas': agent = PPOAgentMAS(config)
+    elif config.cl_preservation == 'scp': agent = PPOAgentSCP(config)
+    elif config.cl_preservation == 'ewc': agent = PPOAgentEWC(config)
+    elif config.cl_preservation == 'baseline': agent = PPOAgentBaseline(config)
+    else: raise ValueError('config.cl_preservation should be set to \'mas\' or \'scp\' or \'ewc\'.')
+    config.agent_name = agent.__class__.__name__
+    tasks = agent.config.cl_tasks_info
+    tasks = [tasks[0], tasks[3], tasks[0], tasks[3], tasks[0], tasks[3], tasks[0], tasks[3], tasks[0], tasks[3], tasks[0], tasks[3]] # NOTE
+    config.cl_num_tasks = 12
+    shutil.copy(env_config_path, config.log_dir + '/env_config.json')
+    with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
+        pickle.dump(tasks, f)
+    run_iterations_cl(agent, tasks)
+    # save config
+    with open('{0}/config.json'.format(config.log_dir), 'w') as f:
+        dict_config = vars(config)
+        for k in dict_config.keys():
+            if not isinstance(dict_config[k], int) \
+            and not isinstance(dict_config[k], float) and dict_config[k] is not None:
+                dict_config[k] = str(dict_config[k])
+        json.dump(dict_config, f)
 
 if __name__ == '__main__':
     mkdir('log')
@@ -198,5 +247,6 @@ if __name__ == '__main__':
     # ctgraph experiments
     game = 'CTgraph-v0'
     env_config_path = './ctgraph.json'
-    a2c_ctgraph_1dstates_cl(name=game, env_config_path=env_config_path)
     #dqn_ctgraph_1dstates_cl(name=game, env_config_path=env_config_path)
+    #a2c_ctgraph_1dstates_cl(name=game, env_config_path=env_config_path)
+    ppo_ctgraph_cl(name=game, env_config_path=env_config_path)
