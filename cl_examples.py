@@ -175,7 +175,7 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     config.cl_preservation = 'scp' # or 'mas' or 'ewc' or 'baseline'
     config.seed = 8379
     random_seed(config.seed)
-    exp_id = ''
+    exp_id = 'with-masking'
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 16
@@ -213,18 +213,21 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     config.cl_loss_coeff = 0.5 # for scp
     config.cl_n_slices = 200
     if config.cl_preservation == 'mas': agent = PPOAgentMAS(config)
-    elif config.cl_preservation == 'scp': agent = PPOAgentSCP(config)
+    #elif config.cl_preservation == 'scp': agent = PPOAgentSCP(config)
+    elif config.cl_preservation == 'scp': agent = PPOAgentSCPwithMasking(config)
     elif config.cl_preservation == 'ewc': agent = PPOAgentEWC(config)
     elif config.cl_preservation == 'baseline': agent = PPOAgentBaseline(config)
     else: raise ValueError('config.cl_preservation should be set to \'mas\' or \'scp\' or \'ewc\'.')
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
-    tasks = [tasks[0], tasks[3], tasks[0], tasks[3], tasks[0], tasks[3], tasks[0], tasks[3], tasks[0], tasks[3], tasks[0], tasks[3]] # NOTE
-    config.cl_num_tasks = 12
+    tasks = [tasks[0], tasks[3]] # NOTE
+    config.cl_num_tasks = 2 # NOTE
+    config.cl_num_learn_blocks = 6 # NOTE
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
-    run_iterations_cl(agent, tasks)
+    #run_iterations_cl(agent, tasks)
+    run_iterations_cl_with_masking(agent, tasks)
     # save config
     with open('{0}/config.json'.format(config.log_dir), 'w') as f:
         dict_config = vars(config)
