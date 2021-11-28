@@ -15,7 +15,7 @@ import matplotlib
 matplotlib.use("Pdf")
 from deep_rl import *
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 ########## dynamic_grid
 def a2c_dynamic_grid_cl(name, env_config_path=None):
@@ -175,7 +175,7 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     config.cl_preservation = 'scp' # or 'mas' or 'ewc' or 'baseline'
     config.seed = 8379
     random_seed(config.seed)
-    exp_id = 'with-masking'
+    exp_id = '-with-masking'
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 16
@@ -203,7 +203,8 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    config.max_steps = int(5e4) # note, max steps per task
+    #config.max_steps = int(5e4) # note, max steps per task
+    config.max_steps = int(5.6e4)+1 # note, max steps per task
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_num_learn_blocks = 1
@@ -212,6 +213,8 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     config.cl_alpha = 0.25
     config.cl_loss_coeff = 0.5 # for scp
     config.cl_n_slices = 200
+    config.cl_pm_min = 0.1
+    config.cl_pm_max = np.inf
     if config.cl_preservation == 'mas': agent = PPOAgentMAS(config)
     #elif config.cl_preservation == 'scp': agent = PPOAgentSCP(config)
     elif config.cl_preservation == 'scp': agent = PPOAgentSCPwithMasking(config)

@@ -372,7 +372,7 @@ def run_iterations_cl_with_masking(agent, tasks_info):
                     task_start_idx = len(rewards)
                     break
             config.logger.info('preserving learned weights for current task')
-            ret = agent.consolidate(pm_masks[task_idx]) # NOTE
+            ret = agent.consolidate(pm_masks[task_idx]) # NOTE used only in masking
             with open(log_path_pm + '/%s-%s-precision-matrices-%s-run-%d-task-%d.bin' % \
                 (agent_name, config.tag, agent.task.name, learn_block_idx+1, task_idx+1), 'wb') as f:
                 pickle.dump(ret[0], f)

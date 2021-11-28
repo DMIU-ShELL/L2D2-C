@@ -391,6 +391,12 @@ class PPOAgentSCPwithMasking(PPOContinualLearnerAgent):
             for n, p in self.params.items():
                 precision_matrices[n].data += p.grad.data ** 2
 
+        # clamp vavlues in precision matrices. values below a min threshold is set to 0
+        # while values above a max threshold is set to the max threshold value
+        for n, p in self.network.named_parameters():
+            precision_matrices[n][precision_matrices[n] < config.cl_pm_min] = 0.
+            precision_matrices[n][precision_matrices[n] > config.cl_pm_max] = config.cl_pm_max
+
         for n, p in self.network.named_parameters():
             if p.requires_grad is False: continue
             # Update the precision matrix

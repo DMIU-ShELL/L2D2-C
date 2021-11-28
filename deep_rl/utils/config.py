@@ -85,6 +85,8 @@ class Config:
         self.cl_loss_coeff = 1e6
         self.cl_preservation = 'mas' # note, this should be 'mas' or 'scp'
         self.cl_tasks_info = None
+        self.cl_pm_min = -np.inf
+        self.cl_pm_max = np.inf
 
     def add_argument(self, *args, **kwargs):
         self.parser.add_argument(*args, **kwargs)

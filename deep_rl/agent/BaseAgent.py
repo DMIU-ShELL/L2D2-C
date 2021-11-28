@@ -90,7 +90,7 @@ class BaseContinualLearnerAgent(BaseAgent):
         if isinstance(out, dict) or isinstance(out, list) or isinstance(out, tuple):
             # for actor-critic and policy gradient approaches
             logits = out[0]
-            action = np.argmax(logits.numpy().flatten())
+            action = np.argmax(logits.cpu().numpy().flatten())
             ret = {'logits': out[0], 'sampled_action': out[1], 'log_prob': out[2], 
                 'entropy': out[3], 'value': out[4], 'deterministic_action': action}
             return action, ret
