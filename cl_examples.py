@@ -175,7 +175,8 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     config.cl_preservation = 'scp' # or 'mas' or 'ewc' or 'baseline'
     config.seed = 8379
     random_seed(config.seed)
-    exp_id = '-with-masking'
+    #exp_id = '-with-masking'
+    exp_id = '-with-masked-importances'
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 16
@@ -203,7 +204,6 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    #config.max_steps = int(5e4) # note, max steps per task
     config.max_steps = int(5.6e4)+1 # note, max steps per task
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
@@ -213,11 +213,12 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     config.cl_alpha = 0.25
     config.cl_loss_coeff = 0.5 # for scp
     config.cl_n_slices = 200
-    config.cl_pm_min = 0.1
-    config.cl_pm_max = np.inf
+    #config.cl_pm_min = 0.1
+    #config.cl_pm_max = np.inf
     if config.cl_preservation == 'mas': agent = PPOAgentMAS(config)
     #elif config.cl_preservation == 'scp': agent = PPOAgentSCP(config)
-    elif config.cl_preservation == 'scp': agent = PPOAgentSCPwithMasking(config)
+    elif config.cl_preservation == 'scp': agent = PPOAgentSCPwithMaskedImportances(config)
+    #elif config.cl_preservation == 'scp': agent = PPOAgentSCPwithMasking(config)
     elif config.cl_preservation == 'ewc': agent = PPOAgentEWC(config)
     elif config.cl_preservation == 'baseline': agent = PPOAgentBaseline(config)
     else: raise ValueError('config.cl_preservation should be set to \'mas\' or \'scp\' or \'ewc\'.')
@@ -229,8 +230,8 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
-    #run_iterations_cl(agent, tasks)
-    run_iterations_cl_with_masking(agent, tasks)
+    run_iterations_cl(agent, tasks)
+    #run_iterations_cl_with_masking(agent, tasks)
     # save config
     with open('{0}/config.json'.format(config.log_dir), 'w') as f:
         dict_config = vars(config)
