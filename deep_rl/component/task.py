@@ -60,15 +60,26 @@ class DynamicGrid(BaseTask):
         self.env = self.set_monitor(self.env, log_dir)
 
         # total number of unique tasks in this class instance. note, the actual
-        # environment (wrapped by this class) have many more task variation
+        # environment (wrapped by this class) has many more task variations
         num_tasks = 3
         change_matrix = np.eye(num_tasks).astype(np.bool)
         self.tasks = self.env.unwrapped.unwrapped.random_tasks(change_matrix)
         self.current_task = self.tasks[0]
 
+        self.task_label_dim = 64
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        return state, reward, done, info
+
+    def reset(self):
+        state = self.env.reset()
+        return state
+
     def reset_task(self, task_info):
         self.set_task(task_info)
-        return self.env.reset()
+        return self.reset()
 
     def set_task(self, task_info):
         msg = '`{0}` parameter should be included in `task_info` in the DynamicGrid env'
@@ -83,7 +94,7 @@ class DynamicGrid(BaseTask):
 
     def get_all_tasks(self, requires_task_label=True):
         if requires_task_label:
-            tasks_label = np.eye(len(self.tasks))
+            tasks_label=np.random.uniform(low=-1.,high=1.,size=(len(self.tasks),self.task_label_dim))
             tasks = copy.deepcopy(self.tasks)
             for task, label in zip(tasks, tasks_label):
                 task['task_label'] = label
@@ -95,7 +106,7 @@ class DynamicGrid(BaseTask):
         tasks_idx = np.random.randint(low=0, high=len(self.tasks), size=(num_tasks,))
         if requires_task_label:
             all_tasks = copy.deepcopy(self.tasks)
-            tasks_label = np.eye(len(all_tasks)).astype(np.float32)
+            tasks_label=np.random.uniform(low=-1.,high=1.,size=(len(self.tasks),self.task_label_dim))
             tasks = []
             for idx in tasks_idx:
                 task = all_tasks[idx]
@@ -105,6 +116,22 @@ class DynamicGrid(BaseTask):
         else:
             tasks = [self.tasks[idx] for idx in tasks_idx]
             return tasks
+
+class DynamicGridFlatObs(DynamicGrid):
+    # Dynamic Grid environment with flattend (1d vector) observations.
+	# 2D images are flattened into 1D vectors
+    def __init__(self, name, max_steps=200, log_dir=None):
+        super(DynamicGridFlatObs, self).__init__(name, max_steps, log_dir)
+        self.state_dim = int(np.prod(self.env.observation_space.shape))
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        return state.ravel(), reward, done, info
+
+    def reset(self):
+        state = self.env.reset()
+        return state.ravel()
 
 class CTgraph(BaseTask):
     def __init__(self, name, env_config_path, log_dir=None):
@@ -180,8 +207,7 @@ class CTgraph(BaseTask):
         if requires_task_label:
             all_tasks = copy.deepcopy(self.tasks)
             #tasks_label = np.eye(len(all_tasks)).astype(np.float32)
-            tasks_label =np.random.uniform(low=-1.,high=1.,size=(len(all_tasks),self.task_label_dim))
-            tasks_label = tasks_label.astype(np.float32)
+            tasks_label=np.random.uniform(low=-1.,high=1.,size=(len(all_tasks),self.task_label_dim))
             tasks = []
             for idx in tasks_idx:
                 task = all_tasks[idx]
@@ -423,8 +449,8 @@ class ProcessTask:
         self.pipe.send([ProcessWrapper.GET_ALL_TASKS, requires_task_label])
         return self.pipe.recv()
     
-    def random_tasks(self, num_tasks):
-        self.pipe.send([ProcessWrapper.RANDOM_TASKS, num_tasks])
+    def random_tasks(self, num_tasks, requires_task_label):
+        self.pipe.send([ProcessWrapper.RANDOM_TASKS, [num_tasks, requires_task_label]])
         return self.pipe.recv()
 
 class ProcessWrapper(mp.Process):
@@ -468,7 +494,7 @@ class ProcessWrapper(mp.Process):
             elif op == self.GET_ALL_TASKS:
                 self.pipe.send(task.get_all_tasks(data))
             elif op == self.RANDOM_TASKS:
-                self.pipe.send(task.random_tasks())
+                self.pipe.send(task.random_tasks(*data))
             else:
                 raise Exception('Unknown command')
 
@@ -515,5 +541,5 @@ class ParallelizedTask:
     def get_all_tasks(self, requires_task_label):
         return self.tasks[0].get_all_tasks(requires_task_label)
     
-    def random_tasks(self, num_tasks):
-        return self.tasks[0].random_tasks(num_tasks)
+    def random_tasks(self, num_tasks, requires_task_label):
+        return self.tasks[0].random_tasks(num_tasks, requires_task_label)

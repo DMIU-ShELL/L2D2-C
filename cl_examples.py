@@ -176,7 +176,8 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     config.seed = 8379
     random_seed(config.seed)
     #exp_id = '-with-masking'
-    exp_id = '-with-masked-importances'
+    #exp_id = '-with-modulated-importances'
+    exp_id = '-with-modulated-gradients'
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 16
@@ -217,8 +218,9 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     #config.cl_pm_max = np.inf
     if config.cl_preservation == 'mas': agent = PPOAgentMAS(config)
     #elif config.cl_preservation == 'scp': agent = PPOAgentSCP(config)
-    elif config.cl_preservation == 'scp': agent = PPOAgentSCPwithMaskedImportances(config)
     #elif config.cl_preservation == 'scp': agent = PPOAgentSCPwithMasking(config)
+    #elif config.cl_preservation == 'scp': agent = PPOAgentSCPwithModulatedImportances(config)
+    elif config.cl_preservation == 'scp': agent = PPOAgentSCPwithModulatedGradients(config)
     elif config.cl_preservation == 'ewc': agent = PPOAgentEWC(config)
     elif config.cl_preservation == 'baseline': agent = PPOAgentBaseline(config)
     else: raise ValueError('config.cl_preservation should be set to \'mas\' or \'scp\' or \'ewc\'.')

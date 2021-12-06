@@ -207,10 +207,13 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
     log_path_eval = config.log_dir + '/eval'
     if not os.path.exists(log_path_eval):
         os.makedirs(log_path_eval)
-    # initialise mask for each task
-    pm_masks = {}
-    for task_idx in range(len(tasks_info)):
-        pm_masks[task_idx] = {n : torch.ones_like(p) for n, p in agent.precision_matrices.items()}
+    # save neuromodulated (hyper) nets before training
+    try:
+        agent.nm_nets # check that nm_nets is an attribute in agent
+        with open(config.log_dir + '/nm_nets_before_train.bin', 'wb') as f:
+            pickle.dump(agent.nm_nets, f)
+    except:
+        pass
 
     random_seed(config.seed)
     agent_name = agent.__class__.__name__
@@ -294,6 +297,15 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
             print('{0}: {1}'.format(k, np.mean(v)))
         print(eval_results)
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
+
+    # save neuromodulated (hyper) nets after training
+    try:
+        agent.nm_nets # check that nm_nets is an attribute in agent
+        with open(config.log_dir + '/nm_nets_after_train.bin', 'wb') as f:
+            pickle.dump(agent.nm_nets, f)
+    except:
+        pass
+
     agent.close()
     return steps, rewards
 
