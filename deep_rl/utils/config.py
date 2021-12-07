@@ -75,6 +75,7 @@ class Config:
         self.env_name = None
         self.env_config_path = None
         self.eval_task_fn = None
+        self.reg_loss_coeff = 1e-3
 
         # extra config for continual learning (cl) experiments
         self.cl_num_learn_blocks = 1
