@@ -228,7 +228,7 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     tasks = agent.config.cl_tasks_info
     tasks = [tasks[0], tasks[3]] # NOTE
     config.cl_num_tasks = 2 # NOTE
-    config.cl_num_learn_blocks = 6 # NOTE
+    config.cl_num_learn_blocks = 3 # NOTE
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)

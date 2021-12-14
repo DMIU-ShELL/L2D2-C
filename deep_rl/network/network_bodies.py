@@ -624,11 +624,18 @@ class FCBody_CL(nn.Module): # fcbody for continual learning setup
         self.gate = gate
         self.feature_dim = dims[-1]
 
-    def forward(self, x, task_label=None):
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
         if task_label is not None: x = torch.cat([x, task_label], dim=1)
-        for layer in self.layers:
-            x = self.gate(layer(x))
-        return x
+       
+        ret_act = []
+        if return_layer_output:
+            for i, layer in enumerate(self.layers):
+                x = self.gate(layer(x))
+                ret_act.append(('{0}.layers.{1}'.format(prefix, i), x))
+        else:
+            for layer in self.layers:
+                x = self.gate(layer(x))
+        return x, ret_act
 
 class FCBody_CL_NM(nn.Module): # fcbody for continual learning setup with neuromodulation
     def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu):
@@ -697,9 +704,8 @@ class DummyBody_CL(nn.Module):
         super(DummyBody_CL, self).__init__()
         self.feature_dim = state_dim
 
-    def forward(self, x, task_label=None):
-        impt_params = []
-        return x, impt_params
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        return x, []
 
 class Mod3LNatureConvBody_directTH(nn.Module):
     '''direct neuromodulation with tanh so that plasticity is modulated in the range [-1,1].

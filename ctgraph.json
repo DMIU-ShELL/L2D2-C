@@ -2,7 +2,7 @@
   "graph_shape": {
     "depth": 2,
     "branching_factor": 2,
-    "delay_prob": 0.0
+    "wait_prob": 0.0
   },
   "reward": {
     "high_reward_value": 1.0,
@@ -14,10 +14,10 @@
     "reward_distribution": "needle_in_haystack"
   },
   "observations": {
-    "MDP_decisions": true,
-    "MDP_delays": true,
-    "delay_states": [2,8],
-    "decision_points": [9,11],
+    "MDP_decision_s": true,
+    "MDP_wait_s": true,
+    "wait_states": [2,8],
+    "decision_states": [9,11],
     "graph_ends": [12,15]
   },
   "image_dataset": {

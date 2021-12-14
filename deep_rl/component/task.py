@@ -146,7 +146,7 @@ class CTgraph(BaseTask):
         imageDataset = CTgraph_images(env_config)
         self.env_config=env_config
 
-        state, _, _, _ = env.init(env_config, imageDataset)
+        state = env.init(env_config, imageDataset)
         env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape)
         self.action_dim = env.action_space.n
         if env_config['image_dataset']['1D']:
@@ -173,9 +173,8 @@ class CTgraph(BaseTask):
         return state, reward, done, info
 
     def reset(self):
-        state, _, _, _ = self.env.reset() # ctgraph returns state, reward, done, info in reset
+        state = self.env.reset()
         if self.env_config['image_dataset']['1D']: state = state.ravel()
-        # return only state when reset is called to conform with other env in the repo
         return state
 
     def reset_task(self, taskinfo):
@@ -232,7 +231,7 @@ class CTgraphFlatObs(CTgraph):
         return state.ravel(), reward, done, info
 
     def reset(self):
-        state, _, _, _ = self.env.reset() # ctgraph returns state, reward, done, info in reset
+        state = self.env.reset()
         return state.ravel()
 
 class CTgraphPermutedStates(BaseTask):
@@ -248,7 +247,7 @@ class CTgraphPermutedStates(BaseTask):
         imageDataset = CTgraph_images(env_config)
         self.env_config=env_config
 
-        state, _, _, _ = env.init(env_config, imageDataset)
+        state = env.init(env_config, imageDataset)
         env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape)
         self.action_dim = env.action_space.n
         if env_config['image_dataset']['1D']:
@@ -283,7 +282,7 @@ class CTgraphPermutedStates(BaseTask):
         return state, reward, done, info
 
     def reset(self):
-        state, _, _, _ = self.env.reset() # ctgraph returns state, reward, done, info in reset
+        state = self.env.reset() # ctgraph returns state, reward, done, info in reset
         if self.env_config['image_dataset']['1D']: state = state.ravel()
         # apply permute mask to state
         sh = state.shape
