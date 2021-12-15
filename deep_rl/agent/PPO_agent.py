@@ -210,7 +210,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                 self.opt.zero_grad()
                 (policy_loss + value_loss + weight_pres_loss).backward()
                 norm_ = nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
-                grad_norms_.append(norm_)
+                grad_norms_.append(norm_.detach().cpu().numpy())
                 self.opt.step()
 
         steps = config.rollout_length * config.num_workers
