@@ -38,11 +38,11 @@ def dqn_ctgraph_cl(name, env_config_path=None):
     config.env_name = name
     config.env_config_path = env_config_path
     config.lr = 0.00015
-	# preservation can either be
-	# baseline : no preservation applied RL algorithm (can suffer catastrophic forgetting)
-	# scp : RL algorithm with sliced cramer preservation method applied.
-	# mas : RL algorithm with memory aware synpase method applied.
-	# ewc : RL algorithm with elastic weight consolidation method applied.
+    # preservation can either be
+    # baseline : no preservation applied RL algorithm (can suffer catastrophic forgetting)
+    # scp : RL algorithm with sliced cramer preservation method applied.
+    # mas : RL algorithm with memory aware synpase method applied.
+    # ewc : RL algorithm with elastic weight consolidation method applied.
     config.cl_preservation = 'scp'
     config.seed = 4185
     random_seed(config.seed)
@@ -98,11 +98,11 @@ def a2c_ctgraph_cl(name, env_config_path=None):
     config.env_name = name
     config.env_config_path = env_config_path
     config.lr = 0.00015
-	# preservation can either be
-	# baseline : no preservation applied RL algorithm (can suffer catastrophic forgetting)
-	# scp : RL algorithm with sliced cramer preservation method applied.
-	# mas : RL algorithm with memory aware synpase method applied.
-	# ewc : RL algorithm with elastic weight consolidation method applied.
+    # preservation can either be
+    # baseline : no preservation applied RL algorithm (can suffer catastrophic forgetting)
+    # scp : RL algorithm with sliced cramer preservation method applied.
+    # mas : RL algorithm with memory aware synpase method applied.
+    # ewc : RL algorithm with elastic weight consolidation method applied.
     config.cl_preservation = 'scp'
     config.seed = 4185
     random_seed(config.seed)
@@ -164,12 +164,12 @@ def ppo_ctgraph_cl(name, env_config_path=None):
     config.env_name = name
     config.env_config_path = env_config_path
     config.lr = 0.00015
-	# preservation can either be
-	# baseline : no preservation applied RL algorithm (can suffer catastrophic forgetting)
-	# scp : RL algorithm with sliced cramer preservation method applied.
-	# mas : RL algorithm with memory aware synpase method applied.
-	# ewc : RL algorithm with elastic weight consolidation method applied.
-    config.cl_preservation = 'scp'
+    # preservation can either be
+    # baseline : no preservation applied RL algorithm (can suffer catastrophic forgetting)
+    # scp : RL algorithm with sliced cramer preservation method applied.
+    # mas : RL algorithm with memory aware synpase method applied.
+    # ewc : RL algorithm with elastic weight consolidation method applied.
+    config.cl_preservation = 'baseline'
     config.seed = 8379
     random_seed(config.seed)
     exp_id = '-unique_exp_id_here'
