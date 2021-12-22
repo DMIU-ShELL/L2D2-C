@@ -637,6 +637,40 @@ class FCBody_CL(nn.Module): # fcbody for continual learning setup
                 x = self.gate(layer(x))
         return x, ret_act
 
+try:
+    from nupic.torch.modules import KWinners
+except:
+    pass
+class FCBody_CL_KWinners(nn.Module): # fcbody for continual learning setup with kwinners activations
+    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu):
+        super(FCBody_CL_KWinners, self).__init__()
+        if task_label_dim is None:
+            dims = (state_dim, ) + hidden_units
+        else:
+            dims = (state_dim + task_label_dim, ) + hidden_units
+        self.layers = []
+        for dim_in, dim_out in zip(dims[:-1], dims[1:]):
+            self.layers.append(layer_init(nn.Linear(dim_in, dim_out)))
+            self.layers.append(KWinners(n=dim_out, percent_on=0.05, boost_strength=1.0, duty_cycle_period=200)) # NOTE fix me, the duty_cycle_period.
+        self.layers = nn.ModuleList(self.layers)
+
+        self.gate = gate
+        self.feature_dim = dims[-1]
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if task_label is not None: x = torch.cat([x, task_label], dim=1)
+       
+        ret_act = []
+        if return_layer_output:
+            for i, layer in enumerate(self.layers):
+                x = layer(x)
+                if isinstance(layer, KWinners):
+                    ret_act.append(('{0}.layers.{1}'.format(prefix, i // 2), x))
+        else:
+            for layer in self.layers:
+                x = layer(x)
+        return x, ret_act
+
 class FCBody_CL_NM(nn.Module): # fcbody for continual learning setup with neuromodulation
     def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu):
         super(FCBody_CL_NM, self).__init__()

@@ -313,23 +313,6 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
         self.task_label_dim = task_label_dim
         self.to(Config.DEVICE)
 
-    #def predict(self, obs, action=None, task_label=None):
-    #    obs = tensor(obs)
-    #    task_label = tensor(task_label)
-    #    #phi = self.network.phi_body(obs)
-    #    phi = self.network.phi_body(obs, task_label)
-    #    phi_a = self.network.actor_body(phi)
-    #    #phi_a = self.network.actor_body(phi, task_label)
-    #    phi_v = self.network.critic_body(phi)
-    #    #phi_v = self.network.critic_body(phi, task_label)
-    #    logits = self.network.fc_action(phi_a)
-    #    v = self.network.fc_critic(phi_v)
-    #    dist = torch.distributions.Categorical(logits=logits)
-    #    if action is None:
-    #        action = dist.sample()
-    #    log_prob = dist.log_prob(action).unsqueeze(-1)
-    #    return logits, action, log_prob, dist.entropy().unsqueeze(-1), v
-
     def predict(self, obs, action=None, task_label=None, return_layer_output=False):
         obs = tensor(obs)
         task_label = tensor(task_label)
@@ -348,41 +331,6 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
             action = dist.sample()
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
-
-
-## regularising the activation of the output of each layer with L2/L1 norm
-## output returned to the agent being trained and added to loss function
-#class CategoricalActorCriticNet_CL_RegAct(nn.Module, BaseNet):
-#    def __init__(self,
-#                 state_dim,
-#                 action_dim,
-#                 task_label_dim=None,
-#                 phi_body=None,
-#                 actor_body=None,
-#                 critic_body=None):
-#        super(CategoricalActorCriticNet_CL_RegAct, self).__init__()
-#        self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body)
-#        self.task_label_dim = task_label_dim
-#        self.to(Config.DEVICE)
-#
-#    def predict(self, obs, action=None, task_label=None, return_layer_output=False):
-#        obs = tensor(obs)
-#        task_label = tensor(task_label)
-#        layers_output = []
-#        phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
-#        layers_output += out
-#        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body')
-#        layers_output += out
-#        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body')
-#        layers_output += out
-#
-#        logits = self.network.fc_action(phi_a)
-#        v = self.network.fc_critic(phi_v)
-#        dist = torch.distributions.Categorical(logits=logits)
-#        if action is None:
-#            action = dist.sample()
-#        log_prob = dist.log_prob(action).unsqueeze(-1)
-#        return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 
 class CategoricalActorCriticNet_CL_NM(CategoricalActorCriticNet_CL):
     def __init__(self,
