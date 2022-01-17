@@ -54,7 +54,7 @@ def ppo_ctgraph_cl(name, env_config_path=None): # no sparsity, no consolidation 
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    config.max_steps = int(5.6e4)+1 # note, max steps per task
+    config.max_steps = int(5.6e4)*6 + 1 #int(5.6e4)+1 # note, max steps per task
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
@@ -62,9 +62,9 @@ def ppo_ctgraph_cl(name, env_config_path=None): # no sparsity, no consolidation 
     agent = PPOAgentBaseline(config)
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
-    tasks = [tasks[0], tasks[3]]
-    config.cl_num_tasks = len(tasks)
-    config.cl_num_learn_blocks = 3
+    #tasks = [tasks[0], tasks[3]]
+    #config.cl_num_tasks = len(tasks)
+    config.cl_num_learn_blocks = 1
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
@@ -230,7 +230,7 @@ def ppo_ctgraph_cl_l1_act(name, env_config_path=None):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    config.max_steps = int(5.6e4)+1 # note, max steps per task
+    config.max_steps = int(5.6e4)*6 + 1 #int(5.6e4)+1 # note, max steps per task
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
@@ -239,9 +239,9 @@ def ppo_ctgraph_cl_l1_act(name, env_config_path=None):
     agent = PPOAgentBaselineL1Act(config)
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
-    tasks = [tasks[0], tasks[3]]
-    config.cl_num_tasks = len(tasks)
-    config.cl_num_learn_blocks = 3
+    #tasks = [tasks[0], tasks[3]]
+    #config.cl_num_tasks = len(tasks)
+    config.cl_num_learn_blocks = 1
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
@@ -416,9 +416,9 @@ def ppo_ctgraph_cl_sparse_group_l1_weights(name, env_config_path=None):
     agent = PPOAgentBaselineSparseGroupL1Weights(config)
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
-    tasks = [tasks[0], tasks[3]]
-    config.cl_num_tasks = len(tasks)
-    config.cl_num_learn_blocks = 3
+    #tasks = [tasks[0], tasks[3]]
+    #config.cl_num_tasks = len(tasks)
+    config.cl_num_learn_blocks = 6
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
@@ -467,7 +467,7 @@ def ppo_ctgraph_cl_kwinners(name, env_config_path=None):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    config.max_steps = int(5.6e4)+1 # note, max steps per task
+    config.max_steps = int(5.6e4)*6 + 1 #int(5.6e4)+1 # note, max steps per task
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
@@ -475,9 +475,9 @@ def ppo_ctgraph_cl_kwinners(name, env_config_path=None):
     agent = PPOAgentBaseline(config)
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
-    tasks = [tasks[0], tasks[3]]
-    config.cl_num_tasks = len(tasks)
-    config.cl_num_learn_blocks = 3
+    #tasks = [tasks[0], tasks[3]]
+    #config.cl_num_tasks = len(tasks)
+    config.cl_num_learn_blocks = 1
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
@@ -591,7 +591,7 @@ def ppo_ctgraph_cl_kwinners_scp(name, env_config_path=None):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    config.max_steps = int(5.6e4)+1 # note, max steps per task
+    config.max_steps = int(5.6e4)*6 + 1 #int(5.6e4)+1 # note, max steps per task
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
@@ -604,9 +604,9 @@ def ppo_ctgraph_cl_kwinners_scp(name, env_config_path=None):
     agent = PPOAgentSCP(config)
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
-    tasks = [tasks[0], tasks[3]]
-    config.cl_num_tasks = len(tasks)
-    config.cl_num_learn_blocks = 3
+    #tasks = [tasks[0], tasks[3]]
+    #config.cl_num_tasks = len(tasks)
+    config.cl_num_learn_blocks = 1
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
@@ -649,10 +649,10 @@ if __name__ == '__main__':
         ppo_ctgraph_cl_group_l1_weights(name=game, env_config_path=env_config_path)
     elif args.algo == 'sparse_group_l1_weights':
         ppo_ctgraph_cl_sparse_group_l1_weights(name=game, env_config_path=env_config_path)
-    elif args.algo == 'sparse_group_l1_weights_scp':
-        ppo_ctgraph_cl_sparse_group_l1_weights_scp(name=game, env_config_path=env_config_path)
     elif args.algo == 'kwinners':
         ppo_ctgraph_cl_kwinners(name=game, env_config_path=env_config_path)
+    elif args.algo == 'sparse_group_l1_weights_scp':
+        ppo_ctgraph_cl_sparse_group_l1_weights_scp(name=game, env_config_path=env_config_path)
     elif args.algo == 'kwinners_scp':
         ppo_ctgraph_cl_kwinners_scp(name=game, env_config_path=env_config_path)
     else:

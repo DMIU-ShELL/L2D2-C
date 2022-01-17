@@ -223,11 +223,18 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
     steps = []
     rewards = []
     task_start_idx = 0
+    num_tasks = len(tasks_info)
 
     for learn_block_idx in range(config.cl_num_learn_blocks):
         config.logger.info('********** start of learning block {0}'.format(learn_block_idx))
         eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
+        # NOTE, use this instead of the for line below to shuffle task
+        #t_ = np.arange(num_tasks)
+        #np.random.shuffle(t_)
+        #for task_idx, ti_ in enumerate(t_):
+        #    task_info = tasks_info[ti_]
         for task_idx, task_info in enumerate(tasks_info):
+
             config.logger.info('*****start training on task {0}'.format(task_idx))
             config.logger.info('task: {0}'.format(task_info['goal']))
 
@@ -265,7 +272,7 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                             config.logger.histo_summary(tag, value.data.cpu().numpy())
 
                 iteration += 1
-                task_steps_limit = config.max_steps * (2 * learn_block_idx + task_idx + 1)
+                task_steps_limit = config.max_steps * (num_tasks * learn_block_idx + task_idx + 1)
                 if config.max_steps and agent.total_steps >= task_steps_limit:
                     with open(log_path_tstats + '/%s-%s-online-stats-%s-run-%d-task-%d.bin' % \
                         (agent_name, config.tag, agent.task.name, learn_block_idx+1, task_idx+1), 'wb') as f:
