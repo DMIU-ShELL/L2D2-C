@@ -47,3 +47,10 @@ def layer_init_nm_pnn(layer, w_scale=1.0):
     layer.out_nm.weight.data.mul_(w_scale)
     nn.init.constant_(layer.out_nm.bias.data, 0)
     return layer
+
+class LinearMask(nn.Linear):
+    def __init__(self, in_features, out_features, bias=True):
+        super(LinearMask, self).__init__(in_features, out_features, bias)
+
+    def forward(self, x, mask):
+        return F.linear(x, self.weight * mask, self.bias)

@@ -198,6 +198,22 @@ class ActorCriticNet(nn.Module):
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
 
+class ActorCriticNetMask(nn.Module):
+    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body):
+        super(ActorCriticNetMask, self).__init__()
+        if phi_body is None: phi_body = DummyBody(state_dim)
+        if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
+        if critic_body is None: critic_body = DummyBody(phi_body.feature_dim)
+        self.phi_body = phi_body
+        self.actor_body = actor_body
+        self.critic_body = critic_body
+        self.fc_action = layer_init(LinearMask(actor_body.feature_dim, action_dim), 1e-3)
+        self.fc_critic = layer_init(LinearMask(critic_body.feature_dim, 1), 1e-3)
+
+        self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
+        self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
+        self.phi_params = list(self.phi_body.parameters())
+
 class ActorCriticNetNM(nn.Module):
     def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body):
         super(ActorCriticNetNM, self).__init__()
@@ -326,6 +342,39 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
 
         logits = self.network.fc_action(phi_a)
         v = self.network.fc_critic(phi_v)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
+
+class CategoricalActorCriticNet_CL_Mask(nn.Module, BaseNet):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 task_label_dim=None,
+                 phi_body=None,
+                 actor_body=None,
+                 critic_body=None):
+        super(CategoricalActorCriticNet_CL_Mask, self).__init__()
+        self.network = ActorCriticNetMask(state_dim, action_dim, phi_body, actor_body, critic_body)
+        self.task_label_dim = task_label_dim
+        self.to(Config.DEVICE)
+
+    def predict(self, obs, action=None, task_label=None, return_layer_output=False, masks=None):
+        assert masks is not None, 'masks should be set'
+        obs = tensor(obs)
+        task_label = tensor(task_label)
+        layers_output = []
+        phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body', masks)
+        layers_output += out
+        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body', masks)
+        layers_output += out
+        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body', masks)
+        layers_output += out
+
+        logits = self.network.fc_action(phi_a, masks['network.fc_action.weight'].transpose(1, 0)) #NOTE recall bias
+        v = self.network.fc_critic(phi_v, masks['network.fc_critic.weight'].transpose(1, 0))
         dist = torch.distributions.Categorical(logits=logits)
         if action is None:
             action = dist.sample()

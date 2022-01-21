@@ -671,6 +671,35 @@ class FCBody_CL_KWinners(nn.Module): # fcbody for continual learning setup with 
                 x = layer(x)
         return x, ret_act
 
+class FCBody_CL_Mask(nn.Module): # fcbody for continual learning setup with masking
+    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu):
+        super(FCBody_CL_Mask, self).__init__()
+        if task_label_dim is None:
+            dims = (state_dim, ) + hidden_units
+        else:
+            dims = (state_dim + task_label_dim, ) + hidden_units
+        self.layers = nn.ModuleList([layer_init(LinearMask(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.gate = gate
+        self.feature_dim = dims[-1]
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix='', mask=None):
+        if task_label is not None: x = torch.cat([x, task_label], dim=1)
+       
+        ret_act = []
+        if return_layer_output:
+            for i, layer in enumerate(self.layers):
+                layer_key = '{0}.layers.{1}.weight'.format(prefix, i)
+                #x = self.gate(layer(x))
+                x = self.gate(layer(x, mask[layer_key].transpose(1, 0)))
+                ret_act.append((layer_key, x))
+        else:
+            for i, layer in enumerate(self.layers):
+                # NOTE pass bias as well in later implementation
+                layer_key = '{0}.layers.{1}.weight'.format(prefix, i)
+                #x = self.gate(layer(x))
+                x = self.gate(layer(x, mask[layer_key].transpose(1, 0)))
+        return x, ret_act
+
 class FCBody_CL_NM(nn.Module): # fcbody for continual learning setup with neuromodulation
     def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu):
         super(FCBody_CL_NM, self).__init__()
@@ -739,6 +768,14 @@ class DummyBody_CL(nn.Module):
         self.feature_dim = state_dim
 
     def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        return x, []
+
+class DummyBody_CL_Mask(nn.Module):
+    def __init__(self, state_dim):
+        super(DummyBody_CL_Mask, self).__init__()
+        self.feature_dim = state_dim
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix='', mask=None):
         return x, []
 
 class Mod3LNatureConvBody_directTH(nn.Module):
