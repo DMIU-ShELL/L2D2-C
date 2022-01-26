@@ -1973,8 +1973,10 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         tasks = self.config.cl_tasks_info
         label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label'])
         self.nm_mask = {}
+        self.mask_real = {}
         for n, p in self.network.named_parameters():
             self.nm_mask[n] = torch.zeros_like(p).to(self.config.DEVICE)
+            self.mask_real[n] = torch.zeros_like(p).to(self.config.DEVICE)
         self.nm_nets = {}
         for n, p in self.network.named_parameters():
             m_ = NMNet(np.array(p.shape)[::-1], label_dim)
@@ -2081,11 +2083,29 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
                 #        print('mask', name, k)
                 #        print(v.grad)
                 #print('backward called')
+
                 (policy_loss + value_loss + weight_pres_loss).backward()
+                #(policy_loss + value_loss + weight_pres_loss).backward(retain_graph=True)
+                #for n in self.nm_mask.keys():
+                #    mb = self.nm_mask[n]
+                #    mr = self.mask_real[n]
+                #    if mr.grad is not None:
+                #        #print(n)
+                #        #print('mr.shape:', mr.shape, 'mr.grad:')
+                #        #print(mr.grad)
+                #        #print('mb.shape:', mb.shape, 'mb.grad:')
+                #        #print(mb.grad)
+                #        mr.backward(mb.grad)
 
                 norm_ = nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
                 grad_norms_.append(norm_.detach().cpu().numpy())
                 self.opt.step()
+
+                #for n, m in self.nm_nets.items():
+                #    print(n)
+                #    for p in m.parameters():
+                #        print(p.grad)
+                #import sys; sys.exit();
 
                 # NOTE generate mask for next batch of training
                 self._generate_nm_mask()
@@ -2098,8 +2118,19 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
     def _generate_nm_mask(self):
         task_label = self.task.get_task()['task_label'] # current task
         for n, nm_net in self.nm_nets.items():
-            self.nm_mask[n] = nm_net(task_label.reshape(1, -1))
-            #self.nm_mask[n] = torch.ones_like(self.nm_mask[n])
+            #self.nm_mask[n] = nm_net(task_label.reshape(1, -1))
+            mr = nm_net(task_label.reshape(1, -1))
+            mr.retain_grad()
+            self.mask_real[n] = mr
+            # binarize
+            #mb = torch.sign(mr)
+            # continuous
+            mb = torch.zeros_like(mr)
+            mb[mr > 0.] = torch.sigmoid(mr[mr > 0.])
+
+            mb.retain_grad()
+            self.nm_mask[n] = mb
+
 
     def penalty(self):
         loss = 0
@@ -2175,7 +2206,7 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         #self.network.train()
         ## return task precision matrices and general precision matrices across tasks agent has
         ## been explosed to so far
-        return precision_matrices, self.precision_matrices
+        #return precision_matrices, self.precision_matrices
 
     def evaluation_action(self, state, task_label):
         self.config.state_normalizer.set_read_only()
