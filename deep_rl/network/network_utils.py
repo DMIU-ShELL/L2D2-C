@@ -53,4 +53,5 @@ class LinearMask(nn.Linear):
         super(LinearMask, self).__init__(in_features, out_features, bias)
 
     def forward(self, x, mask):
-        return F.linear(x, self.weight * mask, self.bias)
+        params = self.weight * mask
+        return F.linear(x, params, self.bias)

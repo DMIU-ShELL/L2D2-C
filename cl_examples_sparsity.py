@@ -656,7 +656,7 @@ def ppo_ctgraph_cl_nm_mask_fp(name, env_config_path=None):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    config.max_steps = int(5.6e4) * 6 + 1 #int(5.6e4)+1 # note, max steps per task
+    config.max_steps = int(5.6e4) * 1 + 1 #int(5.6e4)+1 # note, max steps per task
     #config.max_steps = int(5.6e4 * 0.5) + 1 #int(5.6e4)+1 # note, max steps per task
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)

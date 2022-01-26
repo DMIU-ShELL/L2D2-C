@@ -1983,6 +1983,21 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
             m_.to(config.DEVICE)
             self.nm_nets[n] = m_
 
+        # pm of nm nets
+        self.nm_pm = {}
+        self.nm_means = {}
+        for k, net in self.nm_nets.items():
+            self.nm_pm[k] = {}
+            self.nm_means[k] = {}
+            for n, p in net.named_parameters():
+                p = deepcopy(p)
+                p.data.zero_()
+                self.nm_pm[k][n] = p.data.to(config.DEVICE)
+            for n, p in net.named_parameters():
+                p = deepcopy(p)
+                p.data.zero_()
+                self.nm_means[k][n] = p.data.to(config.DEVICE)
+
         all_parameters = []
         all_parameters += list(self.network.parameters())
         for _, nm_model in self.nm_nets.items():
@@ -2120,33 +2135,73 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         for n, nm_net in self.nm_nets.items():
             #self.nm_mask[n] = nm_net(task_label.reshape(1, -1))
             mr = nm_net(task_label.reshape(1, -1))
-            mr.retain_grad()
+            if mr.requires_grad is True: 
+                mr.retain_grad()
             self.mask_real[n] = mr
             # binarize
             #mb = torch.sign(mr)
             # continuous
             mb = torch.zeros_like(mr)
-            mb[mr > 0.] = torch.sigmoid(mr[mr > 0.])
+            mb[mr > 0.] = torch.sigmoid(mr[mr > 0.] + 5.)
 
-            mb.retain_grad()
+            if mb.requires_grad is True:
+                mb.retain_grad()
             self.nm_mask[n] = mb
 
-
     def penalty(self):
-        loss = 0
-        for n, p in self.network.named_parameters():
-            _loss = self.precision_matrices[n] * (p - self.means[n]) ** 2
-            loss += _loss.sum()
-        return loss * self.config.cl_loss_coeff
+        #loss = 0
+        #for n, p in self.network.named_parameters():
+        #    _loss = self.precision_matrices[n] * (p - self.means[n]) ** 2
+        #    loss += _loss.sum()
+        #return loss * self.config.cl_loss_coeff
+
+        losses = []
+        for k, net in self.nm_nets.items():
+            loss = 0
+            for n, p in net.named_parameters():
+                _loss = self.nm_pm[k][n] * (p - self.nm_means[k][n]) ** 2
+                loss += _loss.sum()
+            loss = loss * self.config.cl_loss_coeff
+            losses.append(loss)
+        losses = torch.stack(losses)
+        return losses.sum()
 
     def consolidate(self, batch_size=32):
         print('sanity check, in scp consolidation with modulated fp')
         config = self.config
-        precision_matrices = {}
-        for n, p in deepcopy(self.params).items():
-            p.data.zero_()
-            precision_matrices[n] = p.data.to(config.DEVICE)
-        return precision_matrices, precision_matrices
+        
+        task_label = self.task.get_task()['task_label'] # current task
+        task_label = task_label.reshape(1, -1)
+        for k, net in self.nm_nets.items():
+            pm = {}
+            for n, p in net.named_parameters():
+                p = deepcopy(p)
+                p.data.zero_()
+                pm[n] = p.data.to(config.DEVICE)
+            net.zero_grad()
+            outs = net(task_label) # forward pass
+            outs = outs.view(1, -1)
+            outs_mean = outs.type(torch.float32).mean(dim=0)
+            K = outs_mean.shape[0]
+            for _ in range(config.cl_n_slices):
+                xi = torch.randn(K, ).to(config.DEVICE)
+                xi /= torch.sqrt((xi**2).sum())
+                net.zero_grad()
+                loss = torch.matmul(outs_mean, xi)
+                loss.backward(retain_graph=True)
+                # Update the temporary precision matrix
+                for n, p in net.named_parameters():
+                    pm[n].data += p.grad.data ** 2
+
+            for n, p in net.named_parameters():
+                if p.requires_grad is False: continue
+                # Update the precision matrix
+                self.nm_pm[k][n] = config.cl_alpha*self.nm_pm[k][n] + (1 - config.cl_alpha) * pm[n]
+                # Update the means
+                self.nm_means[k][n] = deepcopy(p.data).to(config.DEVICE)
+
+        return self.precision_matrices, self.precision_matrices, 
+
         #states = np.concatenate(self.data_buffer)
         #states = states[-512 : ] # NOTE, hack downsizing buffer. please remove later
         #task_label = self.task.get_task()['task_label']
@@ -2227,3 +2282,24 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
             q = out.detach().cpu().numpy().ravel()
             return np.argmax(q), {'logits': q}
 
+    def deterministic_episode(self):
+        epi_info = {'logits': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
+            'value': [], 'deterministic_action': [], 'reward': [], 'terminal': []}
+
+        # generate mask
+        self._generate_nm_mask()
+
+        #env = self.config.evaluation_env
+        env = self.evaluation_env
+        state = env.reset()
+        task_label = env.get_task()['task_label']
+        total_rewards = 0
+        while True:
+            action, output_info = self.evaluation_action(state, task_label)
+            state, reward, done, _ = env.step(action)
+            total_rewards += reward
+            for k, v in output_info.items(): epi_info[k].append(v)
+            epi_info['reward'].append(reward)
+            epi_info['terminal'].append(done)
+            if done: break
+        return total_rewards, epi_info

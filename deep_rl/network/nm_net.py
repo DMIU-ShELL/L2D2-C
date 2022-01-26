@@ -25,7 +25,6 @@ class NMNet(nn.Module):
         x = F.relu(self.fc1(x))
         x = x.reshape(self.weight_shape[0], self.z_dim)
         x = F.relu(self.fc2(x))
-        #x[x > 0.] = torch.sigmoid(x[x > 0.])
         return x.reshape(*self.original_shape)
 
 
