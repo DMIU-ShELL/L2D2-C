@@ -2005,13 +2005,15 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         self.opt = config.optimizer_fn(all_parameters, config.lr)
 
     def iteration(self):
+        task_label = self.task.get_task()['task_label'] # current task
         # NOTE generate mask
-        self._generate_nm_mask()
+        #self._generate_nm_mask()
+        self._generate_nm_mask(task_label)
 
         config = self.config
         rollout = []
         states = self.states
-        task_label = self.task.get_task()['task_label'] # current task
+        #task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
@@ -2123,15 +2125,16 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
                 #import sys; sys.exit();
 
                 # NOTE generate mask for next batch of training
-                self._generate_nm_mask()
+                #self._generate_nm_mask()
+                self._generate_nm_mask(task_label)
 
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
         self.layers_output = outs
         return np.mean(grad_norms_).mean()
 
-    def _generate_nm_mask(self):
-        task_label = self.task.get_task()['task_label'] # current task
+    def _generate_nm_mask(self, task_label):
+        #task_label = self.task.get_task()['task_label'] # current task # NOTE
         for n, nm_net in self.nm_nets.items():
             #self.nm_mask[n] = nm_net(task_label.reshape(1, -1))
             mr = nm_net(task_label.reshape(1, -1))
@@ -2286,13 +2289,15 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         epi_info = {'logits': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
             'value': [], 'deterministic_action': [], 'reward': [], 'terminal': []}
 
-        # generate mask
-        self._generate_nm_mask()
 
         #env = self.config.evaluation_env
         env = self.evaluation_env
         state = env.reset()
         task_label = env.get_task()['task_label']
+
+        # generate mask
+        self._generate_nm_mask(task_label)
+
         total_rewards = 0
         while True:
             action, output_info = self.evaluation_action(state, task_label)

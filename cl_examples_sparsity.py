@@ -661,9 +661,9 @@ def ppo_ctgraph_cl_nm_mask_fp(name, env_config_path=None):
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    # weight preservation parasm
+    # weight preservation params
     config.cl_alpha = 0.25
-    config.cl_loss_coeff = 0.5 # for scp
+    config.cl_loss_coeff = 1e3 #0.5 # for scp
     config.cl_n_slices = 200
     # regularisation param(s)
     config.reg_loss_coeff = 1e-4
