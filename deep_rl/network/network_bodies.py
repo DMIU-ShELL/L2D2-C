@@ -623,9 +623,13 @@ class FCBody_CL(nn.Module): # fcbody for continual learning setup
         self.layers = nn.ModuleList([layer_init(nn.Linear(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
         self.gate = gate
         self.feature_dim = dims[-1]
+        self.task_label_dim = task_label_dim
 
     def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
-        if task_label is not None: x = torch.cat([x, task_label], dim=1)
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+            x = torch.cat([x, task_label], dim=1)
+        #if task_label is not None: x = torch.cat([x, task_label], dim=1)
        
         ret_act = []
         if return_layer_output:
@@ -656,9 +660,13 @@ class FCBody_CL_KWinners(nn.Module): # fcbody for continual learning setup with 
 
         self.gate = gate
         self.feature_dim = dims[-1]
+        self.task_label_dim = task_label_dim
 
     def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
-        if task_label is not None: x = torch.cat([x, task_label], dim=1)
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+            x = torch.cat([x, task_label], dim=1)
+        #if task_label is not None: x = torch.cat([x, task_label], dim=1)
        
         ret_act = []
         if return_layer_output:
@@ -681,9 +689,13 @@ class FCBody_CL_Mask(nn.Module): # fcbody for continual learning setup with mask
         self.layers = nn.ModuleList([layer_init(LinearMask(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
         self.gate = gate
         self.feature_dim = dims[-1]
+        self.task_label_dim = task_label_dim
 
     def forward(self, x, task_label=None, return_layer_output=False, prefix='', mask=None):
-        if task_label is not None: x = torch.cat([x, task_label], dim=1)
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+            x = torch.cat([x, task_label], dim=1)
+        #if task_label is not None: x = torch.cat([x, task_label], dim=1)
        
         ret_act = []
         if return_layer_output:
@@ -717,9 +729,13 @@ class FCBody_CL_NM(nn.Module): # fcbody for continual learning setup with neurom
 
         self.gate = gate
         self.feature_dim = dims[-1]
+        self.task_label_dim = task_label_dim
 
     def forward(self, x, task_label=None):
-        if task_label is not None: x = torch.cat([x, task_label], dim=1)
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+            x = torch.cat([x, task_label], dim=1)
+        #if task_label is not None: x = torch.cat([x, task_label], dim=1)
 
         importance_parameters = []
         for layer in self.layers:

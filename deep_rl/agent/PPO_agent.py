@@ -1979,7 +1979,8 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
             self.mask_real[n] = torch.zeros_like(p).to(self.config.DEVICE)
         self.nm_nets = {}
         for n, p in self.network.named_parameters():
-            m_ = NMNet(np.array(p.shape)[::-1], label_dim)
+            #m_ = NMNet(np.array(p.shape)[::-1], label_dim)
+            m_ = NMNetKWinners(np.array(p.shape)[::-1], label_dim)
             m_.to(config.DEVICE)
             self.nm_nets[n] = m_
 
@@ -2007,13 +2008,11 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
     def iteration(self):
         task_label = self.task.get_task()['task_label'] # current task
         # NOTE generate mask
-        #self._generate_nm_mask()
         self._generate_nm_mask(task_label)
 
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
@@ -2092,16 +2091,10 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
                 weight_pres_loss = self.penalty()
 
                 self.opt.zero_grad()
-                #for k, v in self.network.named_parameters():
-                #    print(k)
-                #    print(v.grad)
-                #for name, nm_model in self.nm_nets.items():
-                #    for k, v in nm_model.named_parameters():
-                #        print('mask', name, k)
-                #        print(v.grad)
-                #print('backward called')
 
+                # loss continuous mask
                 (policy_loss + value_loss + weight_pres_loss).backward()
+                # loss binary mask
                 #(policy_loss + value_loss + weight_pres_loss).backward(retain_graph=True)
                 #for n in self.nm_mask.keys():
                 #    mb = self.nm_mask[n]
@@ -2125,7 +2118,6 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
                 #import sys; sys.exit();
 
                 # NOTE generate mask for next batch of training
-                #self._generate_nm_mask()
                 self._generate_nm_mask(task_label)
 
         steps = config.rollout_length * config.num_workers
@@ -2134,18 +2126,18 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         return np.mean(grad_norms_).mean()
 
     def _generate_nm_mask(self, task_label):
-        #task_label = self.task.get_task()['task_label'] # current task # NOTE
         for n, nm_net in self.nm_nets.items():
-            #self.nm_mask[n] = nm_net(task_label.reshape(1, -1))
             mr = nm_net(task_label.reshape(1, -1))
             if mr.requires_grad is True: 
                 mr.retain_grad()
             self.mask_real[n] = mr
-            # binarize
+            # m1: binarize
             #mb = torch.sign(mr)
-            # continuous
-            mb = torch.zeros_like(mr)
-            mb[mr > 0.] = torch.sigmoid(mr[mr > 0.] + 5.)
+            # m2: continuous (sigmoided)
+            #mb = torch.zeros_like(mr)
+            #mb[mr > 0.] = torch.sigmoid(mr[mr > 0.] + 5.)
+            # m3: continuous raw
+            mb = mr
 
             if mb.requires_grad is True:
                 mb.retain_grad()
@@ -2178,9 +2170,9 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         for k, net in self.nm_nets.items():
             pm = {}
             for n, p in net.named_parameters():
-                p = deepcopy(p)
-                p.data.zero_()
-                pm[n] = p.data.to(config.DEVICE)
+                pm[n] = deepcopy(p)
+                pm[n].data.zero_()
+                pm[n] = pm[n].data.to(config.DEVICE)
             net.zero_grad()
             outs = net(task_label) # forward pass
             outs = outs.view(1, -1)

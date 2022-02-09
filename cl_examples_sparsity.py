@@ -54,7 +54,7 @@ def ppo_ctgraph_cl(name, env_config_path=None): # no sparsity, no consolidation 
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    config.max_steps = int(5.6e4) * 6 + 1 #int(5.6e4)+1 # note, max steps per task
+    config.max_steps = int(5.6e4) * 2 + 1 #int(5.6e4)+1 # note, max steps per task
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
@@ -591,7 +591,7 @@ def ppo_ctgraph_cl_kwinners_scp(name, env_config_path=None):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    config.max_steps = int(5.6e4) * 6 + 1 #int(5.6e4)+1 # note, max steps per task
+    config.max_steps = int(5.6e4) * 2 + 1 #int(5.6e4)+1 # note, max steps per task
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
@@ -640,8 +640,10 @@ def ppo_ctgraph_cl_nm_mask_fp(name, env_config_path=None):
     config.eval_task_fn = task_fn
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL_Mask(
-        state_dim, action_dim, label_dim, 
-        phi_body=FCBody_CL_Mask(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200)), 
+        #state_dim, action_dim, label_dim, 
+        state_dim, action_dim, None, 
+        #phi_body=FCBody_CL_Mask(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200)), 
+        phi_body=FCBody_CL_Mask(state_dim, task_label_dim=None, hidden_units=(200, 200, 200)), 
         actor_body=DummyBody_CL_Mask(200), 
         critic_body=DummyBody_CL_Mask(200))
     config.policy_fn = SamplePolicy
@@ -656,14 +658,15 @@ def ppo_ctgraph_cl_nm_mask_fp(name, env_config_path=None):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 100
     config.gradient_clip = 5
-    config.max_steps = int(5.6e4) * 1 + 1 #int(5.6e4)+1 # note, max steps per task
+    config.max_steps = int(5.6e4) * 3 + 1 #int(5.6e4)+1 # note, max steps per task
     #config.max_steps = int(5.6e4 * 0.5) + 1 #int(5.6e4)+1 # note, max steps per task
+    #config.max_steps = 1e3
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
     # weight preservation params
     config.cl_alpha = 0.25
-    config.cl_loss_coeff = 1e3 #0.5 # for scp
+    config.cl_loss_coeff = 1e6 #0.5 # for scp
     config.cl_n_slices = 200
     # regularisation param(s)
     config.reg_loss_coeff = 1e-4
