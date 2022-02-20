@@ -116,7 +116,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.states = config.state_normalizer(self.states)
         self.layers_output = None # for logging per layer output and sometimes l1/l2 regularisation
 
-        self.data_buffer = []
+        #self.data_buffer = []
+        self.data_buffer = Replay(memory_size=int(3e4), batch_size=1024)
         # weight preservation setup
         self.params = {n: p for n, p in self.network.named_parameters() if p.requires_grad}
         self.precision_matrices = {}
@@ -139,7 +140,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -154,7 +155,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -268,7 +269,7 @@ class PPOAgentBaselineL1Weights(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -283,7 +284,7 @@ class PPOAgentBaselineL1Weights(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -379,7 +380,7 @@ class PPOAgentBaselineL2Weights(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -394,7 +395,7 @@ class PPOAgentBaselineL2Weights(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -491,7 +492,7 @@ class PPOAgentBaselineGroupL1Weights(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -506,7 +507,7 @@ class PPOAgentBaselineGroupL1Weights(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -605,7 +606,7 @@ class PPOAgentBaselineSparseGroupL1Weights(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -620,7 +621,7 @@ class PPOAgentBaselineSparseGroupL1Weights(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -724,7 +725,7 @@ class PPOAgentBaselineL1Act(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -739,7 +740,7 @@ class PPOAgentBaselineL1Act(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -838,7 +839,7 @@ class PPOAgentBaselineL2Act(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -853,7 +854,7 @@ class PPOAgentBaselineL2Act(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -957,7 +958,7 @@ class PPOAgentSCPSparseGroupL1Weights(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -972,7 +973,7 @@ class PPOAgentSCPSparseGroupL1Weights(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -1051,12 +1052,6 @@ class PPOAgentSCPSparseGroupL1Weights(PPOContinualLearnerAgent):
 
     def consolidate(self, batch_size=32):
         print('sanity check, consolidate in ppo + scp + sparse-group-l1 reg agent')
-        # the return values are zeros and do no consolidate any weights
-        # therefore, all parameters are retrained/finetuned per task.
-        states = np.concatenate(self.data_buffer)
-        states = states[-512 : ] # NOTE, hack downsizing buffer. please remove later
-        task_label = self.task.get_task()['task_label']
-        task_label = np.repeat(task_label.reshape(1, -1), len(states), axis=0)
         config = self.config
         precision_matrices = {}
         for n, p in deepcopy(self.params).items():
@@ -1066,19 +1061,11 @@ class PPOAgentSCPSparseGroupL1Weights(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        # Get network outputs
-        idxs = np.arange(len(states))
-        np.random.shuffle(idxs)
-        # shuffle data
-        states = states[idxs]
-        task_label = task_label[idxs]
-
-        num_batches = len(states) // batch_size
-        num_batches = num_batches + 1 if len(states) % batch_size > 0 else num_batches
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
+        num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
-            start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
-            states_ = states[start:end, ...]
-            task_label_ = task_label[start:end, ...]
+            states_, = self.data_buffer.sample(batch_size)
             self.network.zero_grad()
             logits, actions, _, _, values, _ = self.network.predict(states_, task_label=task_label_)
             # actor consolidation
@@ -1257,10 +1244,7 @@ class PPOAgentMAS(PPOContinualLearnerAgent):
         PPOContinualLearnerAgent.__init__(self, config)
 
     def consolidate(self, batch_size=32):
-        states = np.concatenate(self.data_buffer)
-        task_label = self.task.get_task()['task_label']
-        task_label = np.repeat(task_label.reshape(1, -1), len(states), axis=0)
-
+        print('sanity check, in mas consolidation')
         config = self.config
         precision_matrices = {}
         for n, p in deepcopy(self.params).items():
@@ -1270,18 +1254,11 @@ class PPOAgentMAS(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        # shuffle data
-        idxs = np.arange(len(states))
-        np.random.shuffle(idxs)
-        states = states[idxs]
-        task_label = task_label[idxs]
-
-        num_batches = len(states) // batch_size
-        num_batches = num_batches + 1 if len(states) % batch_size > 0 else num_batches
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
+        num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
-            start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
-            states_ = states[start:end, ...]
-            task_label_ = task_label[start:end, ...]
+            states_, = self.data_buffer.sample(batch_size)
             logits, actions, _, _, values = self.network.predict(states_, task_label=task_label_)
             logits = torch.softmax(logits, dim=1)
             # get value loss
@@ -1329,10 +1306,6 @@ class PPOAgentSCP(PPOContinualLearnerAgent):
 
     def consolidate(self, batch_size=32):
         print('sanity check, in scp consolidation')
-        states = np.concatenate(self.data_buffer)
-        states = states[-512 : ] # NOTE, hack downsizing buffer. please remove later
-        task_label = self.task.get_task()['task_label']
-        task_label = np.repeat(task_label.reshape(1, -1), len(states), axis=0)
         config = self.config
         precision_matrices = {}
         for n, p in deepcopy(self.params).items():
@@ -1342,19 +1315,11 @@ class PPOAgentSCP(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        # Get network outputs
-        idxs = np.arange(len(states))
-        np.random.shuffle(idxs)
-        # shuffle data
-        states = states[idxs]
-        task_label = task_label[idxs]
-
-        num_batches = len(states) // batch_size
-        num_batches = num_batches + 1 if len(states) % batch_size > 0 else num_batches
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
+        num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
-            start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
-            states_ = states[start:end, ...]
-            task_label_ = task_label[start:end, ...]
+            states_, = self.data_buffer.sample(batch_size)
             self.network.zero_grad()
             logits, actions, _, _, values, _ = self.network.predict(states_, task_label=task_label_)
             # actor consolidation
@@ -1425,7 +1390,7 @@ class PPOAgentSCPwithModulatedGradients(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -1440,7 +1405,7 @@ class PPOAgentSCPwithModulatedGradients(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -1525,10 +1490,6 @@ class PPOAgentSCPwithModulatedGradients(PPOContinualLearnerAgent):
 
     def consolidate(self, batch_size=32):
         print('sanity check, in scp consolidation with modulated gradients')
-        states = np.concatenate(self.data_buffer)
-        states = states[-512 : ] # NOTE, hack downsizing buffer. please remove later
-        task_label = self.task.get_task()['task_label']
-        task_label = np.repeat(task_label.reshape(1, -1), len(states), axis=0)
         config = self.config
         precision_matrices = {}
         for n, p in deepcopy(self.params).items():
@@ -1538,19 +1499,11 @@ class PPOAgentSCPwithModulatedGradients(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        # Get network outputs
-        idxs = np.arange(len(states))
-        np.random.shuffle(idxs)
-        # shuffle data
-        states = states[idxs]
-        task_label = task_label[idxs]
-
-        num_batches = len(states) // batch_size
-        num_batches = num_batches + 1 if len(states) % batch_size > 0 else num_batches
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
+        num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
-            start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
-            states_ = states[start:end, ...]
-            task_label_ = task_label[start:end, ...]
+            states_, = self.data_buffer.sample(batch_size)
             self.network.zero_grad()
             logits, actions, _, _, values, _ = self.network.predict(states_, task_label=task_label_)
             # actor consolidation
@@ -1621,7 +1574,7 @@ class PPOAgentSCPwithModulatedImportances(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -1636,7 +1589,7 @@ class PPOAgentSCPwithModulatedImportances(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -1720,10 +1673,6 @@ class PPOAgentSCPwithModulatedImportances(PPOContinualLearnerAgent):
 
     def consolidate(self, batch_size=32):
         print('sanity check, in scp consolidation with modulated importances')
-        states = np.concatenate(self.data_buffer)
-        states = states[-512 : ] # NOTE, hack downsizing buffer. please remove later
-        task_label = self.task.get_task()['task_label']
-        task_label = np.repeat(task_label.reshape(1, -1), len(states), axis=0)
         config = self.config
         precision_matrices = {}
         for n, p in deepcopy(self.params).items():
@@ -1733,19 +1682,11 @@ class PPOAgentSCPwithModulatedImportances(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        # Get network outputs
-        idxs = np.arange(len(states))
-        np.random.shuffle(idxs)
-        # shuffle data
-        states = states[idxs]
-        task_label = task_label[idxs]
-
-        num_batches = len(states) // batch_size
-        num_batches = num_batches + 1 if len(states) % batch_size > 0 else num_batches
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
+        num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
-            start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
-            states_ = states[start:end, ...]
-            task_label_ = task_label[start:end, ...]
+            states_, = self.data_buffer.sample(batch_size)
             self.network.zero_grad()
             logits, actions, _, _, values, _ = self.network.predict(states_, task_label=task_label_)
             # actor consolidation
@@ -1800,7 +1741,7 @@ class PPOAgentSCPwithMasking(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
@@ -1815,7 +1756,7 @@ class PPOAgentSCPwithMasking(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -1889,10 +1830,6 @@ class PPOAgentSCPwithMasking(PPOContinualLearnerAgent):
     #def consolidate(self, batch_size=32):
     def consolidate(self, mask, batch_size=32):
         print('sanity check, in scp consolidation with masking')
-        states = np.concatenate(self.data_buffer)
-        states = states[-512 : ] # NOTE, hack downsizing buffer. please remove later
-        task_label = self.task.get_task()['task_label']
-        task_label = np.repeat(task_label.reshape(1, -1), len(states), axis=0)
         config = self.config
         precision_matrices = {}
         for n, p in deepcopy(self.params).items():
@@ -1902,19 +1839,11 @@ class PPOAgentSCPwithMasking(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        # Get network outputs
-        idxs = np.arange(len(states))
-        np.random.shuffle(idxs)
-        # shuffle data
-        states = states[idxs]
-        task_label = task_label[idxs]
-
-        num_batches = len(states) // batch_size
-        num_batches = num_batches + 1 if len(states) % batch_size > 0 else num_batches
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
+        num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
-            start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
-            states_ = states[start:end, ...]
-            task_label_ = task_label[start:end, ...]
+            states_, = self.data_buffer.sample(batch_size)
             self.network.zero_grad()
             logits, actions, _, _, values, _ = self.network.predict(states_, task_label=task_label_)
             # actor consolidation
@@ -2019,7 +1948,7 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         else:
             batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
-        if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label, masks=self.nm_mask)
@@ -2034,7 +1963,7 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
-            if config.cl_preservation != 'ewc': self.data_buffer.append(states)
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label, masks=self.nm_mask)[-2]
@@ -2144,12 +2073,6 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
             self.nm_mask[n] = mb
 
     def penalty(self):
-        #loss = 0
-        #for n, p in self.network.named_parameters():
-        #    _loss = self.precision_matrices[n] * (p - self.means[n]) ** 2
-        #    loss += _loss.sum()
-        #return loss * self.config.cl_loss_coeff
-
         losses = []
         for k, net in self.nm_nets.items():
             loss = 0
@@ -2195,68 +2118,9 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
                 # Update the means
                 self.nm_means[k][n] = deepcopy(p.data).to(config.DEVICE)
 
-        return self.precision_matrices, self.precision_matrices, 
-
-        #states = np.concatenate(self.data_buffer)
-        #states = states[-512 : ] # NOTE, hack downsizing buffer. please remove later
-        #task_label = self.task.get_task()['task_label']
-        #task_label = np.repeat(task_label.reshape(1, -1), len(states), axis=0)
-        #config = self.config
-        #precision_matrices = {}
-        #for n, p in deepcopy(self.params).items():
-        #    p.data.zero_()
-        #    precision_matrices[n] = p.data.to(config.DEVICE)
-
-        ## Set the model in the evaluation mode
-        #self.network.eval()
-
-        ## Get network outputs
-        #idxs = np.arange(len(states))
-        #np.random.shuffle(idxs)
-        ## shuffle data
-        #states = states[idxs]
-        #task_label = task_label[idxs]
-
-        #num_batches = len(states) // batch_size
-        #num_batches = num_batches + 1 if len(states) % batch_size > 0 else num_batches
-        #for batch_idx in range(num_batches):
-        #    start, end = batch_idx * batch_size, (batch_idx+1) * batch_size
-        #    states_ = states[start:end, ...]
-        #    task_label_ = task_label[start:end, ...]
-        #    self.network.zero_grad()
-        #    logits, actions, _, _, values, _ = self.network.predict(states_, task_label=task_label_)
-        #    # actor consolidation
-        #    logits_mean = logits.type(torch.float32).mean(dim=0)
-        #    K = logits_mean.shape[0]
-        #    for _ in range(config.cl_n_slices):
-        #        xi = torch.randn(K, ).to(config.DEVICE)
-        #        xi /= torch.sqrt((xi**2).sum())
-        #        self.network.zero_grad()
-        #        out = torch.matmul(logits_mean, xi)
-        #        out.backward(retain_graph=True)
-        #        # Update the temporary precision matrix
-        #        for n, p in self.params.items():
-        #            precision_matrices[n].data += p.grad.data ** 2
-        #    # critic consolidation
-        #    values_mean = values.type(torch.float32).mean(dim=0)
-        #    self.network.zero_grad()
-        #    values_mean.backward(retain_graph=True)
-        #    # Update the temporary precision matrix
-        #    for n, p in self.params.items():
-        #        precision_matrices[n].data += p.grad.data ** 2
-
-        #for n, p in self.network.named_parameters():
-        #    if p.requires_grad is False: continue
-        #    # Update the precision matrix
-        #    self.precision_matrices[n] = config.cl_alpha*self.precision_matrices[n] + \
-        #        (1 - config.cl_alpha) * precision_matrices[n]
-        #    # Update the means
-        #    self.means[n] = deepcopy(p.data).to(config.DEVICE)
-
-        #self.network.train()
-        ## return task precision matrices and general precision matrices across tasks agent has
-        ## been explosed to so far
-        #return precision_matrices, self.precision_matrices
+        # this return values are not useful for the class. only added for compatibility purpose.
+        # consolidation is not applied to the target network.
+        return self.precision_matrices, self.precision_matrices
 
     def evaluation_action(self, state, task_label):
         self.config.state_normalizer.set_read_only()

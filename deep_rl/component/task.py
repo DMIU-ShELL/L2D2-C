@@ -146,8 +146,10 @@ class CTgraph(BaseTask):
         imageDataset = CTgraph_images(env_config)
         self.env_config=env_config
 
-        state = env.init(env_config, imageDataset)
-        env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape)
+        #state = env.init(env_config, imageDataset)
+        state, _, _, _ = env.init(env_config, imageDataset)
+        env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape,\
+            dtype=np.float32)
         self.action_dim = env.action_space.n
         if env_config['image_dataset']['1D']:
             self.state_dim = int(np.prod(env.observation_space.shape))
@@ -165,7 +167,7 @@ class CTgraph(BaseTask):
         depth = env_config['graph_shape']['depth']
         branch = env_config['graph_shape']['depth']
         tasks = list(product(list(range(branch)), repeat=depth))
-        self.tasks = [{'goal': np.array(task), 'task_label': None} for task in tasks]
+        self.tasks = [{'task': np.array(task), 'task_label': None} for task in tasks]
         self.current_task = self.tasks[0]
 
     def step(self, action):
@@ -175,7 +177,8 @@ class CTgraph(BaseTask):
         return state, reward, done, info
 
     def reset(self):
-        state = self.env.reset()
+        #state = self.env.reset()
+        state, _, _, _ = self.env.reset()
         if self.env_config['image_dataset']['1D']: state = state.ravel()
         return state
 
@@ -184,7 +187,7 @@ class CTgraph(BaseTask):
         return self.reset()
 
     def set_task(self, taskinfo):
-        self.env.unwrapped.set_high_reward_path(taskinfo['goal'])
+        self.env.unwrapped.set_high_reward_path(taskinfo['task'])
         self.current_task = taskinfo
     
     def get_task(self):
@@ -239,7 +242,8 @@ class CTgraphFlatObs(CTgraph):
         return state.ravel(), reward, done, info
 
     def reset(self):
-        state = self.env.reset()
+        #state = self.env.reset()
+        state, _, _, _ = self.env.reset()
         return state.ravel()
 
 class CTgraphPermutedStates(BaseTask):
@@ -255,7 +259,8 @@ class CTgraphPermutedStates(BaseTask):
         imageDataset = CTgraph_images(env_config)
         self.env_config=env_config
 
-        state = env.init(env_config, imageDataset)
+        #state = env.init(env_config, imageDataset)
+        state, _, _, _ = env.init(env_config, imageDataset)
         env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape)
         self.action_dim = env.action_space.n
         if env_config['image_dataset']['1D']:
@@ -271,11 +276,11 @@ class CTgraphPermutedStates(BaseTask):
         flat_statedim= self.state_dim if isinstance(self.state_dim, int) else np.prod(self.state_dim)
         permute = np.arange(flat_statedim)
         goal = self.env.unwrapped.get_high_reward_path()
-        self.tasks.append({'permute_mask': permute, 'goal': goal})
+        self.tasks.append({'permute_mask': permute, 'task': goal})
         for _ in range(num_tasks-1):
             permute = np.arange(flat_statedim)
             np.random.shuffle(permute)
-            self.tasks.append({'permute_mask': permute, 'goal': goal})
+            self.tasks.append({'permute_mask': permute, 'task': goal})
         self.current_task = self.tasks[0]
 
     def step(self, action):
@@ -290,7 +295,8 @@ class CTgraphPermutedStates(BaseTask):
         return state, reward, done, info
 
     def reset(self):
-        state = self.env.reset() # ctgraph returns state, reward, done, info in reset
+        #state = self.env.reset() # ctgraph returns state, reward, done, info in reset
+        state, _, _, _ = self.env.reset()
         if self.env_config['image_dataset']['1D']: state = state.ravel()
         # apply permute mask to state
         sh = state.shape
@@ -322,6 +328,86 @@ class CTgraphPermutedStates(BaseTask):
     
     def random_tasks(self, num_tasks, requires_task_label=True):
         raise NotImplementedError
+
+class MiniGrid(BaseTask):
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000):
+        BaseTask.__init__(self)
+        self.name = name
+        import gym_minigrid
+        from gym_minigrid.wrappers import ImgObsWrapper, ReseedWrapper
+        import json
+        with open(env_config_path, 'r') as f:
+            env_config = json.load(f)
+        self.env_config = env_config
+        env_names = env_config['tasks']
+        self.envs = {name : ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) \
+            for name in env_names}
+        self.observation_space = self.envs[env_names[0]].observation_space
+        self.state_dim = self.observation_space.shape
+        #self.action_dim = self.envs[env_names[0]].action_space.n
+        self.action_dim = 3 # reduce action space to 'left', 'right' and 'forward'
+        # env monitors
+        for name in self.envs.keys():
+            self.envs[name] = self.set_monitor(self.envs[name], log_dir)
+        # task label config
+        self.task_label_dim = env_config['label_dim']
+        self.one_hot_labels = True if env_config['one_hot'] else False
+        # all tasks
+        self.tasks = [{'task': name, 'task_label': None} for name in self.envs.keys()]
+        # generate label for each task
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+        else:
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32) 
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+        # set default task
+        self.current_task = self.tasks[0]
+        self.env = self.envs[self.current_task['task']]
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        return state, reward, done, info
+
+    def reset(self):
+        state = self.env.reset()
+        return state
+
+    def reset_task(self, taskinfo):
+        self.set_task(taskinfo)
+        return self.reset()
+
+    def set_task(self, taskinfo):
+        self.current_task = taskinfo
+        self.env = self.envs[self.current_task['task']]
+    
+    def get_task(self):
+        return self.current_task
+
+    def get_all_tasks(self, requires_task_label=True):
+        return self.tasks
+    
+    def random_tasks(self, num_tasks, requires_task_label=True):
+        raise NotImplementedError
+
+class MiniGridFlatObs(MiniGrid):
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000):
+        super(MiniGridFlatObs, self).__init__(name, env_config_path, log_dir, seed)
+        self.state_dim = int(np.prod(self.env.observation_space.shape))
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        return state.ravel(), reward, done, info
+
+    def reset(self):
+        state = self.env.reset()
+        return state.ravel()
 
 class PixelAtari(BaseTask):
     def __init__(self, name, seed=0, log_dir=None,

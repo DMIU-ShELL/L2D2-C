@@ -1,0 +1,5 @@
+{
+"tasks": ["MiniGrid-DoorKey-5x5-v0", "MiniGrid-DoorKey-6x6-v0", "MiniGrid-SimpleCrossingS9N1-v0", "MiniGrid-SimpleCrossingS9N2-v0", "MiniGrid-SimpleCrossingS9N3-v0"],
+"one_hot": true,
+"label_dim": 64
+}

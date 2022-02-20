@@ -236,7 +236,7 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
         for task_idx, task_info in enumerate(tasks_info):
 
             config.logger.info('*****start training on task {0}'.format(task_idx))
-            config.logger.info('task: {0}'.format(task_info['goal']))
+            config.logger.info('task: {0}'.format(task_info['task']))
 
             states = agent.task.reset_task(task_info)
             agent.states = config.state_normalizer(states)
@@ -308,9 +308,14 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     pickle.dump(episodes, f)
         print('eval stats')
         for k, v in eval_results.items():
-            print('{0}: {1}'.format(k, np.mean(v)))
+            print('{0}: {1:.4f}'.format(k, np.mean(v)))
             config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
-        print(eval_results)
+        #print(eval_results)
+        for k, v in eval_results.items():
+            print(k, ':')
+            for x in v:
+                print('{0:.4f}'.format(x), end=' ')
+            print()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
 
     # save neuromodulated (hyper) nets after training
@@ -354,7 +359,7 @@ def run_iterations_cl_with_masking(agent, tasks_info):
         eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
         for task_idx, task_info in enumerate(tasks_info):
             config.logger.info('*****start training on task {0}'.format(task_idx))
-            config.logger.info('task: {0}'.format(task_info['goal']))
+            config.logger.info('task: {0}'.format(task_info['task']))
 
             states = agent.task.reset_task(task_info)
             agent.states = config.state_normalizer(states)
@@ -428,7 +433,12 @@ def run_iterations_cl_with_masking(agent, tasks_info):
         print('eval stats')
         for k, v in eval_results.items():
             print('{0}: {1}'.format(k, np.mean(v)))
-        print(eval_results)
+        #print(eval_results)
+        for k, v in eval_results.items():
+            print(k, ':')
+            for x in v:
+                print('{0:.4f}'.format(x), end=' ')
+            print()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
     agent.close()
     return steps, rewards
