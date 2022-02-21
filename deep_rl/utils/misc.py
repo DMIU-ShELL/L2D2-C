@@ -237,6 +237,7 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
 
             config.logger.info('*****start training on task {0}'.format(task_idx))
             config.logger.info('task: {0}'.format(task_info['task']))
+            config.logger.info('task_label: {0}'.format(task_info['task_label']))
 
             states = agent.task.reset_task(task_info)
             agent.states = config.state_normalizer(states)

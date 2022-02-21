@@ -45,9 +45,9 @@ class NMNetKWinners(nn.Module):
         self.fc2 = nn.Linear(z_dim, int(self.weight_shape[1]))
 
         # NOTE fix me, the duty_cycle_period.
-        self.act1 = KWinners(n=z_dim*int(self.weight_shape[0]), percent_on=0.1, \
+        self.act1 = KWinners(n=z_dim*int(self.weight_shape[0]), percent_on=0.2, \
             boost_strength=1.0, duty_cycle_period=200)
-        self.act2 = KWinners(n=int(self.weight_shape[1]), percent_on=0.1, \
+        self.act2 = KWinners(n=int(self.weight_shape[1]), percent_on=0.2, \
             boost_strength=1.0, duty_cycle_period=200)
 
     def forward(self, x):
