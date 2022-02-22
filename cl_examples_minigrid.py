@@ -33,9 +33,10 @@ def ppo_minigrid_cl(name, env_config_path=None): # no sparsity, no consolidation
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 16
     assert env_config_path is not None, '`env_config_path` should be set for the MiniGrid environment'
-    task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed)
+    task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
-    config.eval_task_fn = task_fn
+    eval_task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, True)
+    config.eval_task_fn = eval_task_fn
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL(
         state_dim, action_dim, label_dim, 
@@ -59,7 +60,7 @@ def ppo_minigrid_cl(name, env_config_path=None): # no sparsity, no consolidation
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 3
+    config.cl_num_tasks = 5 #3
     agent = PPOAgentBaseline(config)
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
@@ -116,7 +117,7 @@ def ppo_scp_minigrid_cl(name, env_config_path=None): # no sparsity, scp consolid
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 3
+    config.cl_num_tasks = 5 #3
 
     config.cl_alpha = 0.25
     config.cl_loss_coeff = 1e4 #0.5 # for scp
@@ -187,7 +188,7 @@ def ppo_minigrid_cl_nm_mask_fp(name, env_config_path=None):
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 3
+    config.cl_num_tasks = 5 #3
 
     config.cl_alpha = 0.25
     config.cl_loss_coeff = 1e2 #0.5 # for scp
@@ -218,8 +219,8 @@ if __name__ == '__main__':
 
     # minigrid experiments
     game = 'MiniGrid'
-    env_config_path = './minigrid.json'
-    #env_config_path = './minigrid_5tasks.json'
+    #env_config_path = './minigrid.json'
+    env_config_path = './minigrid_5tasks.json'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('algo', help='algorithm to run')

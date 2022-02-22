@@ -330,22 +330,33 @@ class CTgraphPermutedStates(BaseTask):
         raise NotImplementedError
 
 class MiniGrid(BaseTask):
-    def __init__(self, name, env_config_path, log_dir=None, seed=1000):
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
         BaseTask.__init__(self)
         self.name = name
         import gym_minigrid
-        from gym_minigrid.wrappers import ImgObsWrapper, ReseedWrapper
+        from gym_minigrid.wrappers import ImgObsWrapper, ReseedWrapper, ActionBonus, StateBonus
         import json
+        self.wrappers_dict = {'ActionBonus': ActionBonus, 'StateBonus': StateBonus}
         with open(env_config_path, 'r') as f:
             env_config = json.load(f)
         self.env_config = env_config
         env_names = env_config['tasks']
         self.envs = {name : ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) \
             for name in env_names}
+        # apply exploration bonus wrapper only to training envs
+        if not eval_mode:
+            if 'wrappers' in env_config.keys():
+                for str_wrapper in env_config['wrappers']:
+                    cls_wrapper = self.wrappers_dict[str_wrapper]
+                    for k in self.envs.keys():
+                        self.envs[k] = cls_wrapper(self.envs[k])
         self.observation_space = self.envs[env_names[0]].observation_space
         self.state_dim = self.observation_space.shape
-        #self.action_dim = self.envs[env_names[0]].action_space.n
-        self.action_dim = 3 # reduce action space to 'left', 'right' and 'forward'
+        # note, action_dim of 3 will reduce agent action to left, right, and forward
+        if 'action_dim' in env_config.keys():
+            self.action_dim = env_config['action_dim']
+        else:
+            self.action_dim = self.envs[env_names[0]].action_space.n
         # env monitors
         for name in self.envs.keys():
             self.envs[name] = self.set_monitor(self.envs[name], log_dir)
@@ -396,8 +407,8 @@ class MiniGrid(BaseTask):
         raise NotImplementedError
 
 class MiniGridFlatObs(MiniGrid):
-    def __init__(self, name, env_config_path, log_dir=None, seed=1000):
-        super(MiniGridFlatObs, self).__init__(name, env_config_path, log_dir, seed)
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
+        super(MiniGridFlatObs, self).__init__(name, env_config_path, log_dir, seed, eval_mode)
         self.state_dim = int(np.prod(self.env.observation_space.shape))
 
     def step(self, action):
