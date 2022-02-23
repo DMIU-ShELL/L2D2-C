@@ -308,15 +308,20 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
         print('eval stats')
+        f = open('eval_stats.txt', 'w')
         for k, v in eval_results.items():
             print('{0}: {1:.4f}'.format(k, np.mean(v)))
+            f.write('{0}: {1:.4f}\n'.format(k, np.mean(v)))
             config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
-        #print(eval_results)
         for k, v in eval_results.items():
-            print(k, ':')
+            print(k + ' :')
+            f.write(k + ' :')
             for x in v:
                 print('{0:.4f}'.format(x), end=' ')
+                f.write('{0:.4f} '.format(x))
             print()
+            f.write('\n')
+        f.close()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
 
     # save neuromodulated (hyper) nets after training

@@ -60,7 +60,7 @@ def ppo_minigrid_cl(name, env_config_path=None): # no sparsity, no consolidation
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 5 #3
+    config.cl_num_tasks = 7
     agent = PPOAgentBaseline(config)
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
@@ -117,7 +117,7 @@ def ppo_scp_minigrid_cl(name, env_config_path=None): # no sparsity, scp consolid
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 5 #3
+    config.cl_num_tasks = 7
 
     config.cl_alpha = 0.25
     config.cl_loss_coeff = 1e4 #0.5 # for scp
@@ -188,7 +188,7 @@ def ppo_minigrid_cl_nm_mask_fp(name, env_config_path=None):
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 5 #3
+    config.cl_num_tasks = 7
 
     config.cl_alpha = 0.25
     config.cl_loss_coeff = 1e2 #0.5 # for scp
@@ -219,8 +219,9 @@ if __name__ == '__main__':
 
     # minigrid experiments
     game = 'MiniGrid'
-    #env_config_path = './minigrid.json'
-    env_config_path = './minigrid_5tasks.json'
+    #env_config_path = './minigrid_sc_3.json'
+    #env_config_path = './minigrid_sc_dk_5.json'
+    env_config_path = './minigrid_sc_lc_7.json'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('algo', help='algorithm to run')
