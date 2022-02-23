@@ -308,14 +308,14 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
         print('eval stats')
-        f = open('eval_stats.txt', 'w')
+        f = open(config.log_dir + '/eval_stats.txt', 'w')
         for k, v in eval_results.items():
             print('{0}: {1:.4f}'.format(k, np.mean(v)))
             f.write('{0}: {1:.4f}\n'.format(k, np.mean(v)))
             config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
         for k, v in eval_results.items():
-            print(k + ' :')
-            f.write(k + ' :')
+            print('{0} :'.format(k))
+            f.write('{0} :\n'.format(k))
             for x in v:
                 print('{0:.4f}'.format(x), end=' ')
                 f.write('{0:.4f} '.format(x))
