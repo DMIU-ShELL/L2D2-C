@@ -308,20 +308,20 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
         print('eval stats')
-        f = open(config.log_dir + '/eval_stats.txt', 'w')
+        with open(config.log_dir + '/eval_full_stats.bin', 'w') as f: pickle.dump(eval_results, f)
+
+        f = open(config.log_dir + '/eval_stats.csv', 'w')
+        f.write('task_id,avg_reward\n')
         for k, v in eval_results.items():
             print('{0}: {1:.4f}'.format(k, np.mean(v)))
-            f.write('{0}: {1:.4f}\n'.format(k, np.mean(v)))
+            f.write('{0},{1:.4f}\n'.format(k, np.mean(v)))
             config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
-        for k, v in eval_results.items():
-            print('{0} :'.format(k))
-            f.write('{0} :\n'.format(k))
-            for x in v:
-                print('{0:.4f}'.format(x), end=' ')
-                f.write('{0:.4f} '.format(x))
-            print()
-            f.write('\n')
         f.close()
+        #for k, v in eval_results.items():
+        #    print('{0} :'.format(k))
+        #    for x in v:
+        #        print('{0:.4f}'.format(x), end=' ')
+        #    print()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
 
     # save neuromodulated (hyper) nets after training

@@ -2164,3 +2164,256 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
             epi_info['terminal'].append(done)
             if done: break
         return total_rewards, epi_info
+
+# rather than have multiple nm nets (one for each layer of the target network), we use one nm net
+# that generate output to match all parameters of the target network.
+class PPOAgentSCPModulatedFP_v2(PPOContinualLearnerAgent):
+    def __init__(self, config):
+        PPOContinualLearnerAgent.__init__(self, config)
+
+        # neuromodulated (hypernet) mask for modulated forward pass (FP)
+        tasks = self.config.cl_tasks_info
+        label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label'])
+        self.nm_mask = {}
+        self.mask_real = {}
+        total_params = 0
+        for n, p in self.network.named_parameters():
+            self.nm_mask[n] = torch.zeros_like(p).to(self.config.DEVICE)
+            self.mask_real[n] = torch.zeros_like(p).to(self.config.DEVICE)
+            total_params += p.numel()
+        self.nm_nets = NMNetBig(total_params, label_dim)
+        #self.nm_nets = NMNetKWinnersBig(total_params, label_dim)
+        self.nm_nets.to(config.DEVICE)
+
+        # pm of nm nets
+        self.nm_pm = {}
+        self.nm_means = {}
+        for n, p in self.nm_nets.named_parameters():
+            p = deepcopy(p)
+            p.data.zero_()
+            self.nm_pm[n] = p.data.to(config.DEVICE)
+        for n, p in self.nm_nets.named_parameters():
+            p = deepcopy(p)
+            p.data.zero_()
+            self.nm_means[n] = p.data.to(config.DEVICE)
+
+        all_parameters = []
+        all_parameters += list(self.network.parameters())
+        all_parameters += list(self.nm_nets.parameters())
+        self.opt = config.optimizer_fn(all_parameters, config.lr)
+
+    def iteration(self):
+        task_label = self.task.get_task()['task_label'] # current task
+        # NOTE generate mask
+        self._generate_nm_mask(task_label)
+
+        config = self.config
+        rollout = []
+        states = self.states
+        batch_dim = len(states) # same as config.num_workers
+        if batch_dim == 1:
+            batch_task_label = task_label.reshape(1, -1)
+        else:
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
+
+        if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
+        for _ in range(config.rollout_length):
+            _, actions, log_probs, _, values, _ = self.network.predict(states, \
+                task_label=batch_task_label, masks=self.nm_mask)
+            next_states, rewards, terminals, _ = self.task.step(actions.cpu().detach().numpy())
+            self.episode_rewards += rewards
+            rewards = config.reward_normalizer(rewards)
+            for i, terminal in enumerate(terminals):
+                if terminals[i]:
+                    self.last_episode_rewards[i] = self.episode_rewards[i]
+                    self.episode_rewards[i] = 0
+            next_states = config.state_normalizer(next_states)
+            rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
+                rewards, 1 - terminals])
+            states = next_states
+            if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
+
+        self.states = states
+        pending_value = self.network.predict(states, task_label=batch_task_label, masks=self.nm_mask)[-2]
+        rollout.append([states, pending_value, None, None, None, None])
+        processed_rollout = [None] * (len(rollout) - 1)
+        advantages = tensor(np.zeros((config.num_workers, 1)))
+        returns = pending_value.detach()
+        for i in reversed(range(len(rollout) - 1)):
+            states, value, actions, log_probs, rewards, terminals = rollout[i]
+            terminals = tensor(terminals).unsqueeze(1)
+            rewards = tensor(rewards).unsqueeze(1)
+            actions = tensor(actions)
+            states = tensor(states)
+            next_value = rollout[i + 1][1]
+            returns = rewards + config.discount * terminals * returns
+            if not config.use_gae:
+                advantages = returns - value.detach()
+            else:
+                td_error = rewards + config.discount*terminals*next_value.detach() - value.detach()
+                advantages = advantages * config.gae_tau * config.discount * terminals + td_error
+            processed_rollout[i] = [states, actions, log_probs, returns, advantages]
+
+        states, actions, log_probs_old, returns, advantages = map(lambda x: torch.cat(x, dim=0), \
+            zip(*processed_rollout))
+        advantages = (advantages - advantages.mean()) / advantages.std()
+
+        grad_norms_ = []
+        batcher = Batcher(states.size(0) // config.num_mini_batches, [np.arange(states.size(0))])
+        for _ in range(config.optimization_epochs):
+
+            batcher.shuffle()
+            while not batcher.end():
+                batch_indices = batcher.next_batch()[0]
+                batch_indices = tensor(batch_indices).long()
+                sampled_states = states[batch_indices]
+                sampled_actions = actions[batch_indices]
+                sampled_log_probs_old = log_probs_old[batch_indices]
+                sampled_returns = returns[batch_indices]
+                sampled_advantages = advantages[batch_indices]
+
+                batch_dim = sampled_states.shape[0]
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
+                _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
+                    sampled_actions, task_label=batch_task_label, masks=self.nm_mask)
+                ratio = (log_probs - sampled_log_probs_old).exp()
+                obj = ratio * sampled_advantages
+                obj_clipped = ratio.clamp(1.0 - self.config.ppo_ratio_clip,
+                                          1.0 + self.config.ppo_ratio_clip) * sampled_advantages
+                policy_loss = -torch.min(obj, obj_clipped).mean(0) \
+                    - config.entropy_weight * entropy_loss.mean()
+
+                value_loss = 0.5 * (sampled_returns - values).pow(2).mean()
+
+                weight_pres_loss = self.penalty()
+
+                self.opt.zero_grad()
+
+                # loss continuous mask
+                (policy_loss + value_loss + weight_pres_loss).backward()
+
+                norm_ = nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
+                grad_norms_.append(norm_.detach().cpu().numpy())
+                self.opt.step()
+
+                # NOTE generate mask for next batch of training
+                self._generate_nm_mask(task_label)
+
+        steps = config.rollout_length * config.num_workers
+        self.total_steps += steps
+        self.layers_output = outs
+        return np.mean(grad_norms_).mean()
+
+    def _generate_nm_mask(self, task_label):
+        total_mask = self.nm_nets(task_label.reshape(1, -1))
+        total_mask = total_mask.view(-1,)
+        counter = 0
+        for n, p in self.network.named_parameters():
+            p_numel = p.numel()
+            p_mask = total_mask[counter : counter + p_numel]
+            mr = p_mask.view(p.shape)
+            counter += p_numel
+
+            if mr.requires_grad is True: 
+                mr.retain_grad()
+            self.mask_real[n] = mr
+            # m1: binarize
+            #mb = torch.sign(mr)
+            # m2: continuous (sigmoided)
+            #mb = torch.zeros_like(mr)
+            #mb[mr > 0.] = torch.sigmoid(mr[mr > 0.] + 5.)
+            # m3: continuous raw
+            mb = mr
+
+            if mb.requires_grad is True:
+                mb.retain_grad()
+            self.nm_mask[n] = mb
+
+    def penalty(self):
+        loss = 0
+        for n, p in self.nm_nets.named_parameters():
+            _loss = self.nm_pm[n] * (p - self.nm_means[n]) ** 2
+            loss += _loss.sum()
+        loss = loss * self.config.cl_loss_coeff
+        return loss
+
+    def consolidate(self, batch_size=32):
+        print('sanity check, in scp consolidation with modulated fp')
+        config = self.config
+        
+        task_label = self.task.get_task()['task_label'] # current task
+        task_label = task_label.reshape(1, -1)
+
+        pm = {}
+        for n, p in self.nm_nets.named_parameters():
+            pm[n] = deepcopy(p)
+            pm[n].data.zero_()
+            pm[n] = pm[n].data.to(config.DEVICE)
+        net.zero_grad()
+        outs = net(task_label) # forward pass
+        outs = outs.view(1, -1)
+        outs_mean = outs.type(torch.float32).mean(dim=0)
+        K = outs_mean.shape[0]
+        for _ in range(config.cl_n_slices):
+            xi = torch.randn(K, ).to(config.DEVICE)
+            xi /= torch.sqrt((xi**2).sum())
+            net.zero_grad()
+            loss = torch.matmul(outs_mean, xi)
+            loss.backward(retain_graph=True)
+            # Update the temporary precision matrix
+            for n, p in net.named_parameters():
+                pm[n].data += p.grad.data ** 2
+
+        for n, p in net.named_parameters():
+            if p.requires_grad is False: continue
+            # Update the precision matrix
+            self.nm_pm[n] = config.cl_alpha*self.nm_pm[n] + (1 - config.cl_alpha) * pm[n]
+            # Update the means
+            self.nm_means[n] = deepcopy(p.data).to(config.DEVICE)
+
+        # this return values are not useful for the class. only added for compatibility purpose.
+        # consolidation is not applied to the target network.
+        return self.precision_matrices, self.precision_matrices
+
+    def evaluation_action(self, state, task_label):
+        self.config.state_normalizer.set_read_only()
+        state = self.config.state_normalizer(np.stack([state]))
+        task_label = np.stack([task_label])
+        out = self.network.predict(state, task_label=task_label, masks=self.nm_mask)
+        self.config.state_normalizer.unset_read_only()
+        if isinstance(out, dict) or isinstance(out, list) or isinstance(out, tuple):
+            # for actor-critic and policy gradient approaches
+            logits = out[0]
+            action = np.argmax(logits.cpu().numpy().flatten())
+            ret = {'logits': out[0], 'sampled_action': out[1], 'log_prob': out[2], 
+                'entropy': out[3], 'value': out[4], 'deterministic_action': action}
+            return action, ret
+        else:
+            # for dqn approaches
+            q = out
+            q = out.detach().cpu().numpy().ravel()
+            return np.argmax(q), {'logits': q}
+
+    def deterministic_episode(self):
+        epi_info = {'logits': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
+            'value': [], 'deterministic_action': [], 'reward': [], 'terminal': []}
+
+
+        #env = self.config.evaluation_env
+        env = self.evaluation_env
+        state = env.reset()
+        task_label = env.get_task()['task_label']
+
+        # generate mask
+        self._generate_nm_mask(task_label)
+
+        total_rewards = 0
+        while True:
+            action, output_info = self.evaluation_action(state, task_label)
+            state, reward, done, _ = env.step(action)
+            total_rewards += reward
+            for k, v in output_info.items(): epi_info[k].append(v)
+            epi_info['reward'].append(reward)
+            epi_info['terminal'].append(done)
+            if done: break
+        return total_rewards, epi_info

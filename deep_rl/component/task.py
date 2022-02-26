@@ -49,7 +49,7 @@ class ClassicalControl(BaseTask):
         self.env = self.set_monitor(self.env, log_dir)
 
 class DynamicGrid(BaseTask):
-    def __init__(self, name, max_steps=200, log_dir=None):
+    def __init__(self, name, env_config_path=None, log_dir=None, seed=None, max_steps=100):
         BaseTask.__init__(self)
         self.name = name
         import dynamic_grid
@@ -59,11 +59,19 @@ class DynamicGrid(BaseTask):
         self.state_dim = self.env.observation_space.shape
         self.env = self.set_monitor(self.env, log_dir)
 
+        if seed is not None:
+            self.seed(seed)
         # total number of unique tasks in this class instance. note, the actual
         # environment (wrapped by this class) has many more task variations
-        num_tasks = 3
-        change_matrix = np.eye(num_tasks).astype(np.bool)
+        np.random.seed(seed)
+        task_change_points = 3 # reward fn, transition fn, and state space
+        num_tasks = 20
+        change_matrix = np.random.randint(low=0, high=2, size=(num_tasks, task_change_points))
+        change_matrix = change_matrix.astype(np.bool)
         self.tasks = self.env.unwrapped.unwrapped.random_tasks(change_matrix)
+        for i, task in enumerate(self.tasks):
+            task['task_label'] = None
+            task['task'] = change_matrix[i]
         self.current_task = self.tasks[0]
 
         self.task_label_dim = 64
@@ -120,8 +128,8 @@ class DynamicGrid(BaseTask):
 class DynamicGridFlatObs(DynamicGrid):
     # Dynamic Grid environment with flattend (1d vector) observations.
 	# 2D images are flattened into 1D vectors
-    def __init__(self, name, max_steps=200, log_dir=None):
-        super(DynamicGridFlatObs, self).__init__(name, max_steps, log_dir)
+    def __init__(self, name, env_config_path=None, log_dir=None, seed=None, max_steps=100):
+        super(DynamicGridFlatObs, self).__init__(name, env_config_path, log_dir, seed, max_steps)
         self.state_dim = int(np.prod(self.env.observation_space.shape))
 
     def step(self, action):
