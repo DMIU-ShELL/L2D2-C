@@ -308,7 +308,7 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
         print('eval stats')
-        with open(config.log_dir + '/eval_full_stats.bin', 'w') as f: pickle.dump(eval_results, f)
+        with open(config.log_dir + '/eval_full_stats.bin', 'wb') as f: pickle.dump(eval_results, f)
 
         f = open(config.log_dir + '/eval_stats.csv', 'w')
         f.write('task_id,avg_reward\n')
