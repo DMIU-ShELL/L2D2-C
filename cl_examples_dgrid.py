@@ -57,7 +57,7 @@ def ppo_dgrid_cl(name, env_config_path=None): # no sparsity, no consolidation (p
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 20
+    config.cl_num_tasks = 10
     agent = PPOAgentBaseline(config)
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
@@ -113,7 +113,7 @@ def ppo_scp_dgrid_cl(name, env_config_path=None): # no sparsity, scp consolidati
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 20
+    config.cl_num_tasks = 10
 
     config.cl_alpha = 0.25
     config.cl_loss_coeff = 1e2 #0.5 # for scp
@@ -183,7 +183,7 @@ def ppo_dgrid_cl_nm_mask_fp(name, env_config_path=None):
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 20
+    config.cl_num_tasks = 10
 
     config.cl_alpha = 0.25
     config.cl_loss_coeff = 1e2 #0.5 # for scp
