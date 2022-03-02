@@ -124,6 +124,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         #self.data_buffer = []
         self.data_buffer = Replay(memory_size=int(3e4), batch_size=1024)
+        #self.data_buffer = Replay(memory_size=int(256), batch_size=32) # for dynamic grid
         # weight preservation setup
         self.params = {n: p for n, p in self.network.named_parameters() if p.requires_grad}
         self.precision_matrices = {}
