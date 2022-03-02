@@ -33,7 +33,7 @@ try:
 except:
     pass
 class NMNetKWinners(nn.Module):
-    def __init__(self, weight_shape, z_dim):
+    def __init__(self, weight_shape, z_dim, percent_on=0.3):
         super(NMNetKWinners, self).__init__()
         self.original_shape = np.array(weight_shape)
         if len(self.original_shape) == 1:
@@ -45,9 +45,9 @@ class NMNetKWinners(nn.Module):
         self.fc2 = nn.Linear(z_dim, int(self.weight_shape[1]))
 
         # NOTE fix me, the duty_cycle_period.
-        self.act1 = KWinners(n=z_dim*int(self.weight_shape[0]), percent_on=0.2, \
+        self.act1 = KWinners(n=z_dim*int(self.weight_shape[0]), percent_on=percent_on, \
             boost_strength=1.0, duty_cycle_period=200)
-        self.act2 = KWinners(n=int(self.weight_shape[1]), percent_on=0.2, \
+        self.act2 = KWinners(n=int(self.weight_shape[1]), percent_on=percent_on, \
             boost_strength=1.0, duty_cycle_period=200)
 
     def forward(self, x):

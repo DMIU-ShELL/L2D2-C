@@ -61,14 +61,32 @@ class DynamicGrid(BaseTask):
 
         if seed is not None:
             self.seed(seed)
-        # total number of unique tasks in this class instance. note, the actual
-        # environment (wrapped by this class) has many more task variations
         np.random.seed(seed)
         task_change_points = 3 # reward fn, transition fn, and state space
-        num_tasks = 20
-        change_matrix = np.random.randint(low=0, high=2, size=(num_tasks, task_change_points))
+
+        # method 1: manually specify tasks based on change points
+        from itertools import product
+        num_tasks = 2 ** task_change_points
+        change_matrix = np.array([[0, 0, 0], # base task
+                                [1, 0, 0], # change goal location (reward function) only
+                                [0, 1, 0], # change transition function only
+                                [0, 0, 1], # change input distribution only
+                                [1, 1, 0], # change reward fn and transition fn
+                                [1, 0, 1], # change reward fn and input distribution
+                                [0, 1, 1], # change transition fn and input distribution
+                                [1, 1, 1]]) # change reward fn, transition fn, and input distribution
+        #change_matrix = np.array(list(product([0, 1], repeat=3)))
         change_matrix = change_matrix.astype(np.bool)
         self.tasks = self.env.unwrapped.unwrapped.random_tasks(change_matrix)
+
+        # method 2: randomly generate tasks
+        # total number of unique tasks in this class instance. note, the actual
+        # environment (wrapped by this class) has many more task variations
+        #num_tasks = 20
+        #change_matrix = np.random.randint(low=0, high=2, size=(num_tasks, task_change_points))
+        #change_matrix = change_matrix.astype(np.bool)
+        #self.tasks = self.env.unwrapped.unwrapped.random_tasks(change_matrix)
+
         for i, task in enumerate(self.tasks):
             task['task_label'] = None
             task['task'] = change_matrix[i]

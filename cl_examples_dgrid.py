@@ -31,7 +31,7 @@ def ppo_dgrid_cl(name, env_config_path=None): # no sparsity, no consolidation (p
     exp_id = ''
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
-    config.num_workers = 16
+    config.num_workers = 4
     task_fn = lambda log_dir: DynamicGridFlatObs(name, env_config_path, log_dir, config.seed)
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
     config.eval_task_fn = task_fn
@@ -46,7 +46,7 @@ def ppo_dgrid_cl(name, env_config_path=None): # no sparsity, no consolidation (p
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
-    config.entropy_weight = 0.75
+    config.entropy_weight = 0.1
     config.rollout_length = 8
     config.optimization_epochs = 4
     config.num_mini_batches = 16
@@ -57,7 +57,7 @@ def ppo_dgrid_cl(name, env_config_path=None): # no sparsity, no consolidation (p
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 10
+    config.cl_num_tasks = 8
     agent = PPOAgentBaseline(config)
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
@@ -87,7 +87,7 @@ def ppo_scp_dgrid_cl(name, env_config_path=None): # no sparsity, scp consolidati
     exp_id = ''
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
-    config.num_workers = 16
+    config.num_workers = 4
     task_fn = lambda log_dir: DynamicGridFlatObs(name, env_config_path, log_dir, config.seed)
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
     config.eval_task_fn = task_fn
@@ -102,7 +102,7 @@ def ppo_scp_dgrid_cl(name, env_config_path=None): # no sparsity, scp consolidati
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
-    config.entropy_weight = 0.75
+    config.entropy_weight = 0.1
     config.rollout_length = 8
     config.optimization_epochs = 4
     config.num_mini_batches = 16
@@ -113,10 +113,10 @@ def ppo_scp_dgrid_cl(name, env_config_path=None): # no sparsity, scp consolidati
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 10
+    config.cl_num_tasks = 8
 
     config.cl_alpha = 0.25
-    config.cl_loss_coeff = 1e2 #0.5 # for scp
+    config.cl_loss_coeff = 0.5 # for scp
     config.cl_n_slices = 200
 
     agent = PPOAgentSCP(config)
@@ -150,21 +150,14 @@ def ppo_dgrid_cl_nm_mask_fp(name, env_config_path=None):
     exp_id = '-nm-mask-fp'
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
-    config.num_workers = 16
+    config.num_workers = 4
     task_fn = lambda log_dir: DynamicGridFlatObs(name, env_config_path, log_dir, config.seed)
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
     config.eval_task_fn = task_fn
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
-    #config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL(
-    #    state_dim, action_dim, label_dim, 
-    #    phi_body=FCBody_CL(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200)), 
-    #    actor_body=DummyBody_CL(200), 
-    #    critic_body=DummyBody_CL(200))
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL_Mask(
         state_dim, action_dim, label_dim, 
-        #state_dim, action_dim, None, 
         phi_body=FCBody_CL_Mask(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200)), 
-        #phi_body=FCBody_CL_Mask(state_dim, task_label_dim=None, hidden_units=(200, 200, 200)), 
         actor_body=DummyBody_CL_Mask(200), 
         critic_body=DummyBody_CL_Mask(200))
     config.policy_fn = SamplePolicy
@@ -172,7 +165,7 @@ def ppo_dgrid_cl_nm_mask_fp(name, env_config_path=None):
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
-    config.entropy_weight = 0.75
+    config.entropy_weight = 0.1
     config.rollout_length = 8
     config.optimization_epochs = 4
     config.num_mini_batches = 16
@@ -183,10 +176,10 @@ def ppo_dgrid_cl_nm_mask_fp(name, env_config_path=None):
     config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
-    config.cl_num_tasks = 10
+    config.cl_num_tasks = 8
 
     config.cl_alpha = 0.25
-    config.cl_loss_coeff = 1e2 #0.5 # for scp
+    config.cl_loss_coeff = 0.5 # for scp
     config.cl_n_slices = 200
 
     agent = PPOAgentSCPModulatedFP(config)
