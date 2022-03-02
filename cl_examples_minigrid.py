@@ -57,7 +57,7 @@ def ppo_minigrid_cl(name, env_config_path=None): # no sparsity, no consolidation
     config.iteration_log_interval = 10
     config.gradient_clip = 5
     config.max_steps = 1e6
-    config.evaluation_episodes = 10
+    config.evaluation_episodes = 100
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
     config.cl_num_tasks = 7
@@ -116,7 +116,7 @@ def ppo_scp_minigrid_cl(name, env_config_path=None): # no sparsity, scp consolid
     config.iteration_log_interval = 10
     config.gradient_clip = 5
     config.max_steps = 1e6
-    config.evaluation_episodes = 10
+    config.evaluation_episodes = 100
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
     config.cl_num_tasks = 7
@@ -161,16 +161,10 @@ def ppo_minigrid_cl_nm_mask_fp(name, env_config_path=None):
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
     config.eval_task_fn = task_fn
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
-    #config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL(
-    #    state_dim, action_dim, label_dim, 
-    #    phi_body=FCBody_CL(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200)), 
-    #    actor_body=DummyBody_CL(200), 
-    #    critic_body=DummyBody_CL(200))
+    # labels not appending to target network
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL_Mask(
-        state_dim, action_dim, label_dim, 
-        #state_dim, action_dim, None, 
-        phi_body=FCBody_CL_Mask(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200)), 
-        #phi_body=FCBody_CL_Mask(state_dim, task_label_dim=None, hidden_units=(200, 200, 200)), 
+        state_dim, action_dim, None,
+        phi_body=FCBody_CL_Mask(state_dim, task_label_dim=None, hidden_units=(200, 200, 200)), 
         actor_body=DummyBody_CL_Mask(200), 
         critic_body=DummyBody_CL_Mask(200))
     config.policy_fn = SamplePolicy
@@ -187,7 +181,7 @@ def ppo_minigrid_cl_nm_mask_fp(name, env_config_path=None):
     config.iteration_log_interval = 10
     config.gradient_clip = 5
     config.max_steps = 1e6
-    config.evaluation_episodes = 10
+    config.evaluation_episodes = 100
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
     config.cl_num_tasks = 7
@@ -221,7 +215,6 @@ if __name__ == '__main__':
 
     # minigrid experiments
     game = 'MiniGrid'
-    #env_config_path = './minigrid_sc_3.json'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('algo', help='algorithm to run')

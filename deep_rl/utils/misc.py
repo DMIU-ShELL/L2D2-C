@@ -293,7 +293,6 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
             # evaluate agent across task exposed to agent so far
             config.logger.info('evaluating agent across all tasks exposed so far to agent')
             for j in range(task_idx+1):
-                #print(tasks_info[j])
                 eval_states = agent.evaluation_env.reset_task(tasks_info[j])
                 agent.evaluation_states = eval_states
                 rewards, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
@@ -315,11 +314,6 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
             f.write('{0},{1:.4f}\n'.format(k, np.mean(v)))
             config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
         f.close()
-        #for k, v in eval_results.items():
-        #    print('{0} :'.format(k))
-        #    for x in v:
-        #        print('{0:.4f}'.format(x), end=' ')
-        #    print()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
 
     # save neuromodulated (hyper) nets after training
