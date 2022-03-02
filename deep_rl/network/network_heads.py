@@ -331,7 +331,8 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
 
     def predict(self, obs, action=None, task_label=None, return_layer_output=False):
         obs = tensor(obs)
-        task_label = tensor(task_label)
+        if not isinstance(task_label, torch.Tensor):
+            task_label = tensor(task_label)
         layers_output = []
         phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
         layers_output += out
@@ -364,7 +365,8 @@ class CategoricalActorCriticNet_CL_Mask(nn.Module, BaseNet):
     def predict(self, obs, action=None, task_label=None, return_layer_output=False, masks=None):
         assert masks is not None, 'masks should be set'
         obs = tensor(obs)
-        task_label = tensor(task_label)
+        if not isinstance(task_label, torch.Tensor):
+            task_label = tensor(task_label)
         layers_output = []
         phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body', masks)
         layers_output += out
@@ -396,7 +398,8 @@ class CategoricalActorCriticNet_CL_NM(CategoricalActorCriticNet_CL):
 
     def predict(self, obs, action=None, task_label=None):
         obs = tensor(obs)
-        task_label = tensor(task_label)
+        if not isinstance(task_label, torch.Tensor):
+            task_label = tensor(task_label)
         phi, body_impt_params = self.network.phi_body(obs)
         phi_a, actor_body_impt_params = self.network.actor_body(phi, task_label)
         phi_v, critic_body_impt_params = self.network.critic_body(phi, task_label)

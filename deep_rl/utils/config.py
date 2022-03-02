@@ -88,6 +88,7 @@ class Config:
         self.cl_tasks_info = None
         self.cl_pm_min = -np.inf
         self.cl_pm_max = np.inf
+        self.cl_learn_task_label = True
 
     def add_argument(self, *args, **kwargs):
         self.parser.add_argument(*args, **kwargs)

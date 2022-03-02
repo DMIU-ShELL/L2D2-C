@@ -107,14 +107,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.config.cl_tasks_info = tasks
         label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label'])
 
-        self.task_label_param = torch.zeros((label_dim,)).to(config.DEVICE)
-        self.task_label_param.requires_grad = True
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)
-        if config.cl_learn_task_label:
-            _params = list(self.network.parameters()) + [self.task_label_param,]
-        else:
-            _params = list(self.network.parameters())
-        self.opt = config.optimizer_fn(_params, config.lr)
+        self.opt = config.optimizer_fn(self.network.parameters(), config.lr)
         self.total_steps = 0
         self.episode_rewards = np.zeros(config.num_workers)
         self.last_episode_rewards = np.zeros(config.num_workers)
@@ -139,14 +133,12 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -204,9 +196,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label, return_layer_output=True)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -242,27 +232,6 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
     def consolidate(self, batch_size=32):
         raise NotImplementedError
 
-    def task_train_start(self):
-        config = self.config
-        task_info = self.task.get_task()
-        # task_label_agent should be available by the second time the task 
-        # if encountered by the agent
-        if 'task_label_agent' in task_info.keys(): 
-            self.task_label_param.data = tensor(task_info['task_label_agent'])
-        else:
-            self.task_label_param.data = tensor(task_info['task_label'])
-
-    def task_train_end(self):
-        config = self.config
-        task_info = self.task.get_task()
-        #task_info['task_label_agent'] = self.task_label_param.detach().cpu().numpy()
-        #print(task_info)
-        #print(self.task.get_task())
-        #print('\n\n\n\n')
-        #return self.consolidate()
-        return {'task_label_agent': self.task_label_param.detach().cpu().numpy(), \
-            'consolidate': self.consolidate()}
-
 class PPOAgentBaseline(PPOContinualLearnerAgent):
     '''
     PPO continual learning agent without preservation/consolidation
@@ -293,14 +262,12 @@ class PPOAgentBaselineL1Weights(PPOContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -358,9 +325,7 @@ class PPOAgentBaselineL1Weights(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label, return_layer_output=True)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -408,14 +373,12 @@ class PPOAgentBaselineL2Weights(PPOContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -473,9 +436,7 @@ class PPOAgentBaselineL2Weights(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label, return_layer_output=True)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -524,14 +485,12 @@ class PPOAgentBaselineGroupL1Weights(PPOContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -589,9 +548,7 @@ class PPOAgentBaselineGroupL1Weights(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label, return_layer_output=True)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -642,14 +599,12 @@ class PPOAgentBaselineSparseGroupL1Weights(PPOContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -707,9 +662,7 @@ class PPOAgentBaselineSparseGroupL1Weights(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label, return_layer_output=True)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -765,14 +718,12 @@ class PPOAgentBaselineL1Act(PPOContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -830,9 +781,7 @@ class PPOAgentBaselineL1Act(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label, return_layer_output=True)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -883,14 +832,12 @@ class PPOAgentBaselineL2Act(PPOContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -948,9 +895,7 @@ class PPOAgentBaselineL2Act(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label, return_layer_output=True)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -1006,14 +951,12 @@ class PPOAgentSCPSparseGroupL1Weights(PPOContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -1071,9 +1014,7 @@ class PPOAgentSCPSparseGroupL1Weights(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label, return_layer_output=True)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -1120,10 +1061,8 @@ class PPOAgentSCPSparseGroupL1Weights(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        #task_label = self.task.get_task()['task_label']
-        #task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
-        task_label = self.task_label_param.detach()
-        task_label_ = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
         num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
             states_, = self.data_buffer.sample(batch_size)
@@ -1198,14 +1137,12 @@ class PPOAgentEWC(PPOContinualLearnerAgent):
             #    current_task_label = current_task_label.reshape(1, -1)
             #else:
             #    current_task_label = np.repeat(current_task_label.reshape(1, -1), batch_dim, axis=0)
-            #task_label = self.task.get_task()['task_label'] # current task
-            task_label = self.task_label_param.detach()
+            task_label = self.task.get_task()['task_label'] # current task
             batch_dim = len(states) # same as config.num_workers
             if batch_dim == 1:
                 batch_task_label = task_label.reshape(1, -1)
             else:
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
 
             for _ in range(config.rollout_length):
@@ -1317,10 +1254,8 @@ class PPOAgentMAS(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        #task_label = self.task.get_task()['task_label']
-        #task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
-        task_label = self.task_label_param.detach()
-        task_label_ = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
         num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
             states_, = self.data_buffer.sample(batch_size)
@@ -1380,10 +1315,8 @@ class PPOAgentSCP(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        #task_label = self.task.get_task()['task_label']
-        #task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
-        task_label = self.task_label_param.detach()
-        task_label_ = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
         num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
             states_, = self.data_buffer.sample(batch_size)
@@ -1450,14 +1383,12 @@ class PPOAgentSCPwithModulatedGradients(PPOContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -1515,9 +1446,7 @@ class PPOAgentSCPwithModulatedGradients(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -1570,10 +1499,8 @@ class PPOAgentSCPwithModulatedGradients(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        #task_label = self.task.get_task()['task_label']
-        #task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
-        task_label = self.task_label_param.detach()
-        task_label_ = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
         num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
             states_, = self.data_buffer.sample(batch_size)
@@ -1640,14 +1567,12 @@ class PPOAgentSCPwithModulatedImportances(PPOContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -1705,9 +1630,7 @@ class PPOAgentSCPwithModulatedImportances(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -1759,10 +1682,8 @@ class PPOAgentSCPwithModulatedImportances(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        #task_label = self.task.get_task()['task_label']
-        #task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
-        task_label = self.task_label_param.detach()
-        task_label_ = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
         num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
             states_, = self.data_buffer.sample(batch_size)
@@ -1813,14 +1734,12 @@ class PPOAgentSCPwithMasking(PPOContinualLearnerAgent):
         config = self.config
         rollout = []
         states = self.states
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         batch_dim = len(states) # same as config.num_workers
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -1878,9 +1797,7 @@ class PPOAgentSCPwithMasking(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -1922,10 +1839,8 @@ class PPOAgentSCPwithMasking(PPOContinualLearnerAgent):
         # Set the model in the evaluation mode
         self.network.eval()
 
-        #task_label = self.task.get_task()['task_label']
-        #task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
-        task_label = self.task_label_param.detach()
-        task_label_ = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        task_label = self.task.get_task()['task_label']
+        task_label_ = np.repeat(task_label.reshape(1, -1), batch_size, axis=0)
         num_batches = self.data_buffer.size() // batch_size
         for batch_idx in range(num_batches):
             states_, = self.data_buffer.sample(batch_size)
@@ -2020,8 +1935,7 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         self.opt = config.optimizer_fn(all_parameters, config.lr)
 
     def iteration(self):
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         # NOTE generate mask
         self._generate_nm_mask(task_label)
 
@@ -2032,8 +1946,7 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -2092,9 +2005,7 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label, masks=self.nm_mask)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -2177,10 +2088,8 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         print('sanity check, in scp consolidation with modulated fp')
         config = self.config
         
-        #task_label = self.task.get_task()['task_label'] # current task
-        #task_label = task_label.reshape(1, -1)
-        task_label = self.task_label_param.detach()
-        task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        task_label = self.task.get_task()['task_label'] # current task
+        task_label = task_label.reshape(1, -1)
         for k, net in self.nm_nets.items():
             pm = {}
             for n, p in net.named_parameters():
@@ -2294,8 +2203,7 @@ class PPOAgentSCPModulatedFP_v2(PPOContinualLearnerAgent):
         self.opt = config.optimizer_fn(all_parameters, config.lr)
 
     def iteration(self):
-        #task_label = self.task.get_task()['task_label'] # current task
-        task_label = self.task_label_param
+        task_label = self.task.get_task()['task_label'] # current task
         # NOTE generate mask
         self._generate_nm_mask(task_label)
 
@@ -2306,8 +2214,7 @@ class PPOAgentSCPModulatedFP_v2(PPOContinualLearnerAgent):
         if batch_dim == 1:
             batch_task_label = task_label.reshape(1, -1)
         else:
-            #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+            batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
 
         if config.cl_preservation != 'ewc': self.data_buffer.feed_batch([states, ])
         for _ in range(config.rollout_length):
@@ -2366,9 +2273,7 @@ class PPOAgentSCPModulatedFP_v2(PPOContinualLearnerAgent):
                 sampled_advantages = advantages[batch_indices]
 
                 batch_dim = sampled_states.shape[0]
-                #batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
-                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
-                    dim=0)
+                batch_task_label = np.repeat(task_label.reshape(1, -1), batch_dim, axis=0)
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
                     sampled_actions, task_label=batch_task_label, masks=self.nm_mask)
                 ratio = (log_probs - sampled_log_probs_old).exp()
@@ -2436,10 +2341,8 @@ class PPOAgentSCPModulatedFP_v2(PPOContinualLearnerAgent):
         print('sanity check, in scp consolidation with modulated fp')
         config = self.config
         
-        #task_label = self.task.get_task()['task_label'] # current task
-        #task_label = task_label.reshape(1, -1)
-        task_label = self.task_label_param.detach()
-        task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        task_label = self.task.get_task()['task_label'] # current task
+        task_label = task_label.reshape(1, -1)
 
         pm = {}
         for n, p in self.nm_nets.named_parameters():

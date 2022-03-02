@@ -228,11 +228,6 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
     for learn_block_idx in range(config.cl_num_learn_blocks):
         config.logger.info('********** start of learning block {0}'.format(learn_block_idx))
         eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
-        # NOTE, use this instead of the for line below to shuffle task
-        #t_ = np.arange(num_tasks)
-        #np.random.shuffle(t_)
-        #for task_idx, ti_ in enumerate(t_):
-        #    task_info = tasks_info[ti_]
         for task_idx, task_info in enumerate(tasks_info):
 
             config.logger.info('*****start training on task {0}'.format(task_idx))
@@ -242,6 +237,7 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
             states = agent.task.reset_task(task_info)
             agent.states = config.state_normalizer(states)
             agent.data_buffer.clear()
+            agent.task_train_start()
             while True:
                 avg_grad_norm = agent.iteration()
                 steps.append(agent.total_steps)
@@ -257,7 +253,6 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
                     config.logger.scalar_summary('avg grad norm', avg_grad_norm)
 
-                #if iteration % (config.iteration_log_interval * 100) == 0:
                 if iteration % (config.iteration_log_interval) == 0:
                     with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
                         (agent_name, config.tag, agent.task.name), 'wb') as f:
@@ -286,7 +281,9 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     task_start_idx = len(rewards)
                     break
             config.logger.info('preserving learned weights for current task')
-            ret = agent.consolidate()
+            ret = agent.task_train_end() # consolidate is implicitly called in this method
+            tasks_info[task_idx]['task_label_agent'] = ret['task_label_agent']
+            ret = ret['consolidate']
             with open(log_path_pm + '/%s-%s-precision-matrices-%s-run-%d-task-%d.bin' % \
                 (agent_name, config.tag, agent.task.name, learn_block_idx+1, task_idx+1), 'wb') as f:
                 pickle.dump(ret[0], f)
@@ -296,6 +293,7 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
             # evaluate agent across task exposed to agent so far
             config.logger.info('evaluating agent across all tasks exposed so far to agent')
             for j in range(task_idx+1):
+                #print(tasks_info[j])
                 eval_states = agent.evaluation_env.reset_task(tasks_info[j])
                 agent.evaluation_states = eval_states
                 rewards, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)

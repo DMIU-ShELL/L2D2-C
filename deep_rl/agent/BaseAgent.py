@@ -107,7 +107,8 @@ class BaseContinualLearnerAgent(BaseAgent):
         #env = self.config.evaluation_env
         env = self.evaluation_env
         state = env.reset()
-        task_label = env.get_task()['task_label']
+        #task_label = env.get_task()['task_label']
+        task_label = env.get_task()['task_label_agent']
         total_rewards = 0
         while True:
             action, output_info = self.evaluation_action(state, task_label)

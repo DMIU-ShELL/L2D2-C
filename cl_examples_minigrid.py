@@ -49,7 +49,7 @@ def ppo_minigrid_cl(name, env_config_path=None): # no sparsity, no consolidation
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
-    config.entropy_weight = 0.75
+    config.entropy_weight = 0.1 #0.75
     config.rollout_length = 128
     config.optimization_epochs = 8
     config.num_mini_batches = 64
@@ -69,6 +69,8 @@ def ppo_minigrid_cl(name, env_config_path=None): # no sparsity, no consolidation
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
     run_iterations_cl(agent, tasks)
+    with open('{0}/tasks_info_after_train.bin'.format(config.log_dir), 'wb') as f:
+        pickle.dump(tasks, f)
     # save config
     with open('{0}/config.json'.format(config.log_dir), 'w') as f:
         dict_config = vars(config)
@@ -106,7 +108,7 @@ def ppo_scp_minigrid_cl(name, env_config_path=None): # no sparsity, scp consolid
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
-    config.entropy_weight = 0.75
+    config.entropy_weight = 0.1 #0.75
     config.rollout_length = 128
     config.optimization_epochs = 8
     config.num_mini_batches = 64
@@ -120,7 +122,7 @@ def ppo_scp_minigrid_cl(name, env_config_path=None): # no sparsity, scp consolid
     config.cl_num_tasks = 7
 
     config.cl_alpha = 0.25
-    config.cl_loss_coeff = 1e4 #0.5 # for scp
+    config.cl_loss_coeff = 0.5 # for scp
     config.cl_n_slices = 200
 
     agent = PPOAgentSCP(config)
@@ -177,7 +179,7 @@ def ppo_minigrid_cl_nm_mask_fp(name, env_config_path=None):
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
-    config.entropy_weight = 0.75
+    config.entropy_weight = 0.1 #0.75
     config.rollout_length = 128
     config.optimization_epochs = 8
     config.num_mini_batches = 64
@@ -191,7 +193,7 @@ def ppo_minigrid_cl_nm_mask_fp(name, env_config_path=None):
     config.cl_num_tasks = 7
 
     config.cl_alpha = 0.25
-    config.cl_loss_coeff = 1e2 #0.5 # for scp
+    config.cl_loss_coeff = 0.5 # for scp
     config.cl_n_slices = 200
 
     agent = PPOAgentSCPModulatedFP(config)
@@ -220,18 +222,17 @@ if __name__ == '__main__':
     # minigrid experiments
     game = 'MiniGrid'
     #env_config_path = './minigrid_sc_3.json'
-    #env_config_path = './minigrid_sc_dk_5.json'
-    env_config_path = './minigrid_sc_lc_7.json'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('algo', help='algorithm to run')
+    parser.add_argument('--env_config_path', help='environment config', default=None)
     args = parser.parse_args()
 
     if args.algo == 'baseline':
-        ppo_minigrid_cl(name=game, env_config_path=env_config_path)
+        ppo_minigrid_cl(name=game, env_config_path=args.env_config_path)
     elif args.algo == 'baseline_scp':
-        ppo_scp_minigrid_cl(name=game, env_config_path=env_config_path)
+        ppo_scp_minigrid_cl(name=game, env_config_path=args.env_config_path)
     elif args.algo == 'nm_mask_fp':
-        ppo_minigrid_cl_nm_mask_fp(name=game, env_config_path=env_config_path)
+        ppo_minigrid_cl_nm_mask_fp(name=game, env_config_path=args.env_config_path)
     else:
         raise ValueError('not implemented')
