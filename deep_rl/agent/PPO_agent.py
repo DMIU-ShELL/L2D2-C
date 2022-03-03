@@ -2181,7 +2181,8 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         #task_label = self.task.get_task()['task_label'] # current task
         #task_label = task_label.reshape(1, -1)
         task_label = self.task_label_param.detach()
-        task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        #task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        task_label = task_label.reshape(1, -1)
         for k, net in self.nm_nets.items():
             pm = {}
             for n, p in net.named_parameters():
@@ -2440,7 +2441,8 @@ class PPOAgentSCPModulatedFP_v2(PPOContinualLearnerAgent):
         #task_label = self.task.get_task()['task_label'] # current task
         #task_label = task_label.reshape(1, -1)
         task_label = self.task_label_param.detach()
-        task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        #task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_size, dim=0)
+        task_label = task_label.reshape(1, -1)
 
         pm = {}
         for n, p in self.nm_nets.named_parameters():
