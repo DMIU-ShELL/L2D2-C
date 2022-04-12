@@ -1995,7 +1995,8 @@ class PPOAgentSCPModulatedFP(PPOContinualLearnerAgent):
         self.nm_nets = {}
         for n, p in self.network.named_parameters():
             #m_ = NMNet(np.array(p.shape)[::-1], label_dim)
-            m_ = NMNetKWinners(np.array(p.shape)[::-1], label_dim)
+            #m_ = NMNetKWinners(np.array(p.shape)[::-1], label_dim)
+            m_ = NMNetKWinners(np.array(p.shape)[::-1], label_dim, 0.1)
             m_.to(config.DEVICE)
             self.nm_nets[n] = m_
 
