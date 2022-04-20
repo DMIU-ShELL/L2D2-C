@@ -272,7 +272,8 @@ class PPOAgentBaseline(PPOContinualLearnerAgent):
         PPOContinualLearnerAgent.__init__(self, config)
 
     def consolidate(self, batch_size=32):
-        print('sanity check, calling consolidate in agent w/o preservation')
+        config = self.config
+        config.logger.info('sanity check, calling consolidate in agent w/o preservation')
         # the return values are zeros and do no consolidate any weights
         # therefore, all parameters are retrained/finetuned per task.
         return self.precision_matrices, self.precision_matrices
