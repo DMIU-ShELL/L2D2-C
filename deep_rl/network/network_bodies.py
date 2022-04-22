@@ -613,6 +613,34 @@ class FCBody(nn.Module):
             x = self.gate(layer(x))
         return x
 
+class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learning algorithm
+    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu, num_tasks=3):
+        super(FCBody_SS, self).__init__()
+        if task_label_dim is None:
+            dims = (state_dim, ) + hidden_units
+        else:
+            dims = (state_dim + task_label_dim, ) + hidden_units
+        self.layers = nn.ModuleList([MultitaskMaskLinear(dim_in, dim_out, num_tasks=num_tasks) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.gate = gate
+        self.feature_dim = dims[-1]
+        self.task_label_dim = task_label_dim
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+            x = torch.cat([x, task_label], dim=1)
+        #if task_label is not None: x = torch.cat([x, task_label], dim=1)
+       
+        ret_act = []
+        if return_layer_output:
+            for i, layer in enumerate(self.layers):
+                x = self.gate(layer(x))
+                ret_act.append(('{0}.layers.{1}'.format(prefix, i), x))
+        else:
+            for layer in self.layers:
+                x = self.gate(layer(x))
+        return x, ret_act
+
 class FCBody_CL(nn.Module): # fcbody for continual learning setup
     def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu):
         super(FCBody_CL, self).__init__()

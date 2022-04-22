@@ -198,6 +198,28 @@ class ActorCriticNet(nn.Module):
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
 
+class ActorCriticNetSS(nn.Module):
+    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body, num_tasks):
+        super(ActorCriticNetSS, self).__init__()
+        if phi_body is None: phi_body = DummyBody(state_dim)
+        if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
+        if critic_body is None: critic_body = DummyBody(phi_body.feature_dim)
+        self.phi_body = phi_body
+        self.actor_body = actor_body
+        self.critic_body = critic_body
+        self.fc_action = MultitaskMaskLinear(actor_body.feature_dim, action_dim, num_tasks=num_task)
+        self.fc_critic = MultitaskMaskLinear(critic_body.feature_dim, 1, num_tasks=num_task)
+
+        ap = [p for p in self.actor_body.parameters() if p.requires_grad is True]
+        ap += [p for p in self.fc_action.parameters() if p.requires_grad is True]
+        self.actor_params = ap
+
+        cp = [p for p in self.critic_body.parameters() if p.requires_grad is True]
+        cp += [p for p in self.fc_critic.parameters() if p.requires_grad is True]
+        self.critic_params = cp
+
+        self.phi_params = [p for p in self.phi_body.parameters() if p.requires_grad is True]
+
 class ActorCriticNetMask(nn.Module):
     def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body):
         super(ActorCriticNetMask, self).__init__()
@@ -314,6 +336,42 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
             action = dist.sample()
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return action, log_prob, dist.entropy().unsqueeze(-1), v
+
+# actor-critic net for continual learning where tasks are labelled using
+# supermask superposition algorithm
+class CategoricalActorCriticNet_SS(nn.Module, BaseNet):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 task_label_dim=None,
+                 phi_body=None,
+                 actor_body=None,
+                 critic_body=None,
+                 num_tasks=3):
+        super(CategoricalActorCriticNet_SS, self).__init__()
+        self.network = ActorCriticNetSS(state_dim, action_dim, phi_body, actor_body, critic_body, num_tasks)
+        self.task_label_dim = task_label_dim
+        self.to(Config.DEVICE)
+
+    def predict(self, obs, action=None, task_label=None, return_layer_output=False):
+        obs = tensor(obs)
+        if not isinstance(task_label, torch.Tensor):
+            task_label = tensor(task_label)
+        layers_output = []
+        phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
+        layers_output += out
+        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body')
+        layers_output += out
+        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body')
+        layers_output += out
+
+        logits = self.network.fc_action(phi_a)
+        v = self.network.fc_critic(phi_v)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 
 # actor-critic net for continual learning where tasks are labelled
 class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
