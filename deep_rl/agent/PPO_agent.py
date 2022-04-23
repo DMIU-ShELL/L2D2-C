@@ -213,10 +213,10 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.layers_output = outs
         return np.mean(grad_norms_)
 
-    def task_train_start(self):
+    def task_train_start(self, task_idx):
         return
 
-    def task_train_end(self):
+    def task_train_end(self, task_idx):
         return
 
 class PPOAgentBaseline(PPOContinualLearnerAgent):
@@ -233,3 +233,21 @@ class PPOAgentSS(PPOContinualLearnerAgent):
     '''
     def __init__(self, config):
        PPOContinualLearnerAgent.__init__(self, config)
+
+    def task_train_start(self, task_idx):
+        set_model_task(self.network, task_idx)
+        return
+
+    def task_train_end(self, task_idx):
+        cache_masks(self.network)
+        set_num_tasks_learned(self.network, task_idx + 1)
+        return
+
+    def task_eval_start(self, task_idx):
+        self.network.eval()
+        set_model_task(self.network, task_idx)
+        return
+
+    def task_eval_end(self, task_idx):
+        self.network.train()
+        return

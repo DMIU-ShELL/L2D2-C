@@ -383,7 +383,8 @@ def run_iterations_ss(agent, tasks_info):
             states = agent.task.reset_task(task_info)
             agent.states = config.state_normalizer(states)
             agent.data_buffer.clear()
-            agent.task_train_start()
+            #agent.task_train_start()
+            agent.task_train_start(task_idx)
             while True:
                 avg_grad_norm = agent.iteration()
                 steps.append(agent.total_steps)
@@ -427,14 +428,19 @@ def run_iterations_ss(agent, tasks_info):
                     task_start_idx = len(rewards)
                     break
             config.logger.info('cacheing mask for current task')
-            ret = agent.task_train_end()
+            #ret = agent.task_train_end()
+            ret = agent.task_train_end(task_idx)
             # evaluate agent across task exposed to agent so far
             config.logger.info('evaluating agent across all tasks exposed so far to agent')
             for j in range(task_idx+1):
+                agent.task_eval_start(j)
+
                 eval_states = agent.evaluation_env.reset_task(tasks_info[j])
                 agent.evaluation_states = eval_states
                 rewards, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                 eval_results[j] += rewards
+
+                agent.task_eval_end(j)
 
                 with open(config.log_dir+'/rewards-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
@@ -443,9 +449,9 @@ def run_iterations_ss(agent, tasks_info):
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
         print('eval stats')
-        with open(config.log_dir + '/eval_full_stats.bin', 'wb') as f: pickle.dump(eval_results, f)
+        with open(log_path_eval + '/eval_full_stats.bin', 'wb') as f: pickle.dump(eval_results, f)
 
-        f = open(config.log_dir + '/eval_stats.csv', 'w')
+        f = open(log_path_eval + '/eval_stats.csv', 'w')
         f.write('task_id,avg_reward\n')
         for k, v in eval_results.items():
             print('{0}: {1:.4f}'.format(k, np.mean(v)))

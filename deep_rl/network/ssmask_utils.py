@@ -1,6 +1,11 @@
 '''
 Source from: https://github.com/RAIVNLab/supsup/blob/master/mnist.ipynb
 '''
+import math
+import torch
+import torch.nn as nn
+import torch.autograd as autograd
+import torch.nn.functional as F
 
 # Subnetwork forward from hidden networks
 # Mask derived using Piggyback method (threshold by
@@ -151,61 +156,32 @@ class MultitaskMaskLinearSparse(nn.Linear):
     def __repr__(self):
         return f"MultitaskMaskLinearSparse({self.in_dims}, {self.out_dims})"
 
-
 # Utility functions
 def set_model_task(model, task, verbose=True):
     for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear):
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
             if verbose:
                 print(f"=> Set task of {n} to {task}")
             m.task = task
 
 def cache_masks(model):
     for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear):
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
             print(f"=> Caching mask state for {n}")
             m.cache_masks()
 
 def set_num_tasks_learned(model, num_tasks_learned):
     for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear):
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
             print(f"=> Setting learned tasks of {n} to {num_tasks_learned}")
             m.num_tasks_learned = num_tasks_learned
 
 def set_alphas(model, alphas, verbose=True):
     for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear):
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
             if verbose:
                 print(f"=> Setting alphas for {n}")
             m.alphas = alphas
-
-# Utility functions
-def set_model_task(model, task, verbose=True):
-    for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear):
-            if verbose:
-                print(f"=> Set task of {n} to {task}")
-            m.task = task
-
-def cache_masks(model):
-    for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear):
-            print(f"=> Caching mask state for {n}")
-            m.cache_masks()
-
-def set_num_tasks_learned(model, num_tasks_learned):
-    for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear):
-            print(f"=> Setting learned tasks of {n} to {num_tasks_learned}")
-            m.num_tasks_learned = num_tasks_learned
-
-def set_alphas(model, alphas, verbose=True):
-    for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear):
-            if verbose:
-                print(f"=> Setting alphas for {n}")
-            m.alphas = alphas
-
 
 # Multitask Model, a simple fully connected model in this case
 class MultitaskFC(nn.Module):

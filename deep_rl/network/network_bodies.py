@@ -613,6 +613,7 @@ class FCBody(nn.Module):
             x = self.gate(layer(x))
         return x
 
+from .ssmask_utils import MultitaskMaskLinear
 class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learning algorithm
     def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu, num_tasks=3):
         super(FCBody_SS, self).__init__()
