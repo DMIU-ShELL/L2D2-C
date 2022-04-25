@@ -93,6 +93,12 @@ def ppo_ss_minigrid_cl(name, env_config_path=None): # ppo with supermask superpo
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 16
     assert env_config_path is not None, '`env_config_path` should be set for the MiniGrid environment'
+    # get num_tasks from env_config
+    with open(env_config_path, 'r') as f:
+        env_config_ = json.load(f)
+    num_tasks = len(env_config_['tasks'])
+    del env_config_
+
     task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
     eval_task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, True)
@@ -100,10 +106,10 @@ def ppo_ss_minigrid_cl(name, env_config_path=None): # ppo with supermask superpo
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(
         state_dim, action_dim, label_dim, 
-        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200), num_tasks=3), 
+        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200), num_tasks=num_tasks), 
         actor_body=DummyBody_CL(200), 
         critic_body=DummyBody_CL(200),
-        num_tasks=3)
+        num_tasks=num_tasks)
     config.policy_fn = SamplePolicy
     #config.state_normalizer = ImageNormalizer()
     config.state_normalizer = RescaleNormalizer(1./10.)
