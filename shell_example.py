@@ -19,10 +19,13 @@ import os
 import argparse
 #os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
-def shell_minigrid(name, env_config_path=None): # ppo with supermask superposition
+# shared experience lifelong learning (ShELL)
+# continual learning algorithm for each ShELL agent: supermask superposition
+# RL agent/algorithm: PPO
+def shell_minigrid(name, shell_config_path=None):
     config = Config()
     config.env_name = name
-    config.env_config_path = env_config_path
+    config.env_config_path = None
     config.lr = 0.00015
     config.cl_preservation = 'ss'
     config.seed = 8379
@@ -115,7 +118,7 @@ if __name__ == '__main__':
     game = 'MiniGrid'
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_config_path', help='environment config', default=None)
+    parser.add_argument('--shell_config_path', help='environment config', default='./shell.json')
     args = parser.parse_args()
 
-    shell_minigrid(name=game, env_config_path=args.env_config_path)
+    shell_minigrid(name=game, shell_config_path=args.shell_config_path)
