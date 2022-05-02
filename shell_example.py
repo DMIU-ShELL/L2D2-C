@@ -34,9 +34,8 @@ def shell_minigrid(name, shell_config_path=None):
     log_name = name + '-shell' + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 4
-    assert env_config_path is not None,'`env_config_path` should be set for the MiniGrid environment'
 
-    with open(shell_config_path, 'r'_ as f:
+    with open(shell_config_path, 'r') as f:
         shell_config = json.load(f)
 
     task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
