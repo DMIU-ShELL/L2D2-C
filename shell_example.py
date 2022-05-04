@@ -19,11 +19,8 @@ import os
 import argparse
 #os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
-# shared experience lifelong learning (ShELL)
-# continual learning algorithm for each ShELL agent: supermask superposition
-# RL agent/algorithm: PPO
-def shell_minigrid(name, shell_config_path=None):
-    config = Config()
+# helper function
+def global_config(config):
     config.env_name = name
     config.env_config_path = None
     config.lr = 0.00015
@@ -34,21 +31,8 @@ def shell_minigrid(name, shell_config_path=None):
     log_name = name + '-shell' + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 4
-
-    with open(shell_config_path, 'r') as f:
-        shell_config = json.load(f)
-
-    task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
-    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
-    eval_task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, True)
-    config.eval_task_fn = eval_task_fn
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
-    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(
-        state_dim, action_dim, label_dim, 
-        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200), num_tasks=num_tasks), 
-        actor_body=DummyBody_CL(200), 
-        critic_body=DummyBody_CL(200),
-        num_tasks=num_tasks)
+
     config.policy_fn = SamplePolicy
     #config.state_normalizer = ImageNormalizer()
     config.state_normalizer = RescaleNormalizer(1./10.)
@@ -62,23 +46,31 @@ def shell_minigrid(name, shell_config_path=None):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 10
     config.gradient_clip = 5
-    config.max_steps = 1e6
-    config.evaluation_episodes = 100
+    config.max_steps = 5e4
+    config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
+    config.task_fn = None
+    config.eval_task_fn = None
+    config.network_fn = None 
+    return config
 
+# shared experience lifelong learning (ShELL)
+# continual learning algorithm for each ShELL agent: supermask superposition
+# RL agent/algorithm: PPO
+def shell_minigrid(name, shell_config_path=None):
+    with open(shell_config_path, 'r') as f:
+        shell_config = json.load(f)
     agents = []
     num_agents = len(shell_config['config'])
     for idx in range(num_agents):
+        config = Config()
+        config = global_config(config):
         env_config_path = shell_config['config'][idx]['env_config_path']
-        config_ = copy.deepcopy(config)
-        task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config_.seed, False)
-        config_.task_fn=lambda: ParallelizedTask(task_fn,config_.num_workers,log_dir=config_.log_dir)
-        eval_task_fn=lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config_.seed,True)
-        config_.eval_task_fn = eval_task_fn
-        config.max_steps = 5e4
-        config.evaluation_episodes = 10
-
+        task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
+        config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
+        eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
+        config.eval_task_fn = eval_task_fn
         # get num_tasks from env_config
         with open(env_config_path, 'r') as f:
             env_config_ = json.load(f)
@@ -92,12 +84,9 @@ def shell_minigrid(name, shell_config_path=None):
             critic_body=DummyBody_CL(200),
             num_tasks=num_tasks)
 
-        agent = PPOAgentSS(config_)
-        config_.agent_name = agent.__class__.__name__ + '_{0}'.format(idx)
+        agent = PPOAgentSS(config)
+        config.agent_name = agent.__class__.__name__ + '_{0}'.format(idx)
         agents.append(agent)
-
-    #tasks = agent.config.cl_tasks_info
-    shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     run_iterations_ss(agents)
     ## save config
     #with open('{0}/config.json'.format(config.log_dir), 'w') as f:
