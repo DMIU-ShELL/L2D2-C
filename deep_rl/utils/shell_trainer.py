@@ -29,6 +29,7 @@ def shell_train(agents, logger):
     shell_tasks = [agent.config.cl_tasks_info for agent in agents] # tasks for each agent
     shell_task_idx = [0,] * num_agents
 
+    print()
     logger.info('*****start shell training')
 
     # set the first task each agent is meant to train on
@@ -36,7 +37,10 @@ def shell_train(agents, logger):
         states_ = agent.task.reset_task(shell_tasks[agent_idx][0])
         agent.states = agent.config.state_normalizer(states_)
         logger.info('*****setting first task for agent {0}'.format(agent_idx))
+        logger.info('task: {0}'.format(shell_tasks[agent_idx][0]['task']))
+        logger.info('task_label: {0}'.format(shell_tasks[agent_idx][0]['task_label']))
         agent.task_train_start(task_idx=0)
+        print()
     del states_
 
     while True:
@@ -67,16 +71,27 @@ def shell_train(agents, logger):
                 logger.info('*****agent {0} / end of training on task {1}'.format(agent_idx, \
                     shell_task_idx[agent_idx]))
                 agent.task_train_end(shell_task_idx[agent_idx])
+
                 shell_task_idx[agent_idx] += 1
                 if shell_task_idx[agent_idx] < len(shell_tasks[agent_idx]):
                     task_idx_ = shell_task_idx[agent_idx]
                     logger.info('*****agent {0} / set next task {1}'.format(agent_idx, task_idx_))
                     logger.info('task: {0}'.format(shell_tasks[agent_idx][task_idx_]['task']))
-                    logger.info('task_label: {0}\n'.format(shell_tasks[agent_idx][task_idx_]['task_label']))
+                    logger.info('task_label: {0}'.format(shell_tasks[agent_idx][task_idx_]['task_label']))
                     states_ = agent.task.reset_task(shell_tasks[agent_idx][task_idx_]) # set new task
                     agent.states = agent.config.state_normalizer(states_)
+                    agent.task_train_start(task_idx=task_idx_)
+
+                    # ping other agents to see if they have knoweledge (mask) of current task
+                    logger.info('*****agent {0} / pinging other agents to leverage on existing ' \
+                        'knowledge about task')
+                    a_idxs = list(range(len(agents)))
+                    a_idxs.remove(agent_idx)
+                    other_agents = [agents[i] for i in a_idxs]
+                    agent.ping_agents(other_agents)
                     del states_
                     del task_idx_
+                    print()
                 else:
                     shell_done[agent_idx] = True # training done for all task for agent
                     

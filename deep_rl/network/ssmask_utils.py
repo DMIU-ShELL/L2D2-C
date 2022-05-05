@@ -81,6 +81,21 @@ class MultitaskMaskLinear(nn.Linear):
     def __repr__(self):
         return f"MultitaskMaskLinear({self.in_dims}, {self.out_dims})"
 
+    @torch.no_grad()
+    def get_mask(self, task):
+        # return raw scores and not the processed mask, since the
+        # scores are the parameters that will be trained in other
+        # agents. the binary masks would not be trained but rather
+        # generated from raw scores in other agents
+        return self.scores[task] 
+        #return GetSubnet.apply(self.scores[task])
+
+    @torch.no_grad()
+    def set_mask(self, mask, task):
+        self.scores[task].data = mask
+        # NOTE, this operation might not be required and could be remove to save compute time
+        self.cache_masks() 
+        return
 
 # Subnetwork forward from hidden networks
 # Sparse mask (using edge-pop algorithm)
@@ -156,6 +171,22 @@ class MultitaskMaskLinearSparse(nn.Linear):
     def __repr__(self):
         return f"MultitaskMaskLinearSparse({self.in_dims}, {self.out_dims})"
 
+    @torch.no_grad()
+    def get_mask(self, task):
+        # return raw scores and not the processed mask, since the
+        # scores are the parameters that will be trained in other
+        # agents. the binary masks would not be trained but rather
+        # generated from raw scores in other agents
+        return self.scores[task] 
+        #return GetSubnet.apply(self.scores[task])
+
+    @torch.no_grad()
+    def set_mask(self, mask, task):
+        self.scores[task].data = mask
+        # NOTE, this operation might not be required and could be remove to save compute time
+        self.cache_masks() 
+        return
+
 # Utility functions
 def set_model_task(model, task, verbose=True):
     for n, m in model.named_modules():
@@ -182,6 +213,18 @@ def set_alphas(model, alphas, verbose=True):
             if verbose:
                 print(f"=> Setting alphas for {n}")
             m.alphas = alphas
+
+def get_mask(model, task):
+    mask = {}
+    for n, m in model.named_modules():
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
+            mask[n] = m.get_mask(task)
+    return mask 
+
+def set_mask(model, mask, task):
+    for n, m in model.named_modules():
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
+            m.set_mask(mask[n], task)
 
 # Multitask Model, a simple fully connected model in this case
 class MultitaskFC(nn.Module):

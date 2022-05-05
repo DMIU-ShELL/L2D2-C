@@ -108,6 +108,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.config.cl_tasks_info = tasks
         label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label'])
 
+        # set seed before creating network to ensure network parameters are
+        # same across all shell agents
+        torch.manual_seed(config.seed)
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)
         _params = list(self.network.parameters())
         self.opt = config.optimizer_fn(_params, config.lr)
@@ -233,8 +236,62 @@ class PPOAgentSS(PPOContinualLearnerAgent):
     '''
     def __init__(self, config):
        PPOContinualLearnerAgent.__init__(self, config)
+       self.seen_tasks = {} # contains task labels that agent has experienced so far.
+
+    # TODO: finish implemenation and replace `task_train_start` with this.
+    # also do same for `task_train_end`
+    def task_train_start_(self, task_idx=None, task_label=None):
+        eps = 1e-5
+        for idx, seen_task_label in self.seen_tasks.items():
+            if torch.norm((task_label - seen_task_label), p=2) < eps:
+                pass
+        set_model_task(self.network, task_idx)
+        return
+
+    def _label_to_idx(self, task_label):
+        eps = 1e-5
+        found_task_idx = None
+        for task_idx, seen_task_label in self.seen_tasks.items():
+            if np.linalg.norm((task_label - seen_task_label), ord=2) < eps:
+                found_task_idx = task_idx
+                break
+        return found_task_idx
+        
+    def _select_mask(self, agents, masks, ensemble=False):
+        found_mask = None
+        if ensemble:
+            raise NotImplementedError
+        else:
+            for agent, mask in zip(agents, masks):
+                if mask is not None:
+                    found_mask = mask
+                    break
+        return found_mask
+
+    def ping_agents(self, agents):
+        task_label = self.task.get_task()['task_label']
+        task_idx = self._label_to_idx(task_label)
+        masks = [agent.ping_response(task_label) for agent in agents]
+        mask = self._select_mask(agents, masks)
+        if mask is not None:
+            # function from deep_rl/network/ssmask_utils.py
+            set_mask(self.network, mask, task_idx)
+        return
+
+    def ping_response(self, task_label):
+        task_idx = self._label_to_idx(task_label)
+        # get task mask.
+        if task_idx is None:
+            mask = None
+        else:
+            mask = get_mask(self.network, task_idx)
+        return mask
 
     def task_train_start(self, task_idx):
+        task_label = self.task.get_task()['task_label']
+        if task_idx not in self.seen_tasks.keys():
+            self.seen_tasks[task_idx] = task_label
+
         set_model_task(self.network, task_idx)
         return
 
