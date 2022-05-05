@@ -67,9 +67,10 @@ def shell_minigrid(name, shell_config_path=None):
     logger = get_logger(log_dir=log_dir)
     # create/initialise agents
     for idx in range(num_agents):
-        logger.info('*****initialising agent {0}'.format(idx+1))
+        logger.info('*****initialising agent {0}'.format(idx))
         config = Config()
         config = global_config(config, name)
+        config.max_steps = shell_config['config'][idx]['max_steps']
         env_config_path = shell_config['config'][idx]['env_config_path']
         task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
         config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)

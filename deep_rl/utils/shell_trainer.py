@@ -42,7 +42,7 @@ def shell_train(agents, logger):
     while True:
         for agent_idx, agent in enumerate(agents):
             if shell_done[agent_idx]:
-                break
+                continue
             agent.iteration()
             shell_iterations[agent_idx] += 1
             if shell_iterations[agent_idx] % agent.config.iteration_log_interval == 0:
@@ -63,6 +63,7 @@ def shell_train(agents, logger):
 
             task_steps_limit = agent.config.max_steps * (shell_task_idx[agent_idx] + 1)
             if agent.config.max_steps and agent.total_steps >= task_steps_limit:
+                print()
                 logger.info('*****agent {0} / end of training on task {1}'.format(agent_idx, \
                     shell_task_idx[agent_idx]))
                 agent.task_train_end(shell_task_idx[agent_idx])

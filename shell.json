@@ -1,10 +1,12 @@
 {
 "config": [
     {
-        "env_config_path": "./minigrid_sc_3.json"
+        "env_config_path": "./minigrid_sc_3.json",
+        "max_steps": 1e3
     }, 
     {
-        "env_config_path": "./minigrid_sc_3.json"
+        "env_config_path": "./minigrid_sc_3.json",
+        "max_steps": 2e3
     }
 ]
 }
