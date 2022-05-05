@@ -5,12 +5,6 @@
     }, 
     {
         "env_config_path": "./minigrid_sc_3.json"
-    }, 
-    {
-        "env_config_path": "./minigrid_sc_3.json"
-    }, 
-    {
-        "env_config_path": "./minigrid_sc_3.json"
     }
 ]
 }

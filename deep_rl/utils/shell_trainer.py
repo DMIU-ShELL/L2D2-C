@@ -29,13 +29,13 @@ def shell_train(agents, logger):
     shell_tasks = [agent.config.cl_tasks_info for agent in agents] # tasks for each agent
     shell_task_idx = [0,] * num_agents
 
-    logger.info('**********start shell training')
+    logger.info('*****start shell training')
 
     # set the first task each agent is meant to train on
     for agent_idx, agent in enumerate(agents):
         states_ = agent.task.reset_task(shell_tasks[agent_idx][0])
         agent.states = agent.config.state_normalizer(states_)
-        logger.info('**********setting first task for agent {0}'.format(agent_idx))
+        logger.info('*****setting first task for agent {0}'.format(agent_idx))
         agent.task_train_start(task_idx=0)
     del states_
 
@@ -63,15 +63,15 @@ def shell_train(agents, logger):
 
             task_steps_limit = agent.config.max_steps * (shell_task_idx[agent_idx] + 1)
             if agent.config.max_steps and agent.total_steps >= task_steps_limit:
-                logger.info('**********agent {0}/end of training on task {1}'.format(agent_idx, \
+                logger.info('*****agent {0} / end of training on task {1}'.format(agent_idx, \
                     shell_task_idx[agent_idx]))
                 agent.task_train_end(shell_task_idx[agent_idx])
                 shell_task_idx[agent_idx] += 1
                 if shell_task_idx[agent_idx] < len(shell_tasks[agent_idx]):
                     task_idx_ = shell_task_idx[agent_idx]
-                    logger.info('**********set next task {0}'.format(task_idx_))
+                    logger.info('*****agent {0} / set next task {1}'.format(agent_idx, task_idx_))
                     logger.info('task: {0}'.format(shell_tasks[agent_idx][task_idx_]['task']))
-                    logger.info('task_label: {0}'.format(shell_tasks[agent_idx][task_idx_]['task_label']))
+                    logger.info('task_label: {0}\n'.format(shell_tasks[agent_idx][task_idx_]['task_label']))
                     states_ = agent.task.reset_task(shell_tasks[agent_idx][task_idx_]) # set new task
                     agent.states = agent.config.state_normalizer(states_)
                     del states_

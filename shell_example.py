@@ -45,7 +45,7 @@ def global_config(config, name):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 1e4
+    config.max_steps = 1e3
     config.evaluation_episodes = 10
     config.cl_requires_task_label = True
     config.task_fn = None
@@ -67,7 +67,7 @@ def shell_minigrid(name, shell_config_path=None):
     logger = get_logger(log_dir=log_dir)
     # create/initialise agents
     for idx in range(num_agents):
-        logger.info('**********initialising agent {0}'.format(idx+1))
+        logger.info('*****initialising agent {0}'.format(idx+1))
         config = Config()
         config = global_config(config, name)
         env_config_path = shell_config['config'][idx]['env_config_path']
