@@ -20,16 +20,15 @@ import argparse
 #os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 # helper function
-def global_config(config):
+def global_config(config, name):
     config.env_name = name
     config.env_config_path = None
     config.lr = 0.00015
     config.cl_preservation = 'ss'
     config.seed = 8379
     random_seed(config.seed)
-    exp_id = ''
-    log_name = name + '-shell' + exp_id
-    config.log_dir = get_default_log_dir(log_name)
+    config.log_dir = None
+    config.logger = None 
     config.num_workers = 4
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
@@ -44,11 +43,10 @@ def global_config(config):
     config.optimization_epochs = 8
     config.num_mini_batches = 64
     config.ppo_ratio_clip = 0.1
-    config.iteration_log_interval = 10
+    config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 5e4
+    config.max_steps = 1e4
     config.evaluation_episodes = 10
-    config.logger = get_logger(log_dir=config.log_dir)
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
@@ -63,9 +61,15 @@ def shell_minigrid(name, shell_config_path=None):
         shell_config = json.load(f)
     agents = []
     num_agents = len(shell_config['config'])
+    # set up logging system
+    exp_id = ''
+    log_dir = get_default_log_dir(name + '-shell' + exp_id)
+    logger = get_logger(log_dir=log_dir)
+    # create/initialise agents
     for idx in range(num_agents):
+        logger.info('**********initialising agent {0}'.format(idx+1))
         config = Config()
-        config = global_config(config):
+        config = global_config(config, name)
         env_config_path = shell_config['config'][idx]['env_config_path']
         task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
         config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
@@ -87,7 +91,8 @@ def shell_minigrid(name, shell_config_path=None):
         agent = PPOAgentSS(config)
         config.agent_name = agent.__class__.__name__ + '_{0}'.format(idx)
         agents.append(agent)
-    run_iterations_ss(agents)
+
+    shell_train(agents, logger)
     ## save config
     #with open('{0}/config.json'.format(config.log_dir), 'w') as f:
     #    dict_config = vars(config)
