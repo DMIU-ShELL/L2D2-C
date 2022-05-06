@@ -276,7 +276,9 @@ class PPOAgentSS(PPOContinualLearnerAgent):
         if mask is not None:
             # function from deep_rl/network/ssmask_utils.py
             set_mask(self.network, mask, task_idx)
-        return
+            return True
+        else:
+            return False
 
     def ping_response(self, task_label):
         task_idx = self._label_to_idx(task_label)

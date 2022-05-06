@@ -43,7 +43,7 @@ def global_config(config, name):
     config.optimization_epochs = 8
     config.num_mini_batches = 64
     config.ppo_ratio_clip = 0.1
-    config.iteration_log_interval = 1
+    config.iteration_log_interval = 10
     config.gradient_clip = 5
     config.max_steps = 1e3
     config.evaluation_episodes = 10
@@ -94,14 +94,6 @@ def shell_minigrid(name, shell_config_path=None):
         agents.append(agent)
 
     shell_train(agents, logger)
-    ## save config
-    #with open('{0}/config.json'.format(config.log_dir), 'w') as f:
-    #    dict_config = vars(config)
-    #    for k in dict_config.keys():
-    #        if not isinstance(dict_config[k], int) \
-    #        and not isinstance(dict_config[k], float) and dict_config[k] is not None:
-    #            dict_config[k] = str(dict_config[k])
-    #    json.dump(dict_config, f)
 
 if __name__ == '__main__':
     mkdir('log')

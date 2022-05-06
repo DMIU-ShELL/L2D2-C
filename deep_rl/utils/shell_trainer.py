@@ -88,12 +88,17 @@ def shell_train(agents, logger):
                     a_idxs = list(range(len(agents)))
                     a_idxs.remove(agent_idx)
                     other_agents = [agents[i] for i in a_idxs]
-                    agent.ping_agents(other_agents)
+                    found_knowledge = agent.ping_agents(other_agents)
+                    if found_knowledge:
+                        logger.info('found knowledge about task from other agents')
+                    else:
+                        logger.info('could not find any agent with knowledge about task')
                     del states_
                     del task_idx_
                     print()
                 else:
                     shell_done[agent_idx] = True # training done for all task for agent
+                    logger.info('*****end of training for agent {0}'.format(agent_idx))
                     
         if all(shell_done):
             break
