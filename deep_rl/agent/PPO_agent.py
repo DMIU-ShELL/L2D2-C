@@ -103,8 +103,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         else:
             self.evaluation_env = config.eval_task_fn(config.log_dir)
             self.task = self.evaluation_env if self.task is None else self.task
-        tasks = self.task.get_all_tasks(config.cl_requires_task_label)
-        config.cl_num_tasks = len(tasks)
+        tasks_ = self.task.get_all_tasks(config.cl_requires_task_label)
+        tasks = [tasks_[task_id] for task_id in config.task_ids]
+        del tasks_
         self.config.cl_tasks_info = tasks
         label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label'])
 
@@ -216,10 +217,10 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.layers_output = outs
         return np.mean(grad_norms_)
 
-    def task_train_start(self, task_idx):
+    def task_train_start(self, task_label):
         return
 
-    def task_train_end(self, task_idx):
+    def task_train_end(self, task_label):
         return
 
 class PPOAgentBaseline(PPOContinualLearnerAgent):
@@ -237,16 +238,7 @@ class PPOAgentSS(PPOContinualLearnerAgent):
     def __init__(self, config):
        PPOContinualLearnerAgent.__init__(self, config)
        self.seen_tasks = {} # contains task labels that agent has experienced so far.
-
-    # TODO: finish implemenation and replace `task_train_start` with this.
-    # also do same for `task_train_end`
-    def task_train_start_(self, task_idx=None, task_label=None):
-        eps = 1e-5
-        for idx, seen_task_label in self.seen_tasks.items():
-            if torch.norm((task_label - seen_task_label), p=2) < eps:
-                pass
-        set_model_task(self.network, task_idx)
-        return
+       self.new_task = False
 
     def _label_to_idx(self, task_label):
         eps = 1e-5
@@ -289,24 +281,29 @@ class PPOAgentSS(PPOContinualLearnerAgent):
             mask = get_mask(self.network, task_idx)
         return mask
 
-    def task_train_start(self, task_idx):
-        task_label = self.task.get_task()['task_label']
-        if task_idx not in self.seen_tasks.keys():
+    def task_train_start(self, task_label):
+        task_idx = self._label_to_idx(task_label)
+        if task_idx is None:
+            # new task. add it to the agent's seen_tasks dictionary
+            task_idx = len(self.seen_tasks) # generate an internal task index for new task
             self.seen_tasks[task_idx] = task_label
-
+            self.new_task = True
         set_model_task(self.network, task_idx)
         return
 
-    def task_train_end(self, task_idx):
+    def task_train_end(self, task_label):
         cache_masks(self.network)
-        set_num_tasks_learned(self.network, task_idx + 1)
+        if self.new_task:
+            set_num_tasks_learned(self.network, len(self.seen_tasks))
+        self.new_task = False # reset flag
         return
 
-    def task_eval_start(self, task_idx):
+    def task_eval_start(self, task_label):
+        task_idx = self._label_to_idx(task_label)
         self.network.eval()
         set_model_task(self.network, task_idx)
         return
 
-    def task_eval_end(self, task_idx):
+    def task_eval_end(self, task_label):
         self.network.train()
         return

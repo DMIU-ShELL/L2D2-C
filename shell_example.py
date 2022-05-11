@@ -43,7 +43,7 @@ def global_config(config, name):
     config.optimization_epochs = 8
     config.num_mini_batches = 64
     config.ppo_ratio_clip = 0.1
-    config.iteration_log_interval = 10
+    config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 1e3
     config.evaluation_episodes = 10
@@ -56,31 +56,32 @@ def global_config(config, name):
 # shared experience lifelong learning (ShELL)
 # continual learning algorithm for each ShELL agent: supermask superposition
 # RL agent/algorithm: PPO
-def shell_minigrid(name, shell_config_path=None):
+def shell_minigrid(name, shell_config_path, env_config_path):
     with open(shell_config_path, 'r') as f:
         shell_config = json.load(f)
     agents = []
-    num_agents = len(shell_config['config'])
+    num_agents = len(shell_config['agents'])
     # set up logging system
     exp_id = ''
     log_dir = get_default_log_dir(name + '-shell' + exp_id)
-    logger = get_logger(log_dir=log_dir)
+    logger = get_logger(log_dir=log_dir, file_name='train-log')
     # create/initialise agents
     for idx in range(num_agents):
         logger.info('*****initialising agent {0}'.format(idx))
         config = Config()
         config = global_config(config, name)
-        config.max_steps = shell_config['config'][idx]['max_steps']
-        env_config_path = shell_config['config'][idx]['env_config_path']
+        # task may repeat, so get number of unique tasks.
+        num_tasks = len(set(shell_config['agents'][idx]['task_ids'])) 
+        config.cl_num_tasks = num_tasks
+        config.task_ids = shell_config['agents'][idx]['task_ids']
+        if isinstance(shell_config['agents'][idx]['max_steps'], list):
+            config.max_steps = shell_config['agents'][idx]['max_steps']
+        else:
+            config.max_steps = [shell_config['agents'][idx]['max_steps'], ] * num_tasks
         task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
         config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
         eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
         config.eval_task_fn = eval_task_fn
-        # get num_tasks from env_config
-        with open(env_config_path, 'r') as f:
-            env_config_ = json.load(f)
-        num_tasks = len(env_config_['tasks'])
-        del env_config_
         config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
             state_dim, action_dim, label_dim, 
             phi_body=FCBody_SS(state_dim, task_label_dim=label_dim, \
@@ -104,7 +105,8 @@ if __name__ == '__main__':
     game = 'MiniGrid'
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--shell_config_path', help='environment config', default='./shell.json')
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')
+    parser.add_argument('--env_config_path',help='environment config',default='./minigrid_sc_3.json')
     args = parser.parse_args()
 
-    shell_minigrid(name=game, shell_config_path=args.shell_config_path)
+    shell_minigrid(game, args.shell_config_path, args.env_config_path)

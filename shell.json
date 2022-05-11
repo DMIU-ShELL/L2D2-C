@@ -1,12 +1,12 @@
 {
-"config": [
+"agents": [
     {
-        "env_config_path": "./minigrid_sc_3.json",
-        "max_steps": 1e4
+        "task_ids": [0, 1, 2],
+        "max_steps": 51200
     }, 
     {
-        "env_config_path": "./minigrid_sc_3.json",
-        "max_steps": 2e4
+        "task_ids": [1, 2, 0],
+        "max_steps": 51200
     }
 ]
 }

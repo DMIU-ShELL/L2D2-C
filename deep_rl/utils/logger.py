@@ -13,6 +13,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s: %(message)s'
 from .misc import *
 
 def get_logger(name='MAIN', file_name=None, log_dir='./log', skip=False, level=logging.INFO):
+    os.mkdir(log_dir)
     logger = logging.getLogger(name)
     logger.setLevel(level)
     if file_name is not None:
