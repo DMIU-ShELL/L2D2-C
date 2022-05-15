@@ -25,7 +25,7 @@ def global_config(config, name):
     config.env_config_path = None
     config.lr = 0.00015
     config.cl_preservation = 'ss'
-    config.seed = 8379
+    config.seed = 9157
     random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
