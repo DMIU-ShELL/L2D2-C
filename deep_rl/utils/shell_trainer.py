@@ -29,6 +29,10 @@ def shell_train(agents, logger):
     shell_tasks = [agent.config.cl_tasks_info for agent in agents] # tasks for each agent
     shell_task_idx = [0,] * num_agents
 
+    shell_eval_tracker = [False,] * num_agents
+    shell_eval_data = []
+    shell_tcr = [] # tcr => total cumulative reward metric
+
     print()
     logger.info('*****start shell training')
 
@@ -49,6 +53,7 @@ def shell_train(agents, logger):
                 continue
             agent.iteration()
             shell_iterations[agent_idx] += 1
+            # tensorboard log
             if shell_iterations[agent_idx] % agent.config.iteration_log_interval == 0:
                 logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
                 'mean/max/min reward %f/%f/%f' % (agent_idx, shell_task_idx[agent_idx], \
@@ -65,6 +70,21 @@ def shell_train(agents, logger):
                 logger.scalar_summary('agent_{0}/min_reward'.format(agent_idx), \
                     np.min(agent.last_episode_rewards))
 
+            # evaluation block
+            if (agent.config.evaluation_interval is not None and \
+                shell_iterations[agent_idx] % agent.cnfig.evaluation_interval == 0):
+                logger.info('*****agent {0} / evaluation block'.format(agent_idx))
+                _tasks = agent.evaluation_env.get_all_tasks()
+                _names = [eval_task_info['task'] for eval_task_info in _tasks]
+                logger.info('eval tasks:'.format(', '.join(_names))
+                for eval_task_idx, eval_task_info in enumerate(_tasks):
+                    eval_states = agent.evaluation_env.reset_task(eval_task_info)
+                    agent.evaluation_states = eval_states
+                    rewards, _ = agent.evaluate_ss()
+                    shell_eval_data[-1][agent_idx, eval_task_idx] = rewards
+                shell_eval_tracker[agent_idx] = True
+
+            # checker for end of task training
             if not agent.config.max_steps:
                 raise ValueError('`max_steps` should be set for each agent')
             task_steps_limit = agent.config.max_steps[shell_task_idx[agent_idx]] * \
@@ -104,6 +124,23 @@ def shell_train(agents, logger):
                     logger.info('*****agent {0} / end of all training'.format(agent_idx))
                 del task_idx_
                     
+        if all(shell_eval_tracker):
+            _metrics = shell_eval_data[-1]
+            # compute tcr 
+            _max_reward = _metrics.max(axis=0) 
+            _agent_ids = _metrics.argmax(axis=0)
+            tcr = _max_reward.sum()
+            shell_eval_tcr.append(tcr)
+            # log eval to file/screen and tensorboard
+            logger.info('*****shell evaluation:')
+            logger.info('best agent per task:', _agents_ids)
+            logger.info('shell eval TCR: {0}'.format(tcr))
+            logger.info('shell eval TP: {0}'.format(np.sum(shell_eval_tcr))
+            logger.scalar_summary('shell_eval/tcr', tcr)
+            logger.scalar_summary('shell_eval/tp', np.sum(shell_eval_tcr))
+            # reset eval tracker
+            shell_eval_tracker = [False for _ in shell_eval_tracker]
+
         if all(shell_done):
             break
     for agent in agents:
