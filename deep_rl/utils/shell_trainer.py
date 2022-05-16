@@ -132,13 +132,13 @@ def shell_train(agents, logger):
             _metrics = shell_eval_data[-1]
             # compute tcr 
             _max_reward = _metrics.max(axis=0) 
-            _agent_ids = _metrics.argmax(axis=0)
-            _agent_ids = ', '.join(_agent_ids)
+            _agent_ids = _metrics.argmax(axis=0).tolist()
+            _agent_ids = ', '.join([str(_agent_id) for _agent_id in _agent_ids])
             tcr = _max_reward.sum()
             shell_metric_tcr.append(tcr)
             # log eval to file/screen and tensorboard
             logger.info('*****shell evaluation:')
-            logger.info('best agent per task:', _agent_ids)
+            logger.info('best agent per task:'.format(_agent_ids))
             logger.info('shell eval TCR: {0}'.format(tcr))
             logger.info('shell eval TP: {0}'.format(np.sum(shell_metric_tcr)))
             logger.scalar_summary('shell_eval/tcr', tcr)
@@ -150,6 +150,11 @@ def shell_train(agents, logger):
 
         if all(shell_done):
             break
+    # save eval metrics
+    to_save = np.stack(shell_eval_data, axis=0)
+    with open('eval_metrics.npy', 'wb') as f:
+        np.save(f, to_save)
+
     for agent in agents:
         agent.close()
     return

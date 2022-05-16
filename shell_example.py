@@ -51,7 +51,7 @@ def global_config(config, name):
     config.task_fn = None
     config.eval_task_fn = None
     config.network_fn = None 
-    config.eval_interval = 20
+    config.eval_interval = 25
     return config
 
 # shared experience lifelong learning (ShELL)
