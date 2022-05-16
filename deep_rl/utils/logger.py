@@ -43,6 +43,7 @@ class Logger(object):
         self.warning = vanilla_logger.warning
         self.skip = skip
         self.all_steps = {}
+        self.log_dir = log_dir
 
     def to_numpy(self, v):
         if isinstance(v, torch.Tensor):

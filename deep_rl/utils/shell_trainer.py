@@ -152,7 +152,7 @@ def shell_train(agents, logger):
             break
     # save eval metrics
     to_save = np.stack(shell_eval_data, axis=0)
-    with open('eval_metrics.npy', 'wb') as f:
+    with open(logger.log_dir + '/eval_metrics.npy', 'wb') as f:
         np.save(f, to_save)
 
     for agent in agents:
