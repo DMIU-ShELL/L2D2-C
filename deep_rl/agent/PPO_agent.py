@@ -239,6 +239,7 @@ class PPOAgentSS(PPOContinualLearnerAgent):
        PPOContinualLearnerAgent.__init__(self, config)
        self.seen_tasks = {} # contains task labels that agent has experienced so far.
        self.new_task = False
+       self.curr_train_task_label = None
 
     def _label_to_idx(self, task_label):
         eps = 1e-5
@@ -289,6 +290,7 @@ class PPOAgentSS(PPOContinualLearnerAgent):
             self.seen_tasks[task_idx] = task_label
             self.new_task = True
         set_model_task(self.network, task_idx)
+        self.curr_train_task_label = task_label
         return
 
     def task_train_end(self, task_label):
@@ -296,14 +298,29 @@ class PPOAgentSS(PPOContinualLearnerAgent):
         if self.new_task:
             set_num_tasks_learned(self.network, len(self.seen_tasks))
         self.new_task = False # reset flag
+        self.curr_train_task_label = None
         return
 
     def task_eval_start(self, task_label):
-        task_idx = self._label_to_idx(task_label)
         self.network.eval()
+        task_idx = self._label_to_idx(task_label)
+        if task_idx is None:
+            # agent has not been trained on current task
+            # being evaluated. therefore use a random mask
+            # TODO: random task hardcoded to the first learnt
+            # task/mask. update this later to use a random
+            # previous task, or implementing a way for
+            # agent to use an ensemble of different mask
+            # internally for the task not yet seen.
+            task_idx = 0
         set_model_task(self.network, task_idx)
         return
 
     def task_eval_end(self, task_label):
         self.network.train()
+        # resume training the model on train task label if training
+        # was on before running evaluations.
+        if self.curr_train_task_label is not None:
+            task_idx = self._label_to_idx(self.curr_train_task_label)
+            set_model_task(self.network, task_idx)
         return

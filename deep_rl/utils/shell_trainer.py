@@ -31,7 +31,9 @@ def shell_train(agents, logger):
 
     shell_eval_tracker = [False,] * num_agents
     shell_eval_data = []
-    shell_tcr = [] # tcr => total cumulative reward metric
+    num_eval_tasks = len(agents[0].evaluation_env.get_all_tasks())
+    shell_eval_data.append(np.zeros((num_agents, num_eval_tasks), dtype=np.float32))
+    shell_metric_tcr = [] # tcr => total cumulative reward metric
 
     print()
     logger.info('*****start shell training')
@@ -71,17 +73,19 @@ def shell_train(agents, logger):
                     np.min(agent.last_episode_rewards))
 
             # evaluation block
-            if (agent.config.evaluation_interval is not None and \
-                shell_iterations[agent_idx] % agent.cnfig.evaluation_interval == 0):
+            if (agent.config.eval_interval is not None and \
+                shell_iterations[agent_idx] % agent.config.eval_interval == 0):
                 logger.info('*****agent {0} / evaluation block'.format(agent_idx))
                 _tasks = agent.evaluation_env.get_all_tasks()
                 _names = [eval_task_info['task'] for eval_task_info in _tasks]
-                logger.info('eval tasks:'.format(', '.join(_names))
+                logger.info('eval tasks: {0}'.format(', '.join(_names)))
                 for eval_task_idx, eval_task_info in enumerate(_tasks):
+                    agent.task_eval_start(eval_task_info['task_label'])
                     eval_states = agent.evaluation_env.reset_task(eval_task_info)
                     agent.evaluation_states = eval_states
-                    rewards, _ = agent.evaluate_ss()
-                    shell_eval_data[-1][agent_idx, eval_task_idx] = rewards
+                    rewards, _ = agent.evaluate_cl()
+                    agent.task_eval_end(eval_task_info['task_label'])
+                    shell_eval_data[-1][agent_idx, eval_task_idx] = np.mean(rewards)
                 shell_eval_tracker[agent_idx] = True
 
             # checker for end of task training
@@ -129,17 +133,20 @@ def shell_train(agents, logger):
             # compute tcr 
             _max_reward = _metrics.max(axis=0) 
             _agent_ids = _metrics.argmax(axis=0)
+            _agent_ids = ', '.join(_agent_ids)
             tcr = _max_reward.sum()
-            shell_eval_tcr.append(tcr)
+            shell_metric_tcr.append(tcr)
             # log eval to file/screen and tensorboard
             logger.info('*****shell evaluation:')
-            logger.info('best agent per task:', _agents_ids)
+            logger.info('best agent per task:', _agent_ids)
             logger.info('shell eval TCR: {0}'.format(tcr))
-            logger.info('shell eval TP: {0}'.format(np.sum(shell_eval_tcr))
+            logger.info('shell eval TP: {0}'.format(np.sum(shell_metric_tcr)))
             logger.scalar_summary('shell_eval/tcr', tcr)
-            logger.scalar_summary('shell_eval/tp', np.sum(shell_eval_tcr))
+            logger.scalar_summary('shell_eval/tp', np.sum(shell_metric_tcr))
             # reset eval tracker
             shell_eval_tracker = [False for _ in shell_eval_tracker]
+            # initialise new eval block
+            shell_eval_data.append(np.zeros((num_agents, num_eval_tasks), dtype=np.float32))
 
         if all(shell_done):
             break
