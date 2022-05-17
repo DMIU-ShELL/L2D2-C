@@ -83,7 +83,7 @@ def shell_train(agents, logger):
                     agent.task_eval_start(eval_task_info['task_label'])
                     eval_states = agent.evaluation_env.reset_task(eval_task_info)
                     agent.evaluation_states = eval_states
-                    rewards, _ = agent.evaluate_cl()
+                    rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                     agent.task_eval_end(eval_task_info['task_label'])
                     shell_eval_data[-1][agent_idx, eval_task_idx] = np.mean(rewards)
                 shell_eval_tracker[agent_idx] = True

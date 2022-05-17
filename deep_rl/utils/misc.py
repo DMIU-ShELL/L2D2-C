@@ -371,6 +371,10 @@ def run_iterations_ss(agent, tasks_info):
     task_start_idx = 0
     num_tasks = len(tasks_info)
 
+    eval_tracker = False
+    eval_data = []
+    metric_tcr = [] # tcr => total cumulative reward
+
     for learn_block_idx in range(config.cl_num_learn_blocks):
         config.logger.info('********** start of learning block {0}'.format(learn_block_idx))
         eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
@@ -384,9 +388,10 @@ def run_iterations_ss(agent, tasks_info):
             agent.states = config.state_normalizer(states)
             agent.data_buffer.clear()
             #agent.task_train_start()
-            agent.task_train_start(task_idx)
+            agent.task_train_start(task_info['task_label'])
             while True:
                 avg_grad_norm = agent.iteration()
+                iteration += 1
                 steps.append(agent.total_steps)
                 rewards.append(np.mean(agent.last_episode_rewards))
                 if iteration % config.iteration_log_interval == 0:
@@ -414,7 +419,32 @@ def run_iterations_ss(agent, tasks_info):
                             tag = 'layer_output/' + tag
                             config.logger.histo_summary(tag, value.data.cpu().numpy())
 
-                iteration += 1
+                # evaluation block
+                if (agent.config.eval_interval is not None and \
+                    iteration % agent.config.eval_interval == 0):
+                    config.logger.info('*****agent / evaluation block')
+                    _tasks = tasks_info
+                    _names = [eval_task_info['task'] for eval_task_info in _tasks]
+                    config.logger.info('eval tasks: {0}'.format(', '.join(_names)))
+                    eval_data.append(np.zeros(len(_tasks),))
+                    for eval_task_idx, eval_task_info in enumerate(_tasks):
+                        print(eval_task_info)
+                        agent.task_eval_start(eval_task_info['task_label'])
+                        eval_states = agent.evaluation_env.reset_task(eval_task_info)
+                        agent.evaluation_states = eval_states
+                        rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+                        agent.task_eval_end(eval_task_info['task_label'])
+                        eval_data[-1][eval_task_idx] = np.mean(rewards)
+                    tcr = eval_data[-1].sum()
+                    metric_tcr.append(tcr)
+                    tp = np.sum(metric_tcr)
+                    config.logger.info('*****cl evaluation:')
+                    config.logger.info('cl eval TCR: {0}'.format(tcr))
+                    config.logger.info('cl eval TP: {0}'.format(tp))
+                    config.logger.scalar_summary('cl_eval/tcr', tcr)
+                    config.logger.scalar_summary('cl_eval/tp', np.sum(metric_tcr))
+
+
                 task_steps_limit = config.max_steps * (num_tasks * learn_block_idx + task_idx + 1)
                 if config.max_steps and agent.total_steps >= task_steps_limit:
                     with open(log_path_tstats + '/%s-%s-online-stats-%s-run-%d-task-%d.bin' % \
@@ -429,18 +459,19 @@ def run_iterations_ss(agent, tasks_info):
                     break
             config.logger.info('cacheing mask for current task')
             #ret = agent.task_train_end()
-            ret = agent.task_train_end(task_idx)
+            ret = agent.task_train_end(task_info['task_label'])
             # evaluate agent across task exposed to agent so far
             config.logger.info('evaluating agent across all tasks exposed so far to agent')
             for j in range(task_idx+1):
-                agent.task_eval_start(j)
+                _eval_task = tasks_info[j]
+                agent.task_eval_start(_eval_task['task_label'])
 
                 eval_states = agent.evaluation_env.reset_task(tasks_info[j])
                 agent.evaluation_states = eval_states
                 rewards, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                 eval_results[j] += rewards
 
-                agent.task_eval_end(j)
+                agent.task_eval_end(_eval_task['task_label'])
 
                 with open(config.log_dir+'/rewards-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
@@ -460,6 +491,9 @@ def run_iterations_ss(agent, tasks_info):
         f.close()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
 
+    to_save = np.stack(eval_data, axis=0)
+    with open(log_path_eval + '/eval_metrics.npy', 'wb') as f:
+        np.save(f, to_save)
     agent.close()
     return steps, rewards
 

@@ -91,7 +91,7 @@ def ppo_ss_minigrid_cl(name, env_config_path=None): # ppo with supermask superpo
     exp_id = ''
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
-    config.num_workers = 16
+    config.num_workers = 4
     assert env_config_path is not None, '`env_config_path` should be set for the MiniGrid environment'
     # get num_tasks from env_config
     with open(env_config_path, 'r') as f:
@@ -121,12 +121,16 @@ def ppo_ss_minigrid_cl(name, env_config_path=None): # ppo with supermask superpo
     config.optimization_epochs = 8
     config.num_mini_batches = 64
     config.ppo_ratio_clip = 0.1
-    config.iteration_log_interval = 10
+    config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 1e6
+    config.max_steps = 51200*3
     config.evaluation_episodes = 100
-    config.logger = get_logger(log_dir=config.log_dir)
+    config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
     config.cl_requires_task_label = True
+
+    config.eval_interval = 100
+    config.task_ids = np.arange(num_tasks).tolist()
+
     agent = PPOAgentSS(config)
     config.agent_name = agent.__class__.__name__
     tasks = agent.config.cl_tasks_info
