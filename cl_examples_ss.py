@@ -123,12 +123,12 @@ def ppo_ss_minigrid_cl(name, env_config_path=None): # ppo with supermask superpo
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 51200*3
-    config.evaluation_episodes = 100
+    config.max_steps = 51200*2
+    config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
     config.cl_requires_task_label = True
 
-    config.eval_interval = 100
+    config.eval_interval = 50
     config.task_ids = np.arange(num_tasks).tolist()
 
     agent = PPOAgentSS(config)
