@@ -87,12 +87,22 @@ class DynamicGrid(BaseTask):
         #change_matrix = change_matrix.astype(np.bool)
         #self.tasks = self.env.unwrapped.unwrapped.random_tasks(change_matrix)
 
-        for i, task in enumerate(self.tasks):
-            task['task_label'] = None
-            task['task'] = change_matrix[i]
-        self.current_task = self.tasks[0]
+        self.task_label_dim = len(self.tasks)
+        self.one_hot = True
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+                self.tasks[idx]['name'] = 'dynamic_grid_task_{0}'.format(idx + 1)
+        else:
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32) 
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+                self.tasks[idx]['name'] = 'dynamic_grid_task_{0}'.format(idx + 1)
 
-        self.task_label_dim = 64
+        self.current_task = self.tasks[0]
 
     def step(self, action):
         state, reward, done, info = self.env.step(action)
@@ -172,8 +182,11 @@ class CTgraph(BaseTask):
         imageDataset = CTgraph_images(env_config)
         self.env_config=env_config
 
-        #state = env.init(env_config, imageDataset)
-        state, _, _, _ = env.init(env_config, imageDataset)
+        ret = env.init(env_config, imageDataset)
+        if isinstance(ret, tuple):
+            state, _, _, _ = ret
+        else:
+            state = ret
         env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape,\
             dtype=np.float32)
         self.action_dim = env.action_space.n
@@ -182,18 +195,33 @@ class CTgraph(BaseTask):
         else:
             self.state_dim = env.observation_space.shape
 
-        # for labels randomly sampled from a uniform distribution
-        self.task_label_dim = 64
-        # for one-hot labels
-        #self.task_label_dim = 4
         self.env = self.set_monitor(env, log_dir)
+
+        # task label config
+        self.task_label_dim = 2**env_config['graph_shape']['depth']
+        self.one_hot_labels = True
 
         # get all tasks in graph environment instance
         from itertools import product
         depth = env_config['graph_shape']['depth']
         branch = env_config['graph_shape']['depth']
         tasks = list(product(list(range(branch)), repeat=depth))
-        self.tasks = [{'task': np.array(task), 'task_label': None} for task in tasks]
+        names = ['ctgraph_d{0}_b{1}_task_{2}'.format(depth, branch, idx+1) \
+            for idx in range(len(tasks))] 
+        self.tasks = [{'name': name, 'task': np.array(task), 'task_label': None} \
+            for name, task in zip(names, tasks)]
+        # generate label for each task
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+        else:
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32) 
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+        # set default task
         self.current_task = self.tasks[0]
 
     def step(self, action):
@@ -203,8 +231,11 @@ class CTgraph(BaseTask):
         return state, reward, done, info
 
     def reset(self):
-        #state = self.env.reset()
-        state, _, _, _ = self.env.reset()
+        ret = self.env.reset()
+        if isinstance(ret, tuple):
+            state, _, _, _ = ret
+        else:
+            state = ret
         if self.env_config['image_dataset']['1D']: state = state.ravel()
         return state
 
@@ -269,91 +300,12 @@ class CTgraphFlatObs(CTgraph):
 
     def reset(self):
         #state = self.env.reset()
-        state, _, _, _ = self.env.reset()
+        ret = self.env.reset()
+        if isinstance(ret, tuple):
+            state, _, _, _ = ret
+        else:
+            state = ret
         return state.ravel()
-
-class CTgraphPermutedStates(BaseTask):
-    def __init__(self, name, env_config_path, log_dir=None):
-        BaseTask.__init__(self)
-        self.name = name
-        from gym_CTgraph import CTgraph_env
-        from gym_CTgraph.CTgraph_conf import CTgraph_conf
-        from gym_CTgraph.CTgraph_images import CTgraph_images
-        env = gym.make(name)
-        env_config = CTgraph_conf(env_config_path)
-        env_config = env_config.getParameters()
-        imageDataset = CTgraph_images(env_config)
-        self.env_config=env_config
-
-        #state = env.init(env_config, imageDataset)
-        state, _, _, _ = env.init(env_config, imageDataset)
-        env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape)
-        self.action_dim = env.action_space.n
-        if env_config['image_dataset']['1D']:
-            self.state_dim = int(np.prod(env.observation_space.shape))
-        else:
-            self.state_dim = env.observation_space.shape
-
-        self.env = self.set_monitor(env, log_dir)
-
-        # get all tasks in graph environment instance
-        num_tasks = 4
-        self.tasks = []
-        flat_statedim= self.state_dim if isinstance(self.state_dim, int) else np.prod(self.state_dim)
-        permute = np.arange(flat_statedim)
-        goal = self.env.unwrapped.get_high_reward_path()
-        self.tasks.append({'permute_mask': permute, 'task': goal})
-        for _ in range(num_tasks-1):
-            permute = np.arange(flat_statedim)
-            np.random.shuffle(permute)
-            self.tasks.append({'permute_mask': permute, 'task': goal})
-        self.current_task = self.tasks[0]
-
-    def step(self, action):
-        state, reward, done, info = self.env.step(action)
-        if done: state = self.reset()
-        if self.env_config['image_dataset']['1D']: state = state.ravel()
-        # apply permute mask to state
-        sh = state.shape
-        state = state.ravel()
-        state = state[self.current_task['permute_mask']]
-        state = state.reshape(sh)
-        return state, reward, done, info
-
-    def reset(self):
-        #state = self.env.reset() # ctgraph returns state, reward, done, info in reset
-        state, _, _, _ = self.env.reset()
-        if self.env_config['image_dataset']['1D']: state = state.ravel()
-        # apply permute mask to state
-        sh = state.shape
-        state = state.ravel()
-        state = state[self.current_task['permute_mask']]
-        state = state.reshape(sh)
-        # return only state when reset is called to conform with other env in the repo
-        return state
-
-    def reset_task(self, taskinfo):
-        self.set_task(taskinfo)
-        return self.reset()
-
-    def set_task(self, taskinfo):
-        self.current_task = taskinfo
-    
-    def get_task(self):
-        return self.current_task
-
-    def get_all_tasks(self, requires_task_label=False):
-        if requires_task_label:
-            tasks_label = np.eye(len(self.tasks)).astype(np.float32)
-            tasks = copy.deepcopy(self.tasks)
-            for task, label in zip(tasks, tasks_label):
-                task['task_label'] = label
-            return tasks
-        else:
-            return self.tasks
-    
-    def random_tasks(self, num_tasks, requires_task_label=True):
-        raise NotImplementedError
 
 class MiniGrid(BaseTask):
     def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
@@ -390,7 +342,7 @@ class MiniGrid(BaseTask):
         self.task_label_dim = env_config['label_dim']
         self.one_hot_labels = True if env_config['one_hot'] else False
         # all tasks
-        self.tasks = [{'task': name, 'task_label': None} for name in self.envs.keys()]
+        self.tasks = [{'name': name, 'task': name, 'task_label': None} for name in self.envs.keys()]
         # generate label for each task
         if self.one_hot_labels:
             for idx in range(len(self.tasks)):

@@ -5,9 +5,9 @@
 #######################################################################
 
 from copy import deepcopy
-from ..network import *
-from ..component import *
-from .BaseAgent import *
+from ...network import *
+from ...component import *
+from ..BaseAgent import *
 
 class A2CAgent(BaseAgent):
     def __init__(self, config):

@@ -4,11 +4,11 @@
 # declaration at the top                                              #
 #######################################################################
 
-from ..network import *
-from ..component import *
-from ..utils import *
+from ...network import *
+from ...component import *
+from ...utils import *
 import time
-from .BaseAgent import *
+from ..BaseAgent import *
 from copy import deepcopy
 
 class DQNAgent(BaseAgent):

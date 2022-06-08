@@ -67,3 +67,38 @@ class NMNetKWinners(nn.Module):
         #print(x.sum(), x.shape)
         return x.reshape(*self.original_shape)
 
+def layer_init_nm(layer, w_scale=1.0):
+    nn.init.orthogonal_(layer.fc.weight.data)
+    layer.fc.weight.data.mul_(w_scale)
+    nn.init.constant_(layer.fc.bias.data, 0)
+
+    nn.init.orthogonal_(layer.nm.fc1.weight.data)
+    layer.nm.fc1.weight.data.mul_(w_scale)
+    nn.init.constant_(layer.nm.fc1.bias.data, 0)
+
+    nn.init.orthogonal_(layer.nm.fc2.weight.data)
+    layer.nm.fc2.weight.data.mul_(w_scale)
+    nn.init.constant_(layer.nm.fc2.bias.data, 0)
+    return layer
+
+def layer_init_nm_pnn(layer, w_scale=1.0):
+    nn.init.orthogonal_(layer.std.weight.data)
+    layer.std.weight.data.mul_(w_scale)
+    nn.init.constant_(layer.std.bias.data, 0)
+
+    nn.init.orthogonal_(layer.in_nm.weight.data)
+    layer.in_nm.weight.data.mul_(w_scale)
+    nn.init.constant_(layer.in_nm.bias.data, 0)
+
+    nn.init.orthogonal_(layer.out_nm.weight.data)
+    layer.out_nm.weight.data.mul_(w_scale)
+    nn.init.constant_(layer.out_nm.bias.data, 0)
+    return layer
+
+class LinearMask(nn.Linear):
+    def __init__(self, in_features, out_features, bias=True):
+        super(LinearMask, self).__init__(in_features, out_features, bias)
+
+    def forward(self, x, mask):
+        params = self.weight * mask
+        return F.linear(x, params, self.bias)

@@ -4,8 +4,8 @@
 # declaration at the top                                              #
 #######################################################################
 
-from ..network import *
-from .BaseAgent import *
+from ...network import *
+from ..BaseAgent import *
 
 class OptionCriticAgent(BaseAgent):
     def __init__(self, config):

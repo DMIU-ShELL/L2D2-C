@@ -4,9 +4,9 @@
 # declaration at the top                                              #
 #######################################################################
 
-from ..network import *
-from ..component import *
-from .BaseAgent import *
+from ...network import *
+from ...component import *
+from ..BaseAgent import *
 import torchvision
 
 class DDPGAgent(BaseAgent):

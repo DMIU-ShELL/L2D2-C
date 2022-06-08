@@ -7,6 +7,10 @@
 '''
 Shared Experience Lifelong Learning (ShELL) experiments
 Multi-agent continual lifelong learners
+
+Each agent is a ppo agent with supermask superposition 
+lifelong learning algorithm.
+https://arxiv.org/abs/2006.14769
 '''
 
 import json
@@ -17,14 +21,13 @@ matplotlib.use("Pdf")
 from deep_rl import *
 import os
 import argparse
-#os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 # helper function
 def global_config(config, name):
     config.env_name = name
     config.env_config_path = None
     config.lr = 0.00015
-    config.cl_preservation = 'ss'
+    config.cl_preservation = 'supermask'
     config.seed = 9157
     random_seed(config.seed)
     config.log_dir = None
@@ -34,6 +37,7 @@ def global_config(config, name):
 
     config.policy_fn = SamplePolicy
     #config.state_normalizer = ImageNormalizer()
+    # rescale state normaliser: suitable for grid encoding of states in minigrid
     config.state_normalizer = RescaleNormalizer(1./10.)
     config.discount = 0.99
     config.use_gae = True
@@ -54,18 +58,25 @@ def global_config(config, name):
     config.eval_interval = 25
     return config
 
-# shared experience lifelong learning (ShELL)
-# continual learning algorithm for each ShELL agent: supermask superposition
-# RL agent/algorithm: PPO
-def shell_minigrid(name, shell_config_path, env_config_path):
+'''
+shared experience lifelong learning (ShELL)
+lifelong (continual) learning algorithm for each ShELL agent: supermask superposition
+RL agent/algorithm: PPO
+'''
+def shell_minigrid(name, args):
+    shell_config_path = args.shell_config_path
+    env_config_path = args.env_config_path
+
     with open(shell_config_path, 'r') as f:
         shell_config = json.load(f)
     agents = []
     num_agents = len(shell_config['agents'])
+    
     # set up logging system
     exp_id = ''
     log_dir = get_default_log_dir(name + '-shell' + exp_id)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
+
     # create/initialise agents
     for idx in range(num_agents):
         logger.info('*****initialising agent {0}'.format(idx))
@@ -91,7 +102,7 @@ def shell_minigrid(name, shell_config_path, env_config_path):
             critic_body=DummyBody_CL(200),
             num_tasks=num_tasks)
 
-        agent = PPOAgentSS(config)
+        agent = ShellAgent_SP(config)
         config.agent_name = agent.__class__.__name__ + '_{0}'.format(idx)
         agents.append(agent)
 
@@ -103,11 +114,11 @@ if __name__ == '__main__':
     select_device(0) # -1 is CPU, a positive integer is the index of GPU
 
     # minigrid experiments
-    game = 'MiniGrid'
+    name = 'MiniGrid'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')
-    parser.add_argument('--env_config_path',help='environment config',default='./minigrid_sc_3.json')
+    parser.add_argument('--env_config_path',help='environment config', \
+        default='./env_configs/minigrid_sc_3.json')
     args = parser.parse_args()
-
-    shell_minigrid(game, args.shell_config_path, args.env_config_path)
+    shell_minigrid(name, args)

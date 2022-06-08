@@ -4,10 +4,10 @@
 # declaration at the top                                              #
 #######################################################################
 
-from ..network import *
-from ..component import *
-from ..utils import *
-from .BaseAgent import *
+from ...network import *
+from ...component import *
+from ...utils import *
+from ..BaseAgent import *
 
 class NStepDQNAgent(BaseAgent):
     def __init__(self, config):

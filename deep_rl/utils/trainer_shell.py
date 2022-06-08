@@ -10,9 +10,7 @@ import os
 import datetime
 import torch
 from .torch_utils import *
-#from io import BytesIO
-#import scipy.misc
-#import torchvision
+from ..shell_modules import *
 
 try:
     # python >= 3.5
@@ -83,8 +81,8 @@ def shell_train(agents, logger):
                     agent.task_eval_start(eval_task_info['task_label'])
                     eval_states = agent.evaluation_env.reset_task(eval_task_info)
                     agent.evaluation_states = eval_states
-                    rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
-                    agent.task_eval_end(eval_task_info['task_label'])
+                    rewards, _ = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
+                    agent.task_eval_end()
                     shell_eval_data[-1][agent_idx, eval_task_idx] = np.mean(rewards)
                 shell_eval_tracker[agent_idx] = True
 
@@ -98,7 +96,8 @@ def shell_train(agents, logger):
                 task_idx_ = shell_task_idx[agent_idx]
                 logger.info('*****agent {0} / end of training on task {1}'.format(agent_idx, \
                     task_idx_))
-                agent.task_train_end(shell_tasks[agent_idx][task_idx_]['task_label'])
+                #agent.task_train_end(shell_tasks[agent_idx][task_idx_]['task_label'])
+                agent.task_train_end()
 
                 task_idx_ += 1
                 shell_task_idx[agent_idx] = task_idx_
