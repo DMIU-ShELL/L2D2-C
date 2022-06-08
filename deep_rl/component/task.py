@@ -204,7 +204,7 @@ class CTgraph(BaseTask):
         # get all tasks in graph environment instance
         from itertools import product
         depth = env_config['graph_shape']['depth']
-        branch = env_config['graph_shape']['depth']
+        branch = env_config['graph_shape']['branching_factor']
         tasks = list(product(list(range(branch)), repeat=depth))
         names = ['ctgraph_d{0}_b{1}_task_{2}'.format(depth, branch, idx+1) \
             for idx in range(len(tasks))] 
