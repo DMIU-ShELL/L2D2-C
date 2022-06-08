@@ -107,7 +107,11 @@ class BaseContinualLearnerAgent(BaseAgent):
         #env = self.config.evaluation_env
         env = self.evaluation_env
         state = env.reset()
-        task_label = env.get_task()['task_label']
+        if self.curr_eval_task_label is not None:
+            task_label = self.curr_eval_task_label
+        else:
+            task_label = env.get_task()['task_label']
+            assert False, 'manually set (temporary) breakpoint. code should not get here.'
         total_rewards = 0
         while True:
             action, output_info = self.evaluation_action(state, task_label)

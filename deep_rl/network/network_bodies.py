@@ -101,12 +101,52 @@ class FCBody_CL(nn.Module): # fcbody for continual learning setup
         self.layers = nn.ModuleList([layer_init(nn.Linear(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
         self.gate = gate
         self.feature_dim = dims[-1]
+        self.task_label_dim = task_label_dim
 
-    def forward(self, x, task_label=None):
-        if task_label is not None: x = torch.cat([x, task_label], dim=1)
-        for layer in self.layers:
-            x = self.gate(layer(x))
-        return x
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+            x = torch.cat([x, task_label], dim=1)
+        #if task_label is not None: x = torch.cat([x, task_label], dim=1)
+       
+        ret_act = []
+        if return_layer_output:
+            for i, layer in enumerate(self.layers):
+                x = self.gate(layer(x))
+                ret_act.append(('{0}.layers.{1}'.format(prefix, i), x))
+        else:
+            for layer in self.layers:
+                x = self.gate(layer(x))
+        return x, ret_act
+
+from ..shell_modules.mmn.ssmask_utils import MultitaskMaskLinear
+class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learning algorithm
+    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu, num_tasks=3):
+        super(FCBody_SS, self).__init__()
+        if task_label_dim is None:
+            dims = (state_dim, ) + hidden_units
+        else:
+            dims = (state_dim + task_label_dim, ) + hidden_units
+        self.layers = nn.ModuleList([MultitaskMaskLinear(dim_in, dim_out, num_tasks=num_tasks) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.gate = gate
+        self.feature_dim = dims[-1]
+        self.task_label_dim = task_label_dim
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+            x = torch.cat([x, task_label], dim=1)
+        #if task_label is not None: x = torch.cat([x, task_label], dim=1)
+       
+        ret_act = []
+        if return_layer_output:
+            for i, layer in enumerate(self.layers):
+                x = self.gate(layer(x))
+                ret_act.append(('{0}.layers.{1}'.format(prefix, i), x))
+        else:
+            for layer in self.layers:
+                x = self.gate(layer(x))
+        return x, ret_act
 
 class TwoLayerFCBodyWithAction(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_units=(64, 64), gate=F.relu):
@@ -147,6 +187,13 @@ class DummyBody_CL(nn.Module):
         super(DummyBody_CL, self).__init__()
         self.feature_dim = state_dim
 
-    def forward(self, x, task_label=None):
-        impt_params = []
-        return x, impt_params
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        return x, []
+
+class DummyBody_CL_Mask(nn.Module):
+    def __init__(self, state_dim):
+        super(DummyBody_CL_Mask, self).__init__()
+        self.feature_dim = state_dim
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix='', mask=None):
+        return x, []

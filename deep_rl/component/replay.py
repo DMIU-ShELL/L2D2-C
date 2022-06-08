@@ -39,3 +39,7 @@ class Replay:
 
     def empty(self):
         return not len(self.data)
+
+    def clear(self):
+        self.data.clear()
+        self.pos = 0

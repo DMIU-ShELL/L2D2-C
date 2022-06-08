@@ -13,6 +13,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s: %(message)s'
 from .misc import *
 
 def get_logger(name='MAIN', file_name=None, log_dir='./log', skip=False, level=logging.INFO):
+    os.makedirs(log_dir)
     logger = logging.getLogger(name)
     logger.setLevel(level)
     if file_name is not None:
@@ -42,6 +43,7 @@ class Logger(object):
         self.warning = vanilla_logger.warning
         self.skip = skip
         self.all_steps = {}
+        self.log_dir = log_dir
 
     def to_numpy(self, v):
         if isinstance(v, torch.Tensor):

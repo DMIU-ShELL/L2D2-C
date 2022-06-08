@@ -10,6 +10,9 @@ import os
 import datetime
 import torch
 from .torch_utils import *
+#from io import BytesIO
+#import scipy.misc
+#import torchvision
 
 try:
     # python >= 3.5
@@ -171,7 +174,8 @@ def run_iterations(agent): # run iterations single task setting
             config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
             config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
 
-        if iteration % (config.iteration_log_interval * 100) == 0:
+        #if iteration % (config.iteration_log_interval * 100) == 0:
+        if iteration % (config.iteration_log_interval) == 0:
             with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
                 (agent_name, config.tag, agent.task.name), 'wb') as f:
                 pickle.dump({'rewards': rewards, 'steps': steps}, f)
@@ -204,6 +208,13 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
     log_path_eval = config.log_dir + '/eval'
     if not os.path.exists(log_path_eval):
         os.makedirs(log_path_eval)
+    # save neuromodulated (hyper) nets before training
+    try:
+        agent.nm_nets # check that nm_nets is an attribute in agent
+        with open(config.log_dir + '/nm_nets_before_train.bin', 'wb') as f:
+            pickle.dump(agent.nm_nets, f)
+    except:
+        pass
 
     random_seed(config.seed)
     agent_name = agent.__class__.__name__
@@ -212,17 +223,21 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
     steps = []
     rewards = []
     task_start_idx = 0
+    num_tasks = len(tasks_info)
 
     for learn_block_idx in range(config.cl_num_learn_blocks):
         config.logger.info('********** start of learning block {0}'.format(learn_block_idx))
         eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
         for task_idx, task_info in enumerate(tasks_info):
+
             config.logger.info('*****start training on task {0}'.format(task_idx))
-            config.logger.info('task: {0}'.format(task_info['goal']))
+            config.logger.info('task: {0}'.format(task_info['task']))
+            config.logger.info('task_label: {0}'.format(task_info['task_label']))
 
             states = agent.task.reset_task(task_info)
             agent.states = config.state_normalizer(states)
             agent.data_buffer.clear()
+            agent.task_train_start()
             while True:
                 avg_grad_norm = agent.iteration()
                 steps.append(agent.total_steps)
@@ -238,7 +253,7 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
                     config.logger.scalar_summary('avg grad norm', avg_grad_norm)
 
-                if iteration % (config.iteration_log_interval * 100) == 0:
+                if iteration % (config.iteration_log_interval) == 0:
                     with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
                         (agent_name, config.tag, agent.task.name), 'wb') as f:
                         pickle.dump({'rewards': rewards, 'steps': steps}, f)
@@ -247,8 +262,13 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     for tag, value in agent.network.named_parameters():
                         tag = tag.replace('.', '/')
                         config.logger.histo_summary(tag, value.data.cpu().numpy())
+                    if hasattr(agent, 'layers_output'):
+                        for tag, value in agent.layers_output:
+                            tag = 'layer_output/' + tag
+                            config.logger.histo_summary(tag, value.data.cpu().numpy())
+
                 iteration += 1
-                task_steps_limit = config.max_steps * (2 * learn_block_idx + task_idx + 1)
+                task_steps_limit = config.max_steps * (num_tasks * learn_block_idx + task_idx + 1)
                 if config.max_steps and agent.total_steps >= task_steps_limit:
                     with open(log_path_tstats + '/%s-%s-online-stats-%s-run-%d-task-%d.bin' % \
                         (agent_name, config.tag, agent.task.name, learn_block_idx+1, task_idx+1), 'wb') as f:
@@ -261,7 +281,9 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     task_start_idx = len(rewards)
                     break
             config.logger.info('preserving learned weights for current task')
-            ret = agent.consolidate()
+            ret = agent.task_train_end() # consolidate is implicitly called in this method
+            tasks_info[task_idx]['task_label_agent'] = ret['task_label_agent']
+            ret = ret['consolidate']
             with open(log_path_pm + '/%s-%s-precision-matrices-%s-run-%d-task-%d.bin' % \
                 (agent_name, config.tag, agent.task.name, learn_block_idx+1, task_idx+1), 'wb') as f:
                 pickle.dump(ret[0], f)
@@ -283,12 +305,52 @@ def run_iterations_cl(agent, tasks_info): #run iterations continual learning (mu
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
         print('eval stats')
+        with open(config.log_dir + '/eval_full_stats.bin', 'wb') as f: pickle.dump(eval_results, f)
+
+        f = open(config.log_dir + '/eval_stats.csv', 'w')
+        f.write('task_id,avg_reward\n')
         for k, v in eval_results.items():
-            print('{0}: {1}'.format(k, np.mean(v)))
-        print(eval_results)
+            print('{0}: {1:.4f}'.format(k, np.mean(v)))
+            f.write('{0},{1:.4f}\n'.format(k, np.mean(v)))
+            config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
+        f.close()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
+
+    # save neuromodulated (hyper) nets after training
+    try:
+        agent.nm_nets # check that nm_nets is an attribute in agent
+        with open(config.log_dir + '/nm_nets_after_train.bin', 'wb') as f:
+            pickle.dump(agent.nm_nets, f)
+    except:
+        pass
+
     agent.close()
     return steps, rewards
+
+def run_evals_cl(agent, tasks_info, num_evals): 
+    #run evaluations of agent across multiple task it has been trained (exposed to)
+    # in continual learning, weight preservation setting
+    config = agent.config
+    random_seed(config.seed)
+    rewards = []
+    episodes = []
+    for task_idx in range(len(tasks_info)):
+        eval_states = agent.evaluation_env.reset_task(tasks_info[task_idx])
+        agent.evaluation_states = eval_states
+        task_rewards, task_episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+        rewards.append(task_rewards)
+        episodes.append(task_episodes)
+        config.logger.info('task {0} / mean reward(across episodes): {1}'.format(
+            task_idx+1, np.mean(task_rewards)))
+    agent.close()
+    with open(config.log_dir + '/rewards.bin', 'wb') as f:
+        pickle.dump(rewards, f)
+    with open(config.log_dir + '/episodes.bin', 'wb') as f:
+        pickle.dump(episodes, f)
+    for task_idx, task_rewards in enumerate(rewards):
+        print('task {0}'.format(task_idx+1))
+        print(task_rewards)
+    return rewards
 
 def get_time_str():
     return datetime.datetime.now().strftime("%y%m%d-%H%M%S")

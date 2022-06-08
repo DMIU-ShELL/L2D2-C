@@ -49,7 +49,7 @@ class ClassicalControl(BaseTask):
         self.env = self.set_monitor(self.env, log_dir)
 
 class DynamicGrid(BaseTask):
-    def __init__(self, name, max_steps=200, log_dir=None):
+    def __init__(self, name, env_config_path=None, log_dir=None, seed=None, max_steps=100):
         BaseTask.__init__(self)
         self.name = name
         import dynamic_grid
@@ -59,14 +59,50 @@ class DynamicGrid(BaseTask):
         self.state_dim = self.env.observation_space.shape
         self.env = self.set_monitor(self.env, log_dir)
 
+        if seed is not None:
+            self.seed(seed)
+        np.random.seed(seed)
+        task_change_points = 3 # reward fn, transition fn, and state space
+
+        # method 1: manually specify tasks based on change points
+        from itertools import product
+        num_tasks = 2 ** task_change_points
+        change_matrix = np.array([[0, 0, 0], # base task
+                                [1, 0, 0], # change goal location (reward function) only
+                                [0, 1, 0], # change transition function only
+                                [0, 0, 1], # change input distribution only
+                                [1, 1, 0], # change reward fn and transition fn
+                                [1, 0, 1], # change reward fn and input distribution
+                                [0, 1, 1], # change transition fn and input distribution
+                                [1, 1, 1]]) # change reward fn, transition fn, and input distribution
+        #change_matrix = np.array(list(product([0, 1], repeat=3)))
+        change_matrix = change_matrix.astype(np.bool)
+        self.tasks = self.env.unwrapped.unwrapped.random_tasks(change_matrix)
+
+        # method 2: randomly generate tasks
         # total number of unique tasks in this class instance. note, the actual
         # environment (wrapped by this class) has many more task variations
-        num_tasks = 3
-        change_matrix = np.eye(num_tasks).astype(np.bool)
-        self.tasks = self.env.unwrapped.unwrapped.random_tasks(change_matrix)
-        self.current_task = self.tasks[0]
+        #num_tasks = 20
+        #change_matrix = np.random.randint(low=0, high=2, size=(num_tasks, task_change_points))
+        #change_matrix = change_matrix.astype(np.bool)
+        #self.tasks = self.env.unwrapped.unwrapped.random_tasks(change_matrix)
 
-        self.task_label_dim = 64
+        self.task_label_dim = len(self.tasks)
+        self.one_hot = True
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+                self.tasks[idx]['name'] = 'dynamic_grid_task_{0}'.format(idx + 1)
+        else:
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32) 
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+                self.tasks[idx]['name'] = 'dynamic_grid_task_{0}'.format(idx + 1)
+
+        self.current_task = self.tasks[0]
 
     def step(self, action):
         state, reward, done, info = self.env.step(action)
@@ -120,8 +156,8 @@ class DynamicGrid(BaseTask):
 class DynamicGridFlatObs(DynamicGrid):
     # Dynamic Grid environment with flattend (1d vector) observations.
 	# 2D images are flattened into 1D vectors
-    def __init__(self, name, max_steps=200, log_dir=None):
-        super(DynamicGridFlatObs, self).__init__(name, max_steps, log_dir)
+    def __init__(self, name, env_config_path=None, log_dir=None, seed=None, max_steps=100):
+        super(DynamicGridFlatObs, self).__init__(name, env_config_path, log_dir, seed, max_steps)
         self.state_dim = int(np.prod(self.env.observation_space.shape))
 
     def step(self, action):
@@ -132,7 +168,6 @@ class DynamicGridFlatObs(DynamicGrid):
     def reset(self):
         state = self.env.reset()
         return state.ravel()
-
 
 class CTgraph(BaseTask):
     def __init__(self, name, env_config_path, log_dir=None):
@@ -147,26 +182,47 @@ class CTgraph(BaseTask):
         imageDataset = CTgraph_images(env_config)
         self.env_config=env_config
 
-        state = env.init(env_config, imageDataset)
-        env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape)
+        ret = env.init(env_config, imageDataset)
+        if isinstance(ret, tuple):
+            state, _, _, _ = ret
+        else:
+            state = ret
+        env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape,\
+            dtype=np.float32)
         self.action_dim = env.action_space.n
         if env_config['image_dataset']['1D']:
             self.state_dim = int(np.prod(env.observation_space.shape))
         else:
             self.state_dim = env.observation_space.shape
 
-        self.task_label_dim = 64
         self.env = self.set_monitor(env, log_dir)
+
+        # task label config
+        self.task_label_dim = 2**env_config['graph_shape']['depth']
+        self.one_hot_labels = True
 
         # get all tasks in graph environment instance
         from itertools import product
         depth = env_config['graph_shape']['depth']
-        branch = env_config['graph_shape']['depth']
+        branch = env_config['graph_shape']['branching_factor']
         tasks = list(product(list(range(branch)), repeat=depth))
-        self.tasks = [{'goal': np.array(task), 'task_label': None} for task in tasks]
-
-        #self.current_task = self.tasks[0]
-        self.current_task = None
+        names = ['ctgraph_d{0}_b{1}_task_{2}'.format(depth, branch, idx+1) \
+            for idx in range(len(tasks))] 
+        self.tasks = [{'name': name, 'task': np.array(task), 'task_label': None} \
+            for name, task in zip(names, tasks)]
+        # generate label for each task
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+        else:
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32) 
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+        # set default task
+        self.current_task = self.tasks[0]
 
     def step(self, action):
         state, reward, done, info = self.env.step(action)
@@ -175,7 +231,11 @@ class CTgraph(BaseTask):
         return state, reward, done, info
 
     def reset(self):
-        state = self.env.reset()
+        ret = self.env.reset()
+        if isinstance(ret, tuple):
+            state, _, _, _ = ret
+        else:
+            state = ret
         if self.env_config['image_dataset']['1D']: state = state.ravel()
         return state
 
@@ -184,7 +244,7 @@ class CTgraph(BaseTask):
         return self.reset()
 
     def set_task(self, taskinfo):
-        self.env.unwrapped.set_high_reward_path(taskinfo['goal'])
+        self.env.unwrapped.set_high_reward_path(taskinfo['task'])
         self.current_task = taskinfo
     
     def get_task(self):
@@ -192,7 +252,12 @@ class CTgraph(BaseTask):
 
     def get_all_tasks(self, requires_task_label=False):
         if requires_task_label:
+            # one-hot labels
+            #tasks_label = np.eye(len(self.tasks)).astype(np.float32)
+            #tasks_label[tasks_label == 0.] = -1.
+            # randomly sampled labels from uniform distribution
             tasks_label=np.random.uniform(low=-1.,high=1.,size=(len(self.tasks),self.task_label_dim))
+            tasks_label = tasks_label.astype(np.float32)
             tasks = copy.deepcopy(self.tasks)
             for task, label in zip(tasks, tasks_label):
                 task['task_label'] = label
@@ -204,7 +269,11 @@ class CTgraph(BaseTask):
         tasks_idx = np.random.randint(low=0, high=len(self.tasks), size=(num_tasks,))
         if requires_task_label:
             all_tasks = copy.deepcopy(self.tasks)
-            tasks_label =np.random.uniform(low=-1.,high=1.,size=(len(all_tasks),self.task_label_dim))
+            # one-hot labels
+            #tasks_label = np.eye(len(all_tasks)).astype(np.float32)
+            #tasks_label[tasks_label == 0.] = -1.
+            # randomly sampled labels from uniform distribution
+            tasks_label=np.random.uniform(low=-1.,high=1.,size=(len(all_tasks),self.task_label_dim))
             tasks_label = tasks_label.astype(np.float32)
             tasks = []
             for idx in tasks_idx:
@@ -222,6 +291,102 @@ class CTgraphFlatObs(CTgraph):
     def __init__(self, name, env_config_path, log_dir=None):
         super(CTgraphFlatObs, self).__init__(name, env_config_path, log_dir)
         # overwrite previous written statedim to be flat 1d vector observations
+        self.state_dim = int(np.prod(self.env.observation_space.shape))
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        return state.ravel(), reward, done, info
+
+    def reset(self):
+        #state = self.env.reset()
+        ret = self.env.reset()
+        if isinstance(ret, tuple):
+            state, _, _, _ = ret
+        else:
+            state = ret
+        return state.ravel()
+
+class MiniGrid(BaseTask):
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
+        BaseTask.__init__(self)
+        self.name = name
+        import gym_minigrid
+        from gym_minigrid.wrappers import ImgObsWrapper, ReseedWrapper, ActionBonus, StateBonus
+        import json
+        self.wrappers_dict = {'ActionBonus': ActionBonus, 'StateBonus': StateBonus}
+        with open(env_config_path, 'r') as f:
+            env_config = json.load(f)
+        self.env_config = env_config
+        env_names = env_config['tasks']
+        self.envs = {name : ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) \
+            for name in env_names}
+        # apply exploration bonus wrapper only to training envs
+        if not eval_mode:
+            if 'wrappers' in env_config.keys():
+                for str_wrapper in env_config['wrappers']:
+                    cls_wrapper = self.wrappers_dict[str_wrapper]
+                    for k in self.envs.keys():
+                        self.envs[k] = cls_wrapper(self.envs[k])
+        self.observation_space = self.envs[env_names[0]].observation_space
+        self.state_dim = self.observation_space.shape
+        # note, action_dim of 3 will reduce agent action to left, right, and forward
+        if 'action_dim' in env_config.keys():
+            self.action_dim = env_config['action_dim']
+        else:
+            self.action_dim = self.envs[env_names[0]].action_space.n
+        # env monitors
+        for name in self.envs.keys():
+            self.envs[name] = self.set_monitor(self.envs[name], log_dir)
+        # task label config
+        self.task_label_dim = env_config['label_dim']
+        self.one_hot_labels = True if env_config['one_hot'] else False
+        # all tasks
+        self.tasks = [{'name': name, 'task': name, 'task_label': None} for name in self.envs.keys()]
+        # generate label for each task
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+        else:
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32) 
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+        # set default task
+        self.current_task = self.tasks[0]
+        self.env = self.envs[self.current_task['task']]
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        return state, reward, done, info
+
+    def reset(self):
+        state = self.env.reset()
+        return state
+
+    def reset_task(self, taskinfo):
+        self.set_task(taskinfo)
+        return self.reset()
+
+    def set_task(self, taskinfo):
+        self.current_task = taskinfo
+        self.env = self.envs[self.current_task['task']]
+    
+    def get_task(self):
+        return self.current_task
+
+    def get_all_tasks(self, requires_task_label=True):
+        return self.tasks
+    
+    def random_tasks(self, num_tasks, requires_task_label=True):
+        raise NotImplementedError
+
+class MiniGridFlatObs(MiniGrid):
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
+        super(MiniGridFlatObs, self).__init__(name, env_config_path, log_dir, seed, eval_mode)
         self.state_dim = int(np.prod(self.env.observation_space.shape))
 
     def step(self, action):
