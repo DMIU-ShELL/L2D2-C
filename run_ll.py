@@ -83,7 +83,7 @@ def ppo_baseline_minigrid(name, args):
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
-    run_iterations_wo_oracle(agent, tasks)
+    run_iterations_w_oracle(agent, tasks)
     with open('{0}/tasks_info_after_train.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
     # save config
@@ -158,7 +158,7 @@ def ppo_ll_minigrid(name, args):
     shutil.copy(env_config_path, config.log_dir + '/env_config.json')
     with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
-    run_iterations_wo_oracle(agent, tasks)
+    run_iterations_w_oracle(agent, tasks)
     with open('{0}/tasks_info_after_train.bin'.format(config.log_dir), 'wb') as f:
         pickle.dump(tasks, f)
     # save config
