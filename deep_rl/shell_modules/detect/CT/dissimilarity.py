@@ -6,7 +6,7 @@ import ot
 from plotting import *
 
 class dissimilarity:
-  def __init__(self, reference, device, num_samples=16384, num_iter=10, one_hot=True, normalized=True, demo=True):
+  def __init__(self, reference, device='cpu', num_samples=16384, num_iter=10, one_hot=True, normalized=True, demo=True):
     assert reference is not None, f'Reference not found.'
     self.ref = reference
     self.device = device
