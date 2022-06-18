@@ -108,6 +108,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         del tasks_
         self.config.cl_tasks_info = tasks
         label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label'])
+        self.task_label_dim = label_dim 
 
         # set seed before creating network to ensure network parameters are
         # same across all shell agents
@@ -271,17 +272,6 @@ class LLAgent(PPOContinualLearnerAgent):
                 break
         return found_task_idx
         
-    def _select_mask(self, agents, masks, ensemble=False):
-        found_mask = None
-        if ensemble:
-            raise NotImplementedError
-        else:
-            for agent, mask in zip(agents, masks):
-                if mask is not None:
-                    found_mask = mask
-                    break
-        return found_mask
-
     def task_train_start(self, task_label):
         task_idx = self._label_to_idx(task_label)
         if task_idx is None:
@@ -335,13 +325,24 @@ class ShellAgent_SP(LLAgent):
     def __init__(self, config):
         LLAgent.__init__(self, config)
 
+    def _select_mask(self, agents, masks, ensemble=False):
+        found_mask = None
+        if ensemble:
+            raise NotImplementedError
+        else:
+            for agent, mask in zip(agents, masks):
+                if mask is not None:
+                    found_mask = mask
+                    break
+        return found_mask
+
     def ping_agents(self, agents):
         task_label = self.task.get_task()['task_label']
         task_idx = self._label_to_idx(task_label)
         masks = [agent.ping_response(task_label) for agent in agents]
         mask = self._select_mask(agents, masks)
         if mask is not None:
-            # function from deep_rl/network/ssmask_utils.py
+            # function from deep_rl/shell_modules/mmn/ssmask_utils.py
             set_mask(self.network, mask, task_idx)
             return True
         else:
@@ -353,6 +354,7 @@ class ShellAgent_SP(LLAgent):
         if task_idx is None:
             mask = None
         else:
+            # function from deep_rl/shell_modules/mmn/ssmask_utils.py
             mask = get_mask(self.network, task_idx)
         return mask
 
@@ -371,19 +373,66 @@ class ShellAgent_DP(LLAgent):
         for k, v in self.mask_info.items():
             model_mask_dim += np.prod(v)
         self.model_mask_dim = model_mask_dim
-            
-    def infuse_masks(self, masks):
-        print('to be implemented')
-        return False
 
-    def ping_response(self, task_label):
+    def _select_mask(self, masks, ensemble=False):
+        found_mask = None
+        if ensemble:
+            raise NotImplementedError
+        else:
+            for mask in masks:
+                if mask is not None:
+                    found_mask = mask
+                    break
+        return found_mask
+            
+    def label_to_mask(self, task_label):
         task_idx = self._label_to_idx(task_label)
-        # get task mask.
+        # get task mask
         if task_idx is None:
             mask = None
         else:
+            # function from deep_rl/shell_modules/mmn/ssmask_utils.py
             mask = get_mask(self.network, task_idx)
+            mask = self.mask_to_vec(mask)
         return mask
+
+    def distil_task_knowledge(self, masks):
+        # TODO fix algorithm. Current solution invloves selecting the first mask 
+        # that is not Noneand using it as the knowledge from which the agent can 
+        # continue training on current task.
+        task_label = self.curr_train_task_label
+        #task_label = self.task.get_task()['task_label'] # use this to pass label from outside fn
+        task_idx = self._label_to_idx(task_label)
+
+        masks = [self.vec_to_mask(mask) for mask in masks]
+        mask = self._select_mask(masks)
+
+        if mask is not None:
+            # function from deep_rl/shell_modules/mmn/ssmask_utils.py
+            set_mask(self.network, mask, task_idx)
+            return True
+        else:
+            return False
+
+    def mask_to_vec(self, dict_mask):
+        with torch.no_grad():
+            vec_mask = torch.zeros(self.model_mask_dim,)
+            start = 0
+            stop = None
+            for k, v in dict_mask.items():
+                stop = start + np.prod(v.shape)
+                vec_mask[start : stop] = v.reshape(-1,)
+                start = stop
+        return vec_mask
+
+    def vec_to_mask(self, vec_mask):
+        dict_mask = {}
+        start = 0
+        stop = None
+        for key, value in self.mask_info.items():
+            stop = start + np.prod(value)
+            dict_mask[key] = vec_mask[start : stop].reshape(*value)
+        return
 
 class LLAgent_NoOracle(PPOContinualLearnerAgent):
     '''
@@ -419,16 +468,17 @@ class LLAgent_NoOracle(PPOContinualLearnerAgent):
                 break
         return found_task_idx
         
-    def _select_mask(self, agents, masks, ensemble=False):
-        found_mask = None
-        if ensemble:
-            raise NotImplementedError
-        else:
-            for agent, mask in zip(agents, masks):
-                if mask is not None:
-                    found_mask = mask
-                    break
-        return found_mask
+    # TODO block of code to remove
+    #def _select_mask(self, agents, masks, ensemble=False):
+    #    found_mask = None
+    #    if ensemble:
+    #        raise NotImplementedError
+    #    else:
+    #        for agent, mask in zip(agents, masks):
+    #            if mask is not None:
+    #                found_mask = mask
+    #                break
+    #    return found_mask
 
     def update_task_label(self, task_label):
         # TODO: consider other ways to update the label as detect module
@@ -490,3 +540,4 @@ class LLAgent_NoOracle(PPOContinualLearnerAgent):
             task_idx = self._label_to_idx(self.curr_train_task_label)
             set_model_task(self.network, task_idx)
         return
+

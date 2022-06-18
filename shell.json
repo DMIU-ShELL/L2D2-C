@@ -2,11 +2,11 @@
 "agents": [
     {
         "task_ids": [0, 1, 2],
-        "max_steps": 51200
+        "max_steps": 102400
     }, 
     {
         "task_ids": [1, 2, 0],
-        "max_steps": 51200
+        "max_steps": 102400
     }
 ]
 }
