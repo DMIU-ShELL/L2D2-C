@@ -22,13 +22,15 @@ class Communication(object):
     MSG_DATA_NULL = 0 # an empty message
     MSG_DATA_SET = 1
 
-    def __init__(self, agent_id, num_agents, task_label_sz, mask_sz, logger):
+    def __init__(self, agent_id, num_agents, task_label_sz, mask_sz, logger, comm_init_str=None):
         super(Communication, self).__init__()
         self.agent_id = agent_id
         self.num_agents = num_agents
         self.task_label_sz = task_label_sz
         self.mask_sz = mask_sz
         self.logger = logger
+        if comm_init_str is None:
+            comm_init_str = 'env://'
 
         self.handle_send_recv_req = None
         self.handle_recv_resp = [None, ] * num_agents
@@ -42,8 +44,8 @@ class Communication(object):
             for _ in range(num_agents)]
 
         logger.info('*****agent {0} / initialising transfer (communication) module'.format(agent_id))
-        dist.init_process_group(backend='gloo', rank=agent_id, world_size=num_agents, \
-            timeout=datetime.timedelta(seconds=30))
+        dist.init_process_group(backend='gloo', init_method=comm_init_str, rank=agent_id, \
+            world_size=num_agents, timeout=datetime.timedelta(seconds=30))
 
     def _null_message(self, msg):
         # check whether message sent denotes or is none.

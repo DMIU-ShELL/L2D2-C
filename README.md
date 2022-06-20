@@ -29,9 +29,14 @@ To run a single lifelong learner agent, use the command below:
 python run_ll.py supermask ./env_configs/minigrid_sc_3.json --max_steps 102400
 ```
 
-To run a ShELL (multi lifelong learner agents) in a single process, use the command below:
+To run a ShELL (multi lifelong learner agents) in a single process (sequential executions per shell train step), use the command below:
 ```
 python run_shell.py --shell_config_path ./shell.json --env_config_path ./env_configs/minigrid_sc_3.json
+```
+
+To run a ShELL (multi lifelong learner agents) across multiple processes (concurrent executions per shell train step) in a single machine, use the command below:
+```
+python run_shell_dist.py --shell_config_path ./shell.json --env_config_path ./env_configs/minigrid_sc_3.json --init_address 127.0.0.1 --init_port 5283
 ```
 
 ## Maintainers
