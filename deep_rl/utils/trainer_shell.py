@@ -173,6 +173,10 @@ note: task boundaries are explictly given to the agents. this means that each ag
 knows when task changes. 
 '''
 def shell_dist_train(agent, comm, agent_id, num_agents):
+    logger = agent.config.logger
+    print()
+    logger.info('*****start shell training')
+
     shell_done = False
     shell_iterations = 0
     shell_tasks = agent.config.cl_tasks_info # tasks for agent
@@ -181,16 +185,12 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
     shell_eval_tracker = False
     shell_eval_data = []
     num_eval_tasks = len(agent.evaluation_env.get_all_tasks())
-    shell_eval_data.append(np.zeros((1, num_eval_tasks), dtype=np.float32))
-    shell_metric_tcr = [] # tcr => total cumulative reward metric
+    shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
+    shell_metric_tcr = [] # tcr => total cumulative reward metric. NOTE may be redundant now
+    eval_data_fh = open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_id), 'a', \
+        buffering=1) # buffering=1 means flush data to file after every line written
 
     await_response = [False,] * num_agents # flag
-
-    logger = agent.config.logger
-
-    print()
-    logger.info('*****start shell training')
-
     # set the first task each agent is meant to train on
     states_ = agent.task.reset_task(shell_tasks[0])
     agent.states = agent.config.state_normalizer(states_)
@@ -264,7 +264,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
                 agent.evaluation_states = eval_states
                 rewards, _ = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
                 agent.task_eval_end()
-                shell_eval_data[-1][0, eval_task_idx] = np.mean(rewards)
+                shell_eval_data[-1][eval_task_idx] = np.mean(rewards)
             shell_eval_tracker = True
 
         # end of current task training. move onto next task or end training if last task.
@@ -301,6 +301,16 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
                 logger.info('*****agent {0} / end of all training'.format(agent_id))
             del task_idx_
                     
+        if shell_eval_tracker:
+            # log the last eval metrics to file
+            _data = shell_eval_data[-1]
+            if _data.ndim == 1:
+                _data = np.expand_dims(_data, axis=0)
+            np.savetxt(eval_data_fh, _data, delimiter=',', fmt='%.4f')
+            del _data
+            # reset eval tracker and add new buffer to save next eval metrics
+            shell_eval_tracker = False
+            shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
         #if all(shell_eval_tracker):
         #    _metrics = shell_eval_data[-1]
         #    # compute tcr 
@@ -326,6 +336,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
         comm.barrier()
     # end of while True
 
+    eval_data_fh.close()
     # save eval metrics
     to_save = np.stack(shell_eval_data, axis=0)
     with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:

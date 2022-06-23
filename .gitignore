@@ -103,3 +103,9 @@ ENV/
 # vim swap (temporary) files
 *.swp
 *.swo
+
+# plots directory
+plots
+
+# mac os hidden file
+.DS_Store
