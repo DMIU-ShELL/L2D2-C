@@ -71,17 +71,20 @@ def shell_dist_minigrid(name, args):
         shell_config = json.load(f)
         shell_config = shell_config['agents'][args.agent_id]
     num_agents = args.num_agents
+
+    # set up config
+    config = Config()
+    config = global_config(config, name)
     
     # set up logging system
-    exp_id = '' + '-agent-{0}'.format(args.agent_id)
-    log_dir = get_default_log_dir(name + '-shell-dist' + exp_id)
+    exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
+    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
+    log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
+    config.logger = logger
 
     # create/initialise agent
     logger.info('*****initialising agent {0}'.format(args.agent_id))
-    config = Config()
-    config = global_config(config, name)
-    config.logger = logger
     # task may repeat, so get number of unique tasks.
     num_tasks = len(set(shell_config['task_ids'])) 
     config.cl_num_tasks = num_tasks
@@ -130,6 +133,8 @@ if __name__ == '__main__':
         'in the pool of agents', default='127.0.0.1', type=str)
     parser.add_argument('--init_port', help='port number of the master/first agent (rank/id 0) '\
         'in the pool of agents', default='5283', type=str)
+    parser.add_argument('--exp_id', help='id of the experiment (e.g, seed). useful for setting '\
+        'up structured directory of experiment results/data', default='upz', type=str)
     args = parser.parse_args()
 
     # initialise environment variable useful for distributed agent communications
