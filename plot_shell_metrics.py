@@ -34,22 +34,20 @@ def plot(results, title='', yaxis_label=''):
     for method_name, result_dict in results.items():
         xdata = result_dict['xdata']
         ydata = result_dict['ydata']
+        cfi = result_dict['ydata_cfi']
         plot_colour = result_dict['plot_colour']
         ax.plot(xdata, ydata, linewidth=3, label=method_name, color=plot_colour)
-        #ax.fill_between(xdata, ydata - cfi, ydata + cfi, alpha=0.2, color=plot_colour)
+        ax.fill_between(xdata, ydata - cfi, ydata + cfi, alpha=0.2, color=plot_colour)
     return fig
 
-def main(args):
-    if args.path[-1] != '/':
-        args.path += '/'
-    save_path = './plots/' + os.path.basename(args.path[ : -1]) + '/'
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
+def process_path(args_path):
+    if args_path[-1] != '/':
+        args_path += '/'
 
-    names = os.listdir(args.path)
+    names = os.listdir(args_path)
     names = sorted(names, key=lambda x: int(x.split('_')[1]))
 
-    paths = [args.path + name for name in names]
+    paths = [args_path + name for name in names]
     paths = ['{0}/{1}/'.format(path, os.listdir(path)[-1]) for path in paths]
     num_agents = len(paths)
     metrics = []
@@ -59,43 +57,68 @@ def main(args):
         if m.ndim == 1:
             m = np.expand_dims(m, axis=0)
         metrics.append(m)
-        print(m.shape)
+        #print(m.shape)
     num_evals = metrics[0].shape[0]
     num_tasks = metrics[0].shape[1]
-
+    
     # shape: num_agents x num_evals x num_tasks
     metrics = np.stack(metrics, axis=0)
-    print(metrics.shape)
+    #print(metrics.shape)
     # shape: num_evals x num_agents x num_tasks
     metrics = metrics.transpose(1, 0, 2)
-    print(metrics.shape)
-
+    #print(metrics.shape)
+    
     metrics_icr = []
     metrics_tp = []
     for idx in range(num_evals):
         data = metrics[idx]
         _max_reward = data.max(axis=0)
         agent_ids = data.argmax(axis=0).tolist()
-        print('best agent per task: {0}'.format(agent_ids))
+        #print('best agent per task: {0}'.format(agent_ids))
         # compute icr/tcr
         icr = _max_reward.sum()
         metrics_icr.append(icr)
 
         tp = np.sum(metrics_icr)
         metrics_tp.append(tp)
+    
+    return metrics, metrics_icr, metrics_tp
 
+def main(args):
+    exp_name = 'MiniGrid-shell-dist'
+    #save_path = './log/plots/' + os.path.basename(args.path[ : -1]) + '/'
+    save_path = './log/plots/' + exp_name + '/'
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    data_seeds = []
+    icr_seeds = []
+    tp_seeds = []
+    for p in args.paths:
+        data = process_path(p)
+        data_seeds.append(data[0])
+        icr_seeds.append(data[1])
+        tp_seeds.append(data[2])
+    data_seeds = np.stack(data_seeds, axis=0) # shape: num_seeds x num_evals x num_agents x num_tasks
+    icr_seeds = np.stack(icr_seeds, axis=0)   # shape: num_seeds x num_evals
+    tp_seeds = np.stack(tp_seeds, axis=0)     # shape: num_seeds x num_evals
+
+    num_evals = data_seeds.shape[1]
+	# icr
     data = {}
     data['shell'] = {}
-    data['shell']['xdata'] = np.arange(len(metrics_icr))
-    data['shell']['ydata'] = np.asarray(metrics_icr)
+    data['shell']['xdata'] = np.arange(num_evals)
+    data['shell']['ydata'] = np.mean(icr_seeds, axis=0)
+    data['shell']['ydata_cfi'] = np.std(tp_seeds, axis=0)
     data['shell']['plot_colour'] = 'red'
     fig = plot(data, 'ICR')
     fig.savefig(save_path + 'metrics_icr.pdf', dpi=256, format='pdf')
 
     data = {}
     data['shell'] = {}
-    data['shell']['xdata'] = np.arange(len(metrics_tp))
-    data['shell']['ydata'] = np.asarray(metrics_tp)
+    data['shell']['xdata'] = np.arange(num_evals)
+    data['shell']['ydata'] = np.mean(tp_seeds, axis=0)
+    data['shell']['ydata_cfi'] = np.std(tp_seeds, axis=0)
     data['shell']['plot_colour'] = 'red'
     fig = plot(data, 'TP')
     fig.savefig(save_path + 'metrics_tp.pdf', dpi=256, format='pdf')
@@ -104,6 +127,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('path', help='path to the experiment folder')
+    parser.add_argument('paths', help='paths to the experiment folder (support'\
+        'paths to multiple seeds)', nargs='+')
     main(parser.parse_args())
 

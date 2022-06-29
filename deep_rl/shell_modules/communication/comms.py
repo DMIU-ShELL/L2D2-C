@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import copy
 import time
 import datetime
@@ -22,15 +23,20 @@ class Communication(object):
     MSG_DATA_NULL = 0 # an empty message
     MSG_DATA_SET = 1
 
-    def __init__(self, agent_id, num_agents, task_label_sz, mask_sz, logger, comm_init_str=None):
+    def __init__(self, agent_id, num_agents, task_label_sz, mask_sz, logger, init_address, init_port):
         super(Communication, self).__init__()
         self.agent_id = agent_id
         self.num_agents = num_agents
         self.task_label_sz = task_label_sz
         self.mask_sz = mask_sz
         self.logger = logger
-        if comm_init_str is None:
+
+        if init_address in ['127.0.0.1', 'localhost']:
+            os.environ['MASTER_ADDR'] = init_address
+            os.environ['MASTER_PORT'] = init_port
             comm_init_str = 'env://'
+        else:
+            comm_init_str = 'tcp://{0}:{1}'.format(init_address, init_port)
 
         self.handle_send_recv_req = None
         self.handle_recv_resp = [None, ] * num_agents

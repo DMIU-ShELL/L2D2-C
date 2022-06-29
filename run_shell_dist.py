@@ -19,7 +19,6 @@ import shutil
 import matplotlib
 matplotlib.use("Pdf")
 from deep_rl import *
-import os
 import argparse
 
 # helper function
@@ -69,12 +68,16 @@ def shell_dist_minigrid(name, args):
 
     with open(shell_config_path, 'r') as f:
         shell_config = json.load(f)
+        config_seed = shell_config['seed']
         shell_config = shell_config['agents'][args.agent_id]
     num_agents = args.num_agents
 
     # set up config
     config = Config()
     config = global_config(config, name)
+
+    # set seed
+    config.seed = config_seed
     
     # set up logging system
     exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
@@ -82,6 +85,10 @@ def shell_dist_minigrid(name, args):
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
     config.logger = logger
+
+    # save shell config and env config
+    shutil.copy(shell_config_path, log_dir)
+    shutil.copy(env_config_path, log_dir)
 
     # create/initialise agent
     logger.info('*****initialising agent {0}'.format(args.agent_id))
@@ -110,7 +117,7 @@ def shell_dist_minigrid(name, args):
 
     # set up communication (transfer module)
     comm = Communication(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger)
+        agent.model_mask_dim, logger, args.init_address, args.init_port)
 
     # start training
     shell_dist_train(agent, comm, args.agent_id, args.num_agents)
@@ -136,9 +143,5 @@ if __name__ == '__main__':
     parser.add_argument('--exp_id', help='id of the experiment (e.g, seed). useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
     args = parser.parse_args()
-
-    # initialise environment variable useful for distributed agent communications
-    os.environ['MASTER_ADDR'] = args.init_address
-    os.environ['MASTER_PORT'] = args.init_port
 
     shell_dist_minigrid(name, args)
