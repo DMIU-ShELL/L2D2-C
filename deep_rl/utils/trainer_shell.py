@@ -82,7 +82,7 @@ def shell_train(agents, logger):
                 shell_iterations[agent_idx] % agent.config.eval_interval == 0):
                 logger.info('*****agent {0} / evaluation block'.format(agent_idx))
                 _tasks = agent.evaluation_env.get_all_tasks()
-                _names = [eval_task_info['task'] for eval_task_info in _tasks]
+                _names = [eval_task_info['name'] for eval_task_info in _tasks]
                 logger.info('eval tasks: {0}'.format(', '.join(_names)))
                 for eval_task_idx, eval_task_info in enumerate(_tasks):
                     agent.task_eval_start(eval_task_info['task_label'])
@@ -256,7 +256,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
             shell_iterations % agent.config.eval_interval == 0):
             logger.info('*****agent {0} / evaluation block'.format(agent_id))
             _tasks = agent.evaluation_env.get_all_tasks()
-            _names = [eval_task_info['task'] for eval_task_info in _tasks]
+            _names = [eval_task_info['name'] for eval_task_info in _tasks]
             logger.info('eval tasks: {0}'.format(', '.join(_names)))
             for eval_task_idx, eval_task_info in enumerate(_tasks):
                 agent.task_eval_start(eval_task_info['task_label'])

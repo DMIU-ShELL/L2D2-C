@@ -109,3 +109,6 @@ plots
 
 # mac os hidden file
 .DS_Store
+
+# numpy files
+*.npy

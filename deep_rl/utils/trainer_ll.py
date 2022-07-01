@@ -9,7 +9,7 @@ from .torch_utils import *
 # used by either a baseline agent (with no task knowledge preservation) or
 # an agent with knowledge preservation via supermask superposition (ss)
 # modules on: PPO agent or PPO agent with supermask
-# modules off: detect and resoource manager
+# modules off: detect and resource manager
 def run_iterations_w_oracle(agent, tasks_info):
     config = agent.config
 
@@ -38,6 +38,7 @@ def run_iterations_w_oracle(agent, tasks_info):
 
         for task_idx, task_info in enumerate(tasks_info):
             config.logger.info('*****start training on task {0}'.format(task_idx))
+            config.logger.info('name: {0}'.format(task_info['name']))
             config.logger.info('task: {0}'.format(task_info['task']))
             config.logger.info('task_label: {0}'.format(task_info['task_label']))
 
@@ -82,7 +83,7 @@ def run_iterations_w_oracle(agent, tasks_info):
                     iteration % agent.config.eval_interval == 0):
                     config.logger.info('*****agent / evaluation block')
                     _tasks = tasks_info
-                    _names = [eval_task_info['task'] for eval_task_info in _tasks]
+                    _names = [eval_task_info['name'] for eval_task_info in _tasks]
                     config.logger.info('eval tasks: {0}'.format(', '.join(_names)))
                     eval_data.append(np.zeros(len(_tasks),))
                     for eval_task_idx, eval_task_info in enumerate(_tasks):
