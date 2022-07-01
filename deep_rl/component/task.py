@@ -10,6 +10,7 @@ import sys
 from .bench import Monitor
 from ..utils import *
 import uuid
+import json
 
 class BaseTask:
     def __init__(self):
@@ -173,40 +174,33 @@ class CTgraph(BaseTask):
     def __init__(self, name, env_config_path, log_dir=None):
         BaseTask.__init__(self)
         self.name = name
-        from gym_CTgraph import CTgraph_env
-        from gym_CTgraph.CTgraph_conf import CTgraph_conf
-        from gym_CTgraph.CTgraph_images import CTgraph_images
-        env = gym.make(name)
-        env_config = CTgraph_conf(env_config_path)
-        env_config = env_config.getParameters()
-        imageDataset = CTgraph_images(env_config)
-        self.env_config=env_config
+        import gym
+        import gym_CTgraph
+        env = gym.make(name, config_path=env_config_path)
 
-        ret = env.init(env_config, imageDataset)
-        if isinstance(ret, tuple):
-            state, _, _, _ = ret
-        else:
-            state = ret
-        env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape,\
-            dtype=np.float32)
+        state = env.reset()
+        #env.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=state.shape,\
+        #    dtype=np.float32)
+        self.observation_space = env.observation_space
         self.action_dim = env.action_space.n
-        if env_config['image_dataset']['1D']:
+        if env.oneD:
             self.state_dim = int(np.prod(env.observation_space.shape))
         else:
             self.state_dim = env.observation_space.shape
 
         self.env = self.set_monitor(env, log_dir)
 
+        depth = env.DEPTH
+        branch = env.BRANCH
+
         # task label config
-        self.task_label_dim = 2**env_config['graph_shape']['depth']
+        self.task_label_dim = 2**depth
         self.one_hot_labels = True
 
         # get all tasks in graph environment instance
         from itertools import product
-        depth = env_config['graph_shape']['depth']
-        branch = env_config['graph_shape']['branching_factor']
         tasks = list(product(list(range(branch)), repeat=depth))
-        names = ['ctgraph_d{0}_b{1}_task_{2}'.format(depth, branch, idx+1) \
+        names = ['ctgraph_d{0}_b{1}_task_{2}'.format(depth, branch, idx) \
             for idx in range(len(tasks))] 
         self.tasks = [{'name': name, 'task': np.array(task), 'task_label': None} \
             for name, task in zip(names, tasks)]
@@ -232,10 +226,7 @@ class CTgraph(BaseTask):
 
     def reset(self):
         ret = self.env.reset()
-        if isinstance(ret, tuple):
-            state, _, _, _ = ret
-        else:
-            state = ret
+        state = ret
         if self.env_config['image_dataset']['1D']: state = state.ravel()
         return state
 
@@ -299,12 +290,122 @@ class CTgraphFlatObs(CTgraph):
         return state.ravel(), reward, done, info
 
     def reset(self):
-        #state = self.env.reset()
-        ret = self.env.reset()
-        if isinstance(ret, tuple):
-            state, _, _, _ = ret
+        state = self.env.reset()
+        return state.ravel()
+
+class MetaCTgraph(BaseTask):
+    '''
+    ct-graph implementation where the class wrappers multiple ct-graph environments: each
+    instance can vary in terms of depth (i.e., change in depth config)
+    or in terms of observation distribution (image seed in config).
+
+    note, only 2d state/observations are supported since in 1d states ct-graph, the state_dim
+    can vary across different ct-graph depth.
+    '''
+    def __init__(self, name, env_config_path, log_dir=None):
+        BaseTask.__init__(self)
+        self.name = name
+
+        # create all environment instances
+        import os
+        import gym
+        import gym_CTgraph
+        from itertools import product
+        with open(env_config_path, 'r') as f:
+            env_meta_config = json.load(f)
+        base_path = os.path.dirname(env_config_path)
+        envs = []
+        for config_path in env_meta_config['config_paths']:
+            env = gym.make('CTgraph-v0', config_path='{0}/{1}'.format(base_path, config_path))
+            if env.oneD:
+                raise ValueError('each environment should be configured to use 2d observation.'\
+                    ' Set 1d config in {0}/{1} to false.'.format(base_path, config_path))
+            envs.append(env)
+
+        # observation/action space configuration
+        self.observation_space = envs[0].observation_space
+        self.action_dim = envs[0].action_space.n
+        self.state_dim = envs[0].observation_space.shape
+
+        # generate tasks from all instantiated environments
+        all_tasks = []
+        for idx, env in enumerate(envs):
+            depth = env.DEPTH
+            branch = env.BRANCH
+            img_seed = env.conf_data['image_dataset']['seed']
+            tasks = list(product(list(range(branch)), repeat=depth))
+            names = ['ctgraph_d{0}_b{1}_imgseed_{2}_task_{3}'.format(depth, branch, img_seed, j) \
+                for j in range(len(tasks))] 
+            tasks = [{'name': name, 'task': np.array(task), 'task_label': None, 'env_idx': idx} \
+                for name, task in zip(names, tasks)]
+            all_tasks += tasks
+
+        # set monitor
+        envs = [self.set_monitor(env, log_dir) for env in envs]
+        self.envs = envs
+        self.tasks = all_tasks
+        self.env = None
+
+        # task label config
+        self.task_label_dim = env_meta_config['label_dim']
+        self.one_hot_labels = env_meta_config['one_hot']
+
+        # generate label for each task
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
         else:
-            state = ret
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32) 
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+        # set default task
+        self.set_task(self.tasks[0])
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        if self.env.oneD: state = state.ravel()
+        return state, reward, done, info
+
+    def reset(self):
+        ret = self.env.reset()
+        state = ret
+        if self.env.oneD: state = state.ravel()
+        return state
+
+    def reset_task(self, taskinfo):
+        self.set_task(taskinfo)
+        return self.reset()
+
+    def set_task(self, taskinfo):
+        self.env = self.envs[taskinfo['env_idx']]
+        self.env.unwrapped.set_high_reward_path(taskinfo['task'])
+        self.current_task = taskinfo
+
+    def get_task(self):
+        return self.current_task
+
+    def get_all_tasks(self, requires_task_label=True):
+        # `requires_task_label` left there for legacy/compatibility reasons to ensure uniformity
+        # with other defined environments (e.g., minigrid and dynamic grid)
+        return self.tasks
+
+class MetaCTgraphFlatObs(MetaCTgraph):
+    def __init__(self, name, env_config_path, log_dir=None):
+        super(MetaCTgraphFlatObs, self).__init__(name, env_config_path, log_dir)
+        # overwrite previous written statedim to be flat 1d vector observations
+        self.state_dim = int(np.prod(self.env.observation_space.shape))
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        return state.ravel(), reward, done, info
+
+    def reset(self):
+        state = self.env.reset()
         return state.ravel()
 
 class MiniGrid(BaseTask):
@@ -313,7 +414,6 @@ class MiniGrid(BaseTask):
         self.name = name
         import gym_minigrid
         from gym_minigrid.wrappers import ImgObsWrapper, ReseedWrapper, ActionBonus, StateBonus
-        import json
         self.wrappers_dict = {'ActionBonus': ActionBonus, 'StateBonus': StateBonus}
         with open(env_config_path, 'r') as f:
             env_config = json.load(f)
@@ -553,7 +653,8 @@ class ProcessWrapper(mp.Process):
 
     def run(self):
         np.random.seed()
-        seed = np.random.randint(0, sys.maxsize)
+        #seed = np.random.randint(0, sys.maxsize)
+        seed = np.random.randint(0, 2**32 - 1)
         task = self.task_fn(log_dir=self.log_dir)
         task.seed(seed)
         while True:
