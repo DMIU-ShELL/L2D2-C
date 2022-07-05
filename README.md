@@ -32,12 +32,22 @@ python run_ll.py supermask --env_name minigrid --env_config_path ./env_configs/m
 
 To run a ShELL (multi lifelong learner agents) in a single process (sequential executions per shell train step), use the command below:
 ```
-python run_shell.py --shell_config_path ./shell.json --env_name minigrid --env_config_path ./env_configs/minigrid_sc_3.json
+python run_shell.py --shell_config_path ./shell.json
 ```
 
 To run a ShELL (multi lifelong learner agents) across multiple processes (concurrent executions per shell train step) in a single machine, use the command below:
 ```
-python run_shell_dist.py --shell_config_path ./shell.json --env_name minigrid --env_config_path ./env_configs/minigrid_sc_3.json
+python run_shell_dist.py --shell_config_path ./shell.json
+```
+
+Note: Minigrid (with 3 simple crossing tasks) is specified as the default environment/tasks in `shell.json`. To run CT-graph experiments, update `shell.json` as shown below.
+```
+...
+"env": {
+    "env_name": "ctgraph",
+    "env_config_path": "./env_configs/meta_ctgraph.json"
+}
+...
 ```
 
 ## Maintainers
