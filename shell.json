@@ -2,12 +2,14 @@
 "agents": [
     {
         "task_ids": [0, 1, 2],
-        "max_steps": 51200
+        "max_steps": 102400
     }, 
     {
         "task_ids": [1, 2, 0],
-        "max_steps": 51200
+        "max_steps": 102400
     }
 ],
-"seed": 9157
+"seed": 9157,
+"init_address": "127.0.0.1",
+"init_port": "5283"
 }

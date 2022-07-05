@@ -3,22 +3,23 @@ Detect, Module, Integrate and Transfer unit (DMIU) is a Shared experience lifelo
 A distributed lifelong learning framework where each agent is a lifelong learner capable of sharing and receiving knowledge about tasks from other agents.
 
 ## Agent Description
-Each lifelong learner agent is a [PPO](#) controller combined with [Supermask Superposition](#) algorithm for knowledge preservation across tasks.
-Basline agents is a regular [PPO](#) controller. No knowledge preservation algorithm is present, hence it catastrophically forgets.
+Each lifelong learner agent is a [PPO](https://arxiv.org/abs/1707.06347) controller combined with [Supermask Superposition](https://arxiv.org/abs/2006.14769) algorithm for knowledge preservation across tasks.
+Basline agents is a regular [PPO](https://arxiv.org/abs/1707.06347) controller. No knowledge preservation algorithm is present, hence it catastrophically forgets.
 
 ## Evaluation Domain
 Agent-based (reinforcement) learning. The DMIU code is built on top of existing [DeepRL](https://github.com/ShangtongZhang/DeepRL) repository. The repository is extended on two front
 1. Extension of RL agents to lifelong learning framework, methods and experiments.
 2. Extension of 1. to shared experience lifelong learning framework.
 
-Sample environments: [Minigrid](#), [CT-graph](#)
+Sample environments: [Minigrid](https://github.com/Farama-Foundation/gym-minigrid), [CT-graph](https://github.com/soltoggio/CT-graph)
 
 ## Requirements
 - Same as the requirements of the [DeepRL](https://github.com/ShangtongZhang/DeepRL) repository.
-- [Minigrid](#)
+- [Minigrid](https://github.com/Farama-Foundation/gym-minigrid) if running minigrid experiments.
+- [CT-graph](https://github.com/soltoggio/CT-graph) if running CT-graph experiments.
 
 ## Usage
-Note: Example commands below using [Minigrid](#) environment.
+Note: Example commands below using [Minigrid](https://github.com/Farama-Foundation/gym-minigrid) environment.
 To run a baseline agent, use the command below:
 ```
 python run_ll.py baseline --env_name minigrid --env_config_path ./env_configs/minigrid_sc_3.json --max_steps 102400
@@ -36,7 +37,7 @@ python run_shell.py --shell_config_path ./shell.json --env_name minigrid --env_c
 
 To run a ShELL (multi lifelong learner agents) across multiple processes (concurrent executions per shell train step) in a single machine, use the command below:
 ```
-python run_shell_dist.py --shell_config_path ./shell.json --env_name minigrid --env_config_path ./env_configs/minigrid_sc_3.json --init_address 127.0.0.1 --init_port 5283
+python run_shell_dist.py --shell_config_path ./shell.json --env_name minigrid --env_config_path ./env_configs/minigrid_sc_3.json
 ```
 
 ## Maintainers

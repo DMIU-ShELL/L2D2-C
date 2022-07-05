@@ -68,6 +68,9 @@ def shell_dist_mctgraph(name, args):
     with open(shell_config_path, 'r') as f:
         shell_config = json.load(f)
         config_seed = shell_config['seed']
+        # address and port number of the master/first agent (rank/id 0) in the pool of agents
+        init_address = shell_config['init_address']
+        init_port = shell_config['init_port']
         shell_config = shell_config['agents'][args.agent_id]
     num_agents = args.num_agents
 
@@ -131,6 +134,9 @@ def shell_dist_minigrid(name, args):
     with open(shell_config_path, 'r') as f:
         shell_config = json.load(f)
         config_seed = shell_config['seed']
+        # address and port number of the master/first agent (rank/id 0) in the pool of agents
+        init_address = shell_config['init_address']
+        init_port = shell_config['init_port']
         shell_config = shell_config['agents'][args.agent_id]
     num_agents = args.num_agents
 
@@ -182,7 +188,7 @@ def shell_dist_minigrid(name, args):
 
     # set up communication (transfer module)
     comm = Communication(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, args.init_address, args.init_port)
+        agent.model_mask_dim, logger, init_address, init_port)
 
     # start training
     shell_dist_train(agent, comm, args.agent_id, args.num_agents)
@@ -200,11 +206,7 @@ if __name__ == '__main__':
         'minigrid and ctgraph currently supported', default='minigrid')
     parser.add_argument('--env_config_path', help='environment config', \
         default='./env_configs/minigrid_sc_3.json')
-    parser.add_argument('--init_address', help='address of the master/first agent (rank/id 0) '\
-        'in the pool of agents', default='127.0.0.1', type=str)
-    parser.add_argument('--init_port', help='port number of the master/first agent (rank/id 0) '\
-        'in the pool of agents', default='5283', type=str)
-    parser.add_argument('--exp_id', help='id of the experiment (e.g, seed). useful for setting '\
+    parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
     args = parser.parse_args()
 
