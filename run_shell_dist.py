@@ -121,7 +121,7 @@ def shell_dist_mctgraph(name, args):
 
     # set up communication (transfer module)
     comm = Communication(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, args.init_address, args.init_port)
+        agent.model_mask_dim, logger, init_address, init_port)
 
     # start training
     shell_dist_train(agent, comm, args.agent_id, args.num_agents)
