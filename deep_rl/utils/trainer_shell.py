@@ -81,7 +81,7 @@ def shell_train(agents, logger):
             if (agent.config.eval_interval is not None and \
                 shell_iterations[agent_idx] % agent.config.eval_interval == 0):
                 logger.info('*****agent {0} / evaluation block'.format(agent_idx))
-                _tasks = agent.evaluation_env.get_all_tasks()
+                _tasks = shell_tasks[agent_idx]
                 _names = [eval_task_info['name'] for eval_task_info in _tasks]
                 logger.info('eval tasks: {0}'.format(', '.join(_names)))
                 for eval_task_idx, eval_task_info in enumerate(_tasks):
@@ -203,9 +203,6 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
 
     msg = None
     while True:
-        agent.iteration()
-        shell_iterations += 1
-
         # listen for and send info (task label or NULL message) to other agents
         other_agents_request = comm.send_receive_request(msg)
         msg = None # reset message
@@ -234,6 +231,10 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
             # TODO still need to fix how mask is used.
             agent.distil_task_knowledge(masks)
                     
+        # agent iteration (training step): collect on policy data and optimise agent
+        agent.iteration()
+        shell_iterations += 1
+
         # tensorboard log
         if shell_iterations % agent.config.iteration_log_interval == 0:
             logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
@@ -255,7 +256,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
         if (agent.config.eval_interval is not None and \
             shell_iterations % agent.config.eval_interval == 0):
             logger.info('*****agent {0} / evaluation block'.format(agent_id))
-            _tasks = agent.evaluation_env.get_all_tasks()
+            _tasks = shell_tasks
             _names = [eval_task_info['name'] for eval_task_info in _tasks]
             logger.info('eval tasks: {0}'.format(', '.join(_names)))
             for eval_task_idx, eval_task_info in enumerate(_tasks):

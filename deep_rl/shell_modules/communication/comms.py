@@ -23,6 +23,9 @@ class Communication(object):
     MSG_DATA_NULL = 0 # an empty message
     MSG_DATA_SET = 1
 
+    # number of seconds to sleep/wait
+    SLEEP_DURATION = 1
+
     def __init__(self, agent_id, num_agents, task_label_sz, mask_sz, logger, init_address, init_port):
         super(Communication, self).__init__()
         self.agent_id = agent_id
@@ -77,13 +80,13 @@ class Communication(object):
             data[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_NULL
         else:
             data[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_SET
-            data[Communication.META_INF_SZ : ] = task_label # TODO deepcopy?
+            data[Communication.META_INF_SZ : ] = task_label # NOTE deepcopy?
 
         # actual send/receive
         self.handle_send_recv_req = dist.all_gather(tensor_list=self.buff_send_recv_req, \
             tensor=data, async_op=True)
         # briefly wait to see if other agents will send their request
-        time.sleep(5) # TODO fix hardcode.
+        time.sleep(Communication.SLEEP_DURATION)
         
         # check buffer for incoming requests
         idxs = list(range(len(self.buff_send_recv_req)))
@@ -123,7 +126,7 @@ class Communication(object):
             buff[Communication.META_INF_SZ : ] = torch.inf
         else:
             buff[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_SET
-            buff[Communication.META_INF_SZ : ] = mask # TODO deepcopy? 
+            buff[Communication.META_INF_SZ : ] = mask # NOTE deepcopy? 
 
         # actual send
         self.handle_send_resp = dist.isend(tensor=buff, dst=requester_agent_id)
@@ -138,7 +141,7 @@ class Communication(object):
                 self.logger.info('recv_resp: set up handle to receive response from agent {0}'.format(idx))
                 self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_resp[idx], src=idx)
 
-        time.sleep(5) # TODO fix hard code
+        time.sleep(Communication.SLEEP_DURATION)
 
         # check whether message has been received
         ret = []
@@ -159,8 +162,9 @@ class Communication(object):
                 ret.append(mask)
                 self.logger.info('recv_resp: appending {0} response'.format(mask))
 
-            # reset buffer?
+            # reset buffer and handle
             self.buff_recv_resp[idx][:] = torch.inf
+            self.handle_recv_resp[idx] = None 
         return ret
 
     def barrier(self):

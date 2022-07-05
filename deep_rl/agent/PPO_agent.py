@@ -404,7 +404,7 @@ class ShellAgent_DP(LLAgent):
         #task_label = self.task.get_task()['task_label'] # use this to pass label from outside fn
         task_idx = self._label_to_idx(task_label)
 
-        masks = [self.vec_to_mask(mask) for mask in masks]
+        masks = [self.vec_to_mask(mask.to(self.config.DEVICE)) for mask in masks]
         mask = self._select_mask(masks)
 
         if mask is not None:
@@ -432,7 +432,8 @@ class ShellAgent_DP(LLAgent):
         for key, value in self.mask_info.items():
             stop = start + np.prod(value)
             dict_mask[key] = vec_mask[start : stop].reshape(*value)
-        return
+            start = stop
+        return dict_mask
 
 class LLAgent_NoOracle(PPOContinualLearnerAgent):
     '''

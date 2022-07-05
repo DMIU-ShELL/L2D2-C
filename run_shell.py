@@ -62,17 +62,16 @@ lifelong (continual) learning algorithm for each ShELL agent: supermask superpos
 RL agent/algorithm: PPO
 '''
 ##### (Meta)CT-graph
-def shell_mctgraph(name, args):
+def shell_mctgraph(name, args, shell_config):
     shell_config_path = args.shell_config_path
-    env_config_path = args.env_config_path
+    env_config_path = shell_config['env']['env_config_path']
+    config_seed = shell_config['seed']
 
-    with open(shell_config_path, 'r') as f:
-        shell_config = json.load(f)
     agents = []
     num_agents = len(shell_config['agents'])
     
     # set up logging system
-    exp_id = ''
+    exp_id = args.exp_id
     log_dir = get_default_log_dir(name + '-shell' + exp_id)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
 
@@ -81,6 +80,7 @@ def shell_mctgraph(name, args):
         logger.info('*****initialising agent {0}'.format(idx))
         config = Config()
         config = global_config(config, name)
+        config.seed = config_seed
         config.state_normalizer = ImageNormalizer()
         # task may repeat, so get number of unique tasks.
         num_tasks = len(set(shell_config['agents'][idx]['task_ids'])) 
@@ -109,17 +109,16 @@ def shell_mctgraph(name, args):
     shell_train(agents, logger)
 
 ##### Minigrid environment
-def shell_minigrid(name, args):
+def shell_minigrid(name, args, shell_config):
     shell_config_path = args.shell_config_path
-    env_config_path = args.env_config_path
+    env_config_path = shell_config['env']['env_config_path']
+    config_seed = shell_config['seed']
 
-    with open(shell_config_path, 'r') as f:
-        shell_config = json.load(f)
     agents = []
     num_agents = len(shell_config['agents'])
     
     # set up logging system
-    exp_id = ''
+    exp_id = args.exp_id
     log_dir = get_default_log_dir(name + '-shell' + exp_id)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
 
@@ -128,6 +127,7 @@ def shell_minigrid(name, args):
         logger.info('*****initialising agent {0}'.format(idx))
         config = Config()
         config = global_config(config, name)
+        config.seed = config_seed
         # rescale state normaliser: suitable for grid encoding of states in minigrid
         config.state_normalizer = RescaleNormalizer(1./10.)
         # task may repeat, so get number of unique tasks.
@@ -163,17 +163,19 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')
-    parser.add_argument('--env_name', help='name of the evaluation environment. ' \
-        'minigrid and ctgraph currently supported', default='minigrid')
-    parser.add_argument('--env_config_path',help='environment config', \
-        default='./env_configs/minigrid_sc_3.json')
+    parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
+        'up structured directory of experiment results/data', default='', type=str)
     args = parser.parse_args()
 
-    if args.env_name == 'minigrid':
+    with open(args.shell_config_path, 'r') as f:
+        shell_config = json.load(f)
+        del shell_config['dist_only'] # not used in this setting
+
+    if shell_config['env']['env_name'] == 'minigrid':
         name = 'Minigrid'
-        shell_minigrid(name, args)
-    elif args.env_name == 'ctgraph':
+        shell_minigrid(name, args, shell_config)
+    elif shell_config['env']['env_name'] == 'ctgraph':
         name = 'MetaCTgraph'
-        shell_mctgraph(name, args)
+        shell_mctgraph(name, args, shell_config)
     else:
         raise ValueError('--env_name {0} not implemented'.format(args.env_name))

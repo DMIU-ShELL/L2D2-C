@@ -61,15 +61,15 @@ lifelong (continual) learning algorithm for each ShELL agent: supermask superpos
 RL agent/algorithm: PPO
 '''
 ##### (Meta)CT-graph
-def shell_dist_mctgraph(name, args):
+def shell_dist_mctgraph(name, args, shell_config):
     shell_config_path = args.shell_config_path
-    env_config_path = args.env_config_path
-
-    with open(shell_config_path, 'r') as f:
-        shell_config = json.load(f)
-        config_seed = shell_config['seed']
-        shell_config = shell_config['agents'][args.agent_id]
     num_agents = args.num_agents
+
+    env_config_path = shell_config['env']['env_config_path']
+    config_seed = shell_config['seed']
+    # address and port number of the master/first agent (rank/id 0) in the pool of agents
+    init_address = shell_config['dist_only']['init_address']
+    init_port = shell_config['dist_only']['init_port']
 
     # set up config
     config = Config()
@@ -85,6 +85,7 @@ def shell_dist_mctgraph(name, args):
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
     config.logger = logger
+    config.log_dir = log_dir
 
     # save shell config and env config
     shutil.copy(shell_config_path, log_dir)
@@ -93,13 +94,13 @@ def shell_dist_mctgraph(name, args):
     # create/initialise agent
     logger.info('*****initialising agent {0}'.format(args.agent_id))
     # task may repeat, so get number of unique tasks.
-    num_tasks = len(set(shell_config['task_ids'])) 
+    num_tasks = len(set(shell_config['curriculum']['task_ids'])) 
     config.cl_num_tasks = num_tasks
-    config.task_ids = shell_config['task_ids']
-    if isinstance(shell_config['max_steps'], list):
-        config.max_steps = shell_config['max_steps']
+    config.task_ids = shell_config['curriculum']['task_ids']
+    if isinstance(shell_config['curriculum']['max_steps'], list):
+        config.max_steps = shell_config['curriculum']['max_steps']
     else:
-        config.max_steps = [shell_config['max_steps'], ] * num_tasks
+        config.max_steps = [shell_config['curriculum']['max_steps'], ] * num_tasks
     task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
     eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
@@ -117,21 +118,21 @@ def shell_dist_mctgraph(name, args):
 
     # set up communication (transfer module)
     comm = Communication(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, args.init_address, args.init_port)
+        agent.model_mask_dim, logger, init_address, init_port)
 
     # start training
     shell_dist_train(agent, comm, args.agent_id, args.num_agents)
 
 ##### Minigrid environment
-def shell_dist_minigrid(name, args):
+def shell_dist_minigrid(name, args, shell_config):
     shell_config_path = args.shell_config_path
-    env_config_path = args.env_config_path
-
-    with open(shell_config_path, 'r') as f:
-        shell_config = json.load(f)
-        config_seed = shell_config['seed']
-        shell_config = shell_config['agents'][args.agent_id]
     num_agents = args.num_agents
+
+    env_config_path = shell_config['env']['env_config_path']
+    config_seed = shell_config['seed']
+    # address and port number of the master/first agent (rank/id 0) in the pool of agents
+    init_address = shell_config['dist_only']['init_address']
+    init_port = shell_config['dist_only']['init_port']
 
     # set up config
     config = Config()
@@ -148,6 +149,7 @@ def shell_dist_minigrid(name, args):
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
     config.logger = logger
+    config.log_dir = log_dir
 
     # save shell config and env config
     shutil.copy(shell_config_path, log_dir)
@@ -156,13 +158,13 @@ def shell_dist_minigrid(name, args):
     # create/initialise agent
     logger.info('*****initialising agent {0}'.format(args.agent_id))
     # task may repeat, so get number of unique tasks.
-    num_tasks = len(set(shell_config['task_ids'])) 
+    num_tasks = len(set(shell_config['curriculum']['task_ids'])) 
     config.cl_num_tasks = num_tasks
-    config.task_ids = shell_config['task_ids']
-    if isinstance(shell_config['max_steps'], list):
-        config.max_steps = shell_config['max_steps']
+    config.task_ids = shell_config['curriculum']['task_ids']
+    if isinstance(shell_config['curriculum']['max_steps'], list):
+        config.max_steps = shell_config['curriculum']['max_steps']
     else:
-        config.max_steps = [shell_config['max_steps'], ] * num_tasks
+        config.max_steps = [shell_config['curriculum']['max_steps'], ] * num_tasks
     task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
     eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
@@ -180,7 +182,7 @@ def shell_dist_minigrid(name, args):
 
     # set up communication (transfer module)
     comm = Communication(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, args.init_address, args.init_port)
+        agent.model_mask_dim, logger, init_address, init_port)
 
     # start training
     shell_dist_train(agent, comm, args.agent_id, args.num_agents)
@@ -194,23 +196,20 @@ if __name__ == '__main__':
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)
     parser.add_argument('num_agents', help='world: total number of agents', type=int)
     parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')
-    parser.add_argument('--env_name', help='name of the evaluation environment. ' \
-        'minigrid and ctgraph currently supported', default='minigrid')
-    parser.add_argument('--env_config_path', help='environment config', \
-        default='./env_configs/minigrid_sc_3.json')
-    parser.add_argument('--init_address', help='address of the master/first agent (rank/id 0) '\
-        'in the pool of agents', default='127.0.0.1', type=str)
-    parser.add_argument('--init_port', help='port number of the master/first agent (rank/id 0) '\
-        'in the pool of agents', default='5283', type=str)
-    parser.add_argument('--exp_id', help='id of the experiment (e.g, seed). useful for setting '\
+    parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
     args = parser.parse_args()
 
-    if args.env_name == 'minigrid':
+    with open(args.shell_config_path, 'r') as f:
+        shell_config = json.load(f)
+        shell_config['curriculum'] = shell_config['agents'][args.agent_id]
+        del shell_config['agents'][args.agent_id]
+
+    if shell_config['env']['env_name'] == 'minigrid':
         name = 'Minigrid'
-        shell_dist_minigrid(name, args)
-    elif args.env_name == 'ctgraph':
+        shell_dist_minigrid(name, args, shell_config)
+    elif shell_config['env']['env_name'] == 'ctgraph':
         name = 'MetaCTgraph'
-        shell_dist_mctgraph(name, args)
+        shell_dist_mctgraph(name, args, shell_config)
     else:
         raise ValueError('--env_name {0} not implemented'.format(args.env_name))
