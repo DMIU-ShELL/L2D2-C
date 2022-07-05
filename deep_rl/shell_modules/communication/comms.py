@@ -161,6 +161,7 @@ class Communication(object):
 
             # reset buffer?
             self.buff_recv_resp[idx][:] = torch.inf
+            self.handle_recv_resp[idx] = None 
         return ret
 
     def barrier(self):

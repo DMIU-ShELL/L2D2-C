@@ -85,6 +85,7 @@ def shell_dist_mctgraph(name, args):
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
     config.logger = logger
+    config.log_dir = log_dir
 
     # save shell config and env config
     shutil.copy(shell_config_path, log_dir)
@@ -148,6 +149,7 @@ def shell_dist_minigrid(name, args):
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
     config.logger = logger
+    config.log_dir = log_dir
 
     # save shell config and env config
     shutil.copy(shell_config_path, log_dir)
