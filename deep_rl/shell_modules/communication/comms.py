@@ -129,7 +129,7 @@ class Communication(object):
             buff[Communication.META_INF_SZ : ] = mask # NOTE deepcopy? 
 
         # actual send
-        self.handle_send_resp = dist.isend(tensor=buff, dst=requester_agent_id)
+        self.handle_send_resp[requester_agent_id] = dist.isend(tensor=buff, dst=requester_agent_id)
         return
 
     def receive_response(self):
