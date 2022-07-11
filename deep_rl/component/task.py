@@ -12,6 +12,13 @@ from ..utils import *
 import uuid
 import json
 
+# fix to enable running the code on MacOS using python>=3.8
+# spawn multiprocessing start method fails to run the lambda
+# env initialisation function.
+if mp.get_start_method() == 'spawn':
+    #print('setting multiprocessing start method to use fork')
+    mp.set_start_method('fork', force=True)
+
 class BaseTask:
     def __init__(self):
         pass
