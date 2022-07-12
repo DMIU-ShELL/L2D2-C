@@ -71,7 +71,7 @@ def ppo_baseline_mctgraph(name, args):
     config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
     config.cl_requires_task_label = True
 
-    config.eval_interval = 50
+    config.eval_interval = 25
     config.task_ids = np.arange(num_tasks).tolist()
 
     agent = BaselineAgent(config)
@@ -144,7 +144,7 @@ def ppo_ll_mctgraph(name, args):
     config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
     config.cl_requires_task_label = True
 
-    config.eval_interval = 50
+    config.eval_interval = 25
     config.task_ids = np.arange(num_tasks).tolist()
 
     agent = LLAgent(config)
@@ -220,7 +220,7 @@ def ppo_baseline_minigrid(name, args):
     config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
     config.cl_requires_task_label = True
 
-    config.eval_interval = 50
+    config.eval_interval = 25
     config.task_ids = np.arange(num_tasks).tolist()
 
     agent = BaselineAgent(config)
@@ -295,7 +295,7 @@ def ppo_ll_minigrid(name, args):
     config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
     config.cl_requires_task_label = True
 
-    config.eval_interval = 50
+    config.eval_interval = 25
     config.task_ids = np.arange(num_tasks).tolist()
 
     agent = LLAgent(config)
