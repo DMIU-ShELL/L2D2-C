@@ -55,3 +55,8 @@ The repository is currently developed and maintained by researchers from Loughbo
 
 ## Bug Reporting
 If you encounter any bugs using the code, please raise an issue in the repository on Github.
+
+## Acknowledgement
+This material is based upon work supported by the United States Air Force Research Laboratory (AFRL) and Defense Advanced Research Projects Agency (DARPA) under Contract No. HR00112190132.
+
+Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the United States Air Force Research Laboratory (AFRL) and Defense Advanced Research Projects Agency (DARPA).
