@@ -171,11 +171,11 @@ def main(args):
     data['tpot']['shell']['plot_colour'] = 'green'
 
     # plot icr
-    fig = plot(data['icr'], 'ICR')
+    fig = plot(data['icr'], 'Instant Cumulative Reward (ICR)', 'ICR')
     fig.savefig(save_path + 'metrics_icr.pdf', dpi=256, format='pdf')
     # plot tpot
-    fig = plot(data['tpot'], 'TPOT')
-    fig.savefig(save_path + 'metrics_tp.pdf', dpi=256, format='pdf')
+    fig = plot(data['tpot'], 'Total Performance Over Time (TPOT)', 'TPOT')
+    fig.savefig(save_path + 'metrics_tpot.pdf', dpi=256, format='pdf')
 
     if args.ll_paths is not None:
         eps = 1e-6 # to help with zero divide
@@ -194,11 +194,13 @@ def main(args):
         data['sbf2']['shell']['ydata_cfi'] = np.zeros_like(sbf)
         data['sbf2']['shell']['plot_colour'] = 'green'
         # plot sbf1
-        fig = plot(data['sbf1'], 'Instant Learning Advantage (ILA): SBF1')
-        fig.savefig(save_path + 'metrics_sbf1.pdf', dpi=256, format='pdf')
+        y_label = 'TPOT(Shell, t) / TPOT(SingleLLAgent, t)'
+        fig = plot(data['sbf1'], 'Total Learning Advantage (TLA): SBF1', y_label)
+        fig.savefig(save_path + 'metrics_tla.pdf', dpi=256, format='pdf')
         # plot sbf2
-        fig = plot(data['sbf2'], 'Total Learning Advantage (TLA): SBF2')
-        fig.savefig(save_path + 'metrics_sbf2.pdf', dpi=256, format='pdf')
+        y_label = 'ICR(Shell, t) / ICR(SingleLLAgent, t)'
+        fig = plot(data['sbf2'], 'Instant Learning Advantage (ILA): SBF2', y_label)
+        fig.savefig(save_path + 'metrics_ila.pdf', dpi=256, format='pdf')
         
     return 0
 
