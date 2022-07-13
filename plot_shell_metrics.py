@@ -5,14 +5,14 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot(results, title='', yaxis_label=''):
+def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label=''):
     fig = plt.figure(figsize=(9, 6))
     ax = fig.subplots()
     # axis title and font
     ax.set_title(title)
     ax.title.set_fontsize(22)
     # axis labels and font, and ticks
-    ax.set_xlabel('Number of evaluations ')
+    ax.set_xlabel(xaxis_label)
     ax.xaxis.label.set_fontsize(20)
     ax.set_ylabel(yaxis_label)
     ax.yaxis.label.set_fontsize(20)
@@ -113,8 +113,8 @@ def main(args):
     data = {}
     data['icr'] = {}
     data['tpot'] = {}
-    data['sbf1'] = {}
-    data['sbf2'] = {}
+    data['tla'] = {}
+    data['ila'] = {}
     data['sbf3'] = {}
 
     # load single agent (ll) data if it exists
@@ -171,35 +171,35 @@ def main(args):
     data['tpot']['shell']['plot_colour'] = 'green'
 
     # plot icr
-    fig = plot(data['icr'], 'Instant Cumulative Reward (ICR)', 'ICR')
+    fig = plot(data['icr'], 'Instant Cumulative Reward (ICR)', yaxis_label='ICR')
     fig.savefig(save_path + 'metrics_icr.pdf', dpi=256, format='pdf')
     # plot tpot
-    fig = plot(data['tpot'], 'Total Performance Over Time (TPOT)', 'TPOT')
+    fig = plot(data['tpot'], 'Total Performance Over Time (TPOT)', yaxis_label='TPOT')
     fig.savefig(save_path + 'metrics_tpot.pdf', dpi=256, format='pdf')
 
     if args.ll_paths is not None:
         eps = 1e-6 # to help with zero divide
-        # sbf 1
-        sbf = data['tpot']['shell']['ydata'] / (data['tpot']['ll']['ydata'] + eps)
-        data['sbf1']['shell'] = {}
-        data['sbf1']['shell']['xdata'] = np.arange(num_evals)
-        data['sbf1']['shell']['ydata'] = sbf
-        data['sbf1']['shell']['ydata_cfi'] = np.zeros_like(sbf)
-        data['sbf1']['shell']['plot_colour'] = 'green'
-        # sbf 2
-        sbf = data['icr']['shell']['ydata'] / (data['icr']['ll']['ydata'] + eps)
-        data['sbf2']['shell'] = {}
-        data['sbf2']['shell']['xdata'] = np.arange(num_evals)
-        data['sbf2']['shell']['ydata'] = sbf 
-        data['sbf2']['shell']['ydata_cfi'] = np.zeros_like(sbf)
-        data['sbf2']['shell']['plot_colour'] = 'green'
-        # plot sbf1
+        # tla
+        tla = data['tpot']['shell']['ydata'] / (data['tpot']['ll']['ydata'] + eps)
+        data['tla']['shell'] = {}
+        data['tla']['shell']['xdata'] = np.arange(num_evals)
+        data['tla']['shell']['ydata'] = tla
+        data['tla']['shell']['ydata_cfi'] = np.zeros_like(tla)
+        data['tla']['shell']['plot_colour'] = 'green'
+        # ila
+        ila = data['icr']['shell']['ydata'] / (data['icr']['ll']['ydata'] + eps)
+        data['ila']['shell'] = {}
+        data['ila']['shell']['xdata'] = np.arange(num_evals)
+        data['ila']['shell']['ydata'] = ila 
+        data['ila']['shell']['ydata_cfi'] = np.zeros_like(ila)
+        data['ila']['shell']['plot_colour'] = 'green'
+        # plot tla
         y_label = 'TPOT(Shell, t) / TPOT(SingleLLAgent, t)'
-        fig = plot(data['sbf1'], 'Total Learning Advantage (TLA): SBF1', y_label)
+        fig = plot(data['tla'], 'Total Learning Advantage (TLA)', yaxis_label=y_label)
         fig.savefig(save_path + 'metrics_tla.pdf', dpi=256, format='pdf')
-        # plot sbf2
+        # plot ila
         y_label = 'ICR(Shell, t) / ICR(SingleLLAgent, t)'
-        fig = plot(data['sbf2'], 'Instant Learning Advantage (ILA): SBF2', y_label)
+        fig = plot(data['ila'], 'Instant Learning Advantage (ILA)', yaxis_label=y_label)
         fig.savefig(save_path + 'metrics_ila.pdf', dpi=256, format='pdf')
         
     return 0
