@@ -30,7 +30,7 @@ def run_iterations_w_oracle(agent, tasks_info):
 
     eval_tracker = False
     eval_data = []
-    metric_tcr = [] # tcr => total cumulative reward
+    metric_icr = [] # icr => total cumulative reward
 
     for learn_block_idx in range(config.cl_num_learn_blocks):
         config.logger.info('********** start of learning block {0}'.format(learn_block_idx))
@@ -93,14 +93,14 @@ def run_iterations_w_oracle(agent, tasks_info):
                         rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                         agent.task_eval_end()
                         eval_data[-1][eval_task_idx] = np.mean(rewards)
-                    tcr = eval_data[-1].sum()
-                    metric_tcr.append(tcr)
-                    tp = np.sum(metric_tcr)
+                    icr = eval_data[-1].sum()
+                    metric_icr.append(icr)
+                    tpot = np.sum(metric_icr)
                     config.logger.info('*****cl evaluation:')
-                    config.logger.info('cl eval TCR: {0}'.format(tcr))
-                    config.logger.info('cl eval TP: {0}'.format(tp))
-                    config.logger.scalar_summary('cl_eval/tcr', tcr)
-                    config.logger.scalar_summary('cl_eval/tp', np.sum(metric_tcr))
+                    config.logger.info('cl eval ICR: {0}'.format(icr))
+                    config.logger.info('cl eval TPOT: {0}'.format(tpot))
+                    config.logger.scalar_summary('cl_eval/icr', icr)
+                    config.logger.scalar_summary('cl_eval/tpot', np.sum(metric_icr))
 
 
                 # check whether task training has been completed
@@ -266,14 +266,14 @@ def run_iterations_wo_oracle(agent, tasks_info):
                             rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                             agent.task_eval_end()
                             eval_data[-1][eval_task_idx] = np.mean(rewards)
-                        tcr = eval_data[-1].sum()
-                        metric_tcr.append(tcr)
-                        tp = np.sum(metric_tcr)
+                        icr = eval_data[-1].sum()
+                        metric_icr.append(icr)
+                        tpot = np.sum(metric_icr)
                         config.logger.info('*****cl evaluation:')
-                        config.logger.info('cl eval TCR: {0}'.format(tcr))
-                        config.logger.info('cl eval TP: {0}'.format(tp))
-                        config.logger.scalar_summary('cl_eval/tcr', tcr)
-                        config.logger.scalar_summary('cl_eval/tp', np.sum(metric_tcr))
+                        config.logger.info('cl eval ICR: {0}'.format(icr))
+                        config.logger.info('cl eval TPOT: {0}'.format(tpot))
+                        config.logger.scalar_summary('cl_eval/icr', icr)
+                        config.logger.scalar_summary('cl_eval/tpot', np.sum(metric_icr))
 
                 # check whether task training is done
                 task_steps_limit = config.max_steps * (num_tasks * learn_block_idx + task_idx + 1)

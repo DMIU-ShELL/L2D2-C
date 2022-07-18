@@ -38,7 +38,7 @@ def shell_train(agents, logger):
     shell_eval_data = []
     num_eval_tasks = len(agents[0].evaluation_env.get_all_tasks())
     shell_eval_data.append(np.zeros((num_agents, num_eval_tasks), dtype=np.float32))
-    shell_metric_tcr = [] # tcr => total cumulative reward metric
+    shell_metric_icr = [] # icr => instant cumulative reward metric
 
     print()
     logger.info('*****start shell training')
@@ -136,19 +136,19 @@ def shell_train(agents, logger):
                     
         if all(shell_eval_tracker):
             _metrics = shell_eval_data[-1]
-            # compute tcr 
+            # compute icr
             _max_reward = _metrics.max(axis=0) 
             _agent_ids = _metrics.argmax(axis=0).tolist()
             _agent_ids = ', '.join([str(_agent_id) for _agent_id in _agent_ids])
-            tcr = _max_reward.sum()
-            shell_metric_tcr.append(tcr)
+            icr = _max_reward.sum()
+            shell_metric_icr.append(icr)
             # log eval to file/screen and tensorboard
             logger.info('*****shell evaluation:')
             logger.info('best agent per task:'.format(_agent_ids))
-            logger.info('shell eval TCR: {0}'.format(tcr))
-            logger.info('shell eval TP: {0}'.format(np.sum(shell_metric_tcr)))
-            logger.scalar_summary('shell_eval/tcr', tcr)
-            logger.scalar_summary('shell_eval/tp', np.sum(shell_metric_tcr))
+            logger.info('shell eval ICR: {0}'.format(icr))
+            logger.info('shell eval TP: {0}'.format(np.sum(shell_metric_icr)))
+            logger.scalar_summary('shell_eval/icr', icr)
+            logger.scalar_summary('shell_eval/tpot', np.sum(shell_metric_icr))
             # reset eval tracker
             shell_eval_tracker = [False for _ in shell_eval_tracker]
             # initialise new eval block
@@ -186,7 +186,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
     shell_eval_data = []
     num_eval_tasks = len(agent.evaluation_env.get_all_tasks())
     shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
-    shell_metric_tcr = [] # tcr => total cumulative reward metric. NOTE may be redundant now
+    shell_metric_icr = [] # icr => instant cumulative reward metric. NOTE may be redundant now
     eval_data_fh = open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_id), 'a', \
         buffering=1) # buffering=1 means flush data to file after every line written
 
@@ -314,19 +314,19 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
             shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
         #if all(shell_eval_tracker):
         #    _metrics = shell_eval_data[-1]
-        #    # compute tcr 
+        #    # compute icr
         #    _max_reward = _metrics.max(axis=0) 
         #    _agent_ids = _metrics.argmax(axis=0).tolist()
         #    _agent_ids = ', '.join([str(_agent_id) for _agent_id in _agent_ids])
-        #    tcr = _max_reward.sum()
-        #    shell_metric_tcr.append(tcr)
+        #    icr = _max_reward.sum()
+        #    shell_metric_icr.append(icr)
         #    # log eval to file/screen and tensorboard
         #    logger.info('*****shell evaluation:')
         #    logger.info('best agent per task:'.format(_agent_ids))
-        #    logger.info('shell eval TCR: {0}'.format(tcr))
-        #    logger.info('shell eval TP: {0}'.format(np.sum(shell_metric_tcr)))
-        #    logger.scalar_summary('shell_eval/tcr', tcr)
-        #    logger.scalar_summary('shell_eval/tp', np.sum(shell_metric_tcr))
+        #    logger.info('shell eval ICR: {0}'.format(icr))
+        #    logger.info('shell eval TP: {0}'.format(np.sum(shell_metric_icr)))
+        #    logger.scalar_summary('shell_eval/icr', icr)
+        #    logger.scalar_summary('shell_eval/tpot', np.sum(shell_metric_icr))
         #    # reset eval tracker
         #    shell_eval_tracker = [False for _ in shell_eval_tracker]
         #    # initialise new eval block
