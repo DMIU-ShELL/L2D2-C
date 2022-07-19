@@ -27,10 +27,11 @@ def run_iterations_w_oracle(agent, tasks_info):
     rewards = []
     task_start_idx = 0
     num_tasks = len(tasks_info)
+    eval_data_fh = open(config.logger.log_dir + '/eval_metrics.csv', 'a', buffering=1)
 
     eval_tracker = False
     eval_data = []
-    metric_tcr = [] # tcr => total cumulative reward
+    metric_icr = [] # icr => total cumulative reward
 
     for learn_block_idx in range(config.cl_num_learn_blocks):
         config.logger.info('********** start of learning block {0}'.format(learn_block_idx))
@@ -93,14 +94,15 @@ def run_iterations_w_oracle(agent, tasks_info):
                         rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                         agent.task_eval_end()
                         eval_data[-1][eval_task_idx] = np.mean(rewards)
-                    tcr = eval_data[-1].sum()
-                    metric_tcr.append(tcr)
-                    tp = np.sum(metric_tcr)
+                    np.savetxt(eval_data_fh, eval_data[-1].reshape(1, -1), delimiter=',', fmt='%.4f')
+                    icr = eval_data[-1].sum()
+                    metric_icr.append(icr)
+                    tpot = np.sum(metric_icr)
                     config.logger.info('*****cl evaluation:')
-                    config.logger.info('cl eval TCR: {0}'.format(tcr))
-                    config.logger.info('cl eval TP: {0}'.format(tp))
-                    config.logger.scalar_summary('cl_eval/tcr', tcr)
-                    config.logger.scalar_summary('cl_eval/tp', np.sum(metric_tcr))
+                    config.logger.info('cl eval ICR: {0}'.format(icr))
+                    config.logger.info('cl eval TPOT: {0}'.format(tpot))
+                    config.logger.scalar_summary('cl_eval/icr', icr)
+                    config.logger.scalar_summary('cl_eval/tpot', np.sum(metric_icr))
 
 
                 # check whether task training has been completed
@@ -116,8 +118,7 @@ def run_iterations_w_oracle(agent, tasks_info):
                         agent.task.name))
                     task_start_idx = len(rewards)
                     break
-
-            # end of current task training
+            # end of while True. current task training
             if agent_name != 'BaselineAgent':
                 config.logger.info('cacheing mask for current task')
             ret = agent.task_train_end()
@@ -140,6 +141,7 @@ def run_iterations_w_oracle(agent, tasks_info):
                 with open(config.log_dir+'/episodes-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
+        # end for each task
         print('eval stats')
         with open(log_path_eval + '/eval_full_stats.bin', 'wb') as f: pickle.dump(eval_results, f)
 
@@ -151,7 +153,8 @@ def run_iterations_w_oracle(agent, tasks_info):
             config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
         f.close()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
-
+    # end for learning block
+    eval_data_fh.close()
     if len(eval_data) > 0:
         to_save = np.stack(eval_data, axis=0)
         with open(log_path_eval + '/eval_metrics.npy', 'wb') as f:
@@ -184,6 +187,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
     rewards = []
     task_start_idx = 0
     num_tasks = len(tasks_info)
+    eval_data_fh = open(config.logger.log_dir + '/eval_metrics.csv', 'a', buffering=1)
 
     eval_tracker = False
     eval_data = []
@@ -266,14 +270,16 @@ def run_iterations_wo_oracle(agent, tasks_info):
                             rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                             agent.task_eval_end()
                             eval_data[-1][eval_task_idx] = np.mean(rewards)
-                        tcr = eval_data[-1].sum()
-                        metric_tcr.append(tcr)
-                        tp = np.sum(metric_tcr)
+                        np.savetxt(eval_data_fh, eval_data[-1].reshape(1, -1), delimiter=',', \
+                            fmt='%.4f')
+                        icr = eval_data[-1].sum()
+                        metric_icr.append(icr)
+                        tpot = np.sum(metric_icr)
                         config.logger.info('*****cl evaluation:')
-                        config.logger.info('cl eval TCR: {0}'.format(tcr))
-                        config.logger.info('cl eval TP: {0}'.format(tp))
-                        config.logger.scalar_summary('cl_eval/tcr', tcr)
-                        config.logger.scalar_summary('cl_eval/tp', np.sum(metric_tcr))
+                        config.logger.info('cl eval ICR: {0}'.format(icr))
+                        config.logger.info('cl eval TPOT: {0}'.format(tpot))
+                        config.logger.scalar_summary('cl_eval/icr', icr)
+                        config.logger.scalar_summary('cl_eval/tpot', np.sum(metric_icr))
 
                 # check whether task training is done
                 task_steps_limit = config.max_steps * (num_tasks * learn_block_idx + task_idx + 1)
@@ -288,7 +294,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
                         agent.task.name))
                     task_start_idx = len(rewards)
                     break
-            # end of current task training
+            # end of while True. current task training
             # final evaluation block after completing traning on a task (for debugging purpose)
             # only evaluate agent across task exposed to agent so far
             config.logger.info('evaluating agent across all tasks exposed so far to agent')
@@ -309,6 +315,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
                 with open(config.log_dir+'/episodes-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
+        # end for each task
         print('eval stats')
         with open(log_path_eval + '/eval_full_stats.bin', 'wb') as f: pickle.dump(eval_results, f)
 
@@ -320,10 +327,12 @@ def run_iterations_wo_oracle(agent, tasks_info):
             config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
         f.close()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
-
-    to_save = np.stack(eval_data, axis=0)
-    with open(log_path_eval + '/eval_metrics.npy', 'wb') as f:
-        np.save(f, to_save)
+    # end for learning block
+    eval_data_fh.close()
+    if len(eval_data) > 0:
+        to_save = np.stack(eval_data, axis=0)
+        with open(log_path_eval + '/eval_metrics.npy', 'wb') as f:
+            np.save(f, to_save)
     agent.close()
     return steps, rewards
 
