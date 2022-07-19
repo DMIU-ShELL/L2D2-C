@@ -118,8 +118,7 @@ def run_iterations_w_oracle(agent, tasks_info):
                         agent.task.name))
                     task_start_idx = len(rewards)
                     break
-
-            # end of current task training
+            # end of while True. current task training
             if agent_name != 'BaselineAgent':
                 config.logger.info('cacheing mask for current task')
             ret = agent.task_train_end()
@@ -142,6 +141,7 @@ def run_iterations_w_oracle(agent, tasks_info):
                 with open(config.log_dir+'/episodes-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
+        # end for each task
         print('eval stats')
         with open(log_path_eval + '/eval_full_stats.bin', 'wb') as f: pickle.dump(eval_results, f)
 
@@ -153,7 +153,7 @@ def run_iterations_w_oracle(agent, tasks_info):
             config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
         f.close()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
-
+    # end for learning block
     eval_data_fh.close()
     if len(eval_data) > 0:
         to_save = np.stack(eval_data, axis=0)
@@ -294,7 +294,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
                         agent.task.name))
                     task_start_idx = len(rewards)
                     break
-            # end of current task training
+            # end of while True. current task training
             # final evaluation block after completing traning on a task (for debugging purpose)
             # only evaluate agent across task exposed to agent so far
             config.logger.info('evaluating agent across all tasks exposed so far to agent')
@@ -315,6 +315,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
                 with open(config.log_dir+'/episodes-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
+        # end for each task
         print('eval stats')
         with open(log_path_eval + '/eval_full_stats.bin', 'wb') as f: pickle.dump(eval_results, f)
 
@@ -326,7 +327,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
             config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
         f.close()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
-
+    # end for learning block
     eval_data_fh.close()
     if len(eval_data) > 0:
         to_save = np.stack(eval_data, axis=0)
