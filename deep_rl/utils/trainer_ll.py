@@ -27,7 +27,7 @@ def run_iterations_w_oracle(agent, tasks_info):
     rewards = []
     task_start_idx = 0
     num_tasks = len(tasks_info)
-    eval_data_fh = open(logger.log_dir + '/eval_metrics.csv', 'a', buffering=1)
+    eval_data_fh = open(config.logger.log_dir + '/eval_metrics.csv', 'a', buffering=1)
 
     eval_tracker = False
     eval_data = []
@@ -187,7 +187,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
     rewards = []
     task_start_idx = 0
     num_tasks = len(tasks_info)
-    eval_data_fh = open(logger.log_dir + '/eval_metrics.csv', 'a', buffering=1)
+    eval_data_fh = open(config.logger.log_dir + '/eval_metrics.csv', 'a', buffering=1)
 
     eval_tracker = False
     eval_data = []
