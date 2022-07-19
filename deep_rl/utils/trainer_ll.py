@@ -27,6 +27,7 @@ def run_iterations_w_oracle(agent, tasks_info):
     rewards = []
     task_start_idx = 0
     num_tasks = len(tasks_info)
+    eval_data_fh = open(logger.log_dir + '/eval_metrics.csv', 'a', buffering=1)
 
     eval_tracker = False
     eval_data = []
@@ -93,6 +94,7 @@ def run_iterations_w_oracle(agent, tasks_info):
                         rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                         agent.task_eval_end()
                         eval_data[-1][eval_task_idx] = np.mean(rewards)
+                    np.savetxt(eval_data_fh, eval_data[-1].reshape(1, -1), delimiter=',', fmt='%.4f')
                     icr = eval_data[-1].sum()
                     metric_icr.append(icr)
                     tpot = np.sum(metric_icr)
@@ -152,6 +154,7 @@ def run_iterations_w_oracle(agent, tasks_info):
         f.close()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
 
+    eval_data_fh.close()
     if len(eval_data) > 0:
         to_save = np.stack(eval_data, axis=0)
         with open(log_path_eval + '/eval_metrics.npy', 'wb') as f:
@@ -184,6 +187,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
     rewards = []
     task_start_idx = 0
     num_tasks = len(tasks_info)
+    eval_data_fh = open(logger.log_dir + '/eval_metrics.csv', 'a', buffering=1)
 
     eval_tracker = False
     eval_data = []
@@ -266,6 +270,8 @@ def run_iterations_wo_oracle(agent, tasks_info):
                             rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                             agent.task_eval_end()
                             eval_data[-1][eval_task_idx] = np.mean(rewards)
+                        np.savetxt(eval_data_fh, eval_data[-1].reshape(1, -1), delimiter=',', \
+                            fmt='%.4f')
                         icr = eval_data[-1].sum()
                         metric_icr.append(icr)
                         tpot = np.sum(metric_icr)
@@ -321,9 +327,11 @@ def run_iterations_wo_oracle(agent, tasks_info):
         f.close()
         config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
 
-    to_save = np.stack(eval_data, axis=0)
-    with open(log_path_eval + '/eval_metrics.npy', 'wb') as f:
-        np.save(f, to_save)
+    eval_data_fh.close()
+    if len(eval_data) > 0:
+        to_save = np.stack(eval_data, axis=0)
+        with open(log_path_eval + '/eval_metrics.npy', 'wb') as f:
+            np.save(f, to_save)
     agent.close()
     return steps, rewards
 

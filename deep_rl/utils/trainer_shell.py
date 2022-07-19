@@ -40,6 +40,8 @@ def shell_train(agents, logger):
     num_eval_tasks = len(agents[0].evaluation_env.get_all_tasks())
     shell_eval_data.append(np.zeros((num_agents, num_eval_tasks), dtype=np.float32))
     shell_metric_icr = [] # icr => instant cumulative reward metric
+    eval_data_fhs = [open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_idx), 'a', \
+        buffering=1) for agent_idx in range(num_agents)]
 
     print()
     logger.info('*****start shell training')
@@ -94,6 +96,9 @@ def shell_train(agents, logger):
                     agent.task_eval_end()
                     shell_eval_data[-1][agent_idx, eval_task_idx] = np.mean(rewards)
                 shell_eval_tracker[agent_idx] = True
+                # save latest eval data for current agent to csv
+                np.savetxt(eval_data_fhs[agent_idx], \
+                    shell_eval_data[-1][agent_idx, : ].reshape(1, -1), delimiter=',', fmt='%.4f')
 
             # checker for end of task training
             if not agent.config.max_steps:
@@ -157,6 +162,9 @@ def shell_train(agents, logger):
 
         if all(shell_done):
             break
+
+    for i in range(len(eval_data_fhs)):
+        eval_data_fhs[i].close()
     # save eval metrics
     to_save = np.stack(shell_eval_data, axis=0)
     with open(logger.log_dir + '/eval_metrics.npy', 'wb') as f:
