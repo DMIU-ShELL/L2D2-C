@@ -129,8 +129,9 @@ def shell_train(agents, logger):
                     a_idxs.remove(agent_idx)
                     other_agents = [agents[i] for i in a_idxs]
                     found_knowledge = agent.ping_agents(other_agents)
-                    if found_knowledge:
+                    if found_knowledge > 0:
                         logger.info('found knowledge about task from other agents')
+                        logger.info('number of task knowledge found: {0}'.format(found_knowledge))
                     else:
                         logger.info('could not find any agent with knowledge about task')
                     del states_
@@ -165,6 +166,9 @@ def shell_train(agents, logger):
 
     for i in range(len(eval_data_fhs)):
         eval_data_fhs[i].close()
+    # discard last eval data entry as it was not used.
+    if np.all(shell_eval_data[-1] == 0.):
+        shell_eval_data.pop(-1)
     # save eval metrics
     to_save = np.stack(shell_eval_data, axis=0)
     with open(logger.log_dir + '/eval_metrics.npy', 'wb') as f:
@@ -238,6 +242,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
                 else:
                     masks.append(received_masks[i])
                     await_response[i] = False
+            logger.info('number of task knowledge received: {0}'.format(len(masks)))
             # TODO still need to fix how mask is used.
             agent.distil_task_knowledge(masks)
                     
@@ -349,6 +354,9 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
     # end of while True
 
     eval_data_fh.close()
+    # discard last eval data entry as it was not used.
+    if np.all(shell_eval_data[-1] == 0.):
+        shell_eval_data.pop(-1)
     # save eval metrics
     to_save = np.stack(shell_eval_data, axis=0)
     with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:

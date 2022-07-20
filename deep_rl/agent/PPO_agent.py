@@ -340,13 +340,16 @@ class ShellAgent_SP(LLAgent):
         task_label = self.task.get_task()['task_label']
         task_idx = self._label_to_idx(task_label)
         masks = [agent.ping_response(task_label) for agent in agents]
+        masks_count = sum([1 if m is not None else 0 for m in masks])
         mask = self._select_mask(agents, masks)
         if mask is not None:
             # function from deep_rl/shell_modules/mmn/ssmask_utils.py
             set_mask(self.network, mask, task_idx)
-            return True
+            #return True
+            return masks_count
         else:
-            return False
+            #return False
+            return masks_count
 
     def ping_response(self, task_label):
         task_idx = self._label_to_idx(task_label)
