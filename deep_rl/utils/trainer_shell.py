@@ -166,6 +166,9 @@ def shell_train(agents, logger):
 
     for i in range(len(eval_data_fhs)):
         eval_data_fhs[i].close()
+    # discard last eval data entry as it was not used.
+    if np.all(shell_eval_data[-1] == 0.):
+        shell_eval_data.pop(-1)
     # save eval metrics
     to_save = np.stack(shell_eval_data, axis=0)
     with open(logger.log_dir + '/eval_metrics.npy', 'wb') as f:
@@ -351,6 +354,9 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
     # end of while True
 
     eval_data_fh.close()
+    # discard last eval data entry as it was not used.
+    if np.all(shell_eval_data[-1] == 0.):
+        shell_eval_data.pop(-1)
     # save eval metrics
     to_save = np.stack(shell_eval_data, axis=0)
     with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
