@@ -1,0 +1,6 @@
+{
+"tasks": ["hammer-v2", "push-wall-v2", "faucet-close-v2"],
+"one_hot": true,
+"label_dim": 3,
+"randomization": "deterministic"
+}
