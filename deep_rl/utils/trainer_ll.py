@@ -5,6 +5,38 @@ import datetime
 import torch
 from .torch_utils import *
 
+def _iteration_log(agent, config, iteration, avg_grad_norm):
+    config.logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f'%(
+        iteration, agent.total_steps, np.mean(agent.last_episode_rewards),
+        np.max(agent.last_episode_rewards),
+        np.min(agent.last_episode_rewards)
+    ))
+    config.logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
+    config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
+    config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
+    config.logger.scalar_summary('avg grad norm', avg_grad_norm)
+    return
+
+def _iteration_log_mw(agent, config, iteration, avg_grad_norm):
+    config.logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f, ' \
+        'mean/max/min success rate %f/%f/%f'%(
+        iteration, agent.total_steps,
+        np.mean(agent.last_episode_rewards),
+        np.max(agent.last_episode_rewards),
+        np.min(agent.last_episode_rewards),
+        np.mean(agent.last_episode_success_rate),
+        np.max(agent.last_episode_success_rate),
+        np.min(agent.last_episode_success_rate)
+    ))
+    config.logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
+    config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
+    config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
+    config.logger.scalar_summary('avg success rate', np.mean(agent.last_episode_success_rate))
+    config.logger.scalar_summary('max success rate', np.max(agent.last_episode_success_rate))
+    config.logger.scalar_summary('min success rate', np.min(agent.last_episode_success_rate))
+    config.logger.scalar_summary('avg grad norm', avg_grad_norm)
+    return
+
 # run iterations, lifelong learning
 # used by either a baseline agent (with no task knowledge preservation) or
 # an agent with knowledge preservation via supermask superposition (ss)
@@ -33,6 +65,11 @@ def run_iterations_w_oracle(agent, tasks_info):
     eval_data = []
     metric_icr = [] # icr => total cumulative reward
 
+    if agent.task.name == config.ENV_METAWORLD or agent.task.name == config.ENV_CONTINUALWORLD:
+        itr_log_fn = _iteration_log_mw
+    else:
+        itr_log_fn = _iteration_log
+
     for learn_block_idx in range(config.cl_num_learn_blocks):
         config.logger.info('********** start of learning block {0}'.format(learn_block_idx))
         eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
@@ -56,15 +93,7 @@ def run_iterations_w_oracle(agent, tasks_info):
 
                 # logging
                 if iteration % config.iteration_log_interval == 0:
-                    config.logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f'%(
-                        iteration, agent.total_steps, np.mean(agent.last_episode_rewards),
-                        np.max(agent.last_episode_rewards),
-                        np.min(agent.last_episode_rewards)
-                    ))
-                    config.logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
-                    config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
-                    config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
-                    config.logger.scalar_summary('avg grad norm', avg_grad_norm)
+                    itr_log_fn(agent, config, iteration, avg_grad_norm)
 
                     with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
                         (agent_name, config.tag, agent.task.name), 'wb') as f:
@@ -193,6 +222,11 @@ def run_iterations_wo_oracle(agent, tasks_info):
     eval_data = []
     metric_tcr = [] # tcr => total cumulative reward
 
+    if agent.task.name == config.ENV_METAWORLD or agent.task.name == config.ENV_CONTINUALWORLD:
+        itr_log_fn = _iteration_log_mw
+    else:
+        itr_log_fn = _iteration_log
+
     task_change = False
     for learn_block_idx in range(config.cl_num_learn_blocks):
         config.logger.info('********** start of learning block {0}'.format(learn_block_idx))
@@ -230,15 +264,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
 
                 # logging
                 if iteration % config.iteration_log_interval == 0:
-                    config.logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f'%(
-                        iteration, agent.total_steps, np.mean(agent.last_episode_rewards),
-                        np.max(agent.last_episode_rewards),
-                        np.min(agent.last_episode_rewards)
-                    ))
-                    config.logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
-                    config.logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
-                    config.logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
-                    config.logger.scalar_summary('avg grad norm', avg_grad_norm)
+                    itr_log_fn(agent, config, iteration, avg_grad_norm)
 
                     with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
                         (agent_name, config.tag, agent.task.name), 'wb') as f:

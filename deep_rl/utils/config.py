@@ -9,6 +9,10 @@ import torch
 
 class Config:
     DEVICE = torch.device('cpu')
+    ENV_MINIGRID = 'Minigrid'
+    ENV_METACTGRAPH = 'MetaCTgraph'
+    ENV_METAWORLD = 'MetaWorld'
+    ENV_CONTINUALWORLD = 'ContinualWorld'
     def __init__(self):
         self.parser = argparse.ArgumentParser()
         self.task_fn = None

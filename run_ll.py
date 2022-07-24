@@ -407,7 +407,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.env_name == 'minigrid':
-        name = 'Minigrid'
+        name = Config.ENV_MINIGRID
         if args.algo == 'baseline':
             ppo_baseline_minigrid(name, args)
         elif args.algo == 'll_supermask':
@@ -415,7 +415,7 @@ if __name__ == '__main__':
         else:
             raise ValueError('algo {0} not implemented'.format(args.algo))
     elif args.env_name == 'ctgraph':
-        name = 'MetaCTgraph'
+        name = Config.ENV_METACTGRAPH
         if args.algo == 'baseline':
             ppo_baseline_mctgraph(name, args)
         elif args.algo == 'll_supermask':
@@ -423,7 +423,7 @@ if __name__ == '__main__':
         else:
             raise ValueError('algo {0} not implemented'.format(args.algo))
     elif args.env_name == 'continualworld':
-        name = 'ContinualWorld'
+        name = Config.ENV_CONTINUALWORLD
         if args.algo == 'baseline':
             ppo_baseline_continualworld(name, args)
         elif args.algo == 'll_supermask':

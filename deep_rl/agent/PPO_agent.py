@@ -127,6 +127,16 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.curr_train_task_label = None
         self.curr_eval_task_label = None
 
+        # other performance metric (specifically for metaworld environment)
+        if self.task.name == config.ENV_METAWORLD or self.task.name == config.ENV_CONTINUALWORLD:
+            self.episode_success_rate = np.zeros(config.num_workers)
+            self.last_episode_success_rate = np.zeros(config.num_workers)
+            self._rollout_fn = self._rollout_metaworld
+        else:
+            self.episode_success_rate = None
+            self.last_episode_success_rate = None
+            self._rollout_fn = self._rollout_normal
+
     def iteration(self):
         config = self.config
         rollout = []
@@ -144,24 +154,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         else:
             batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
 
-        for _ in range(config.rollout_length):
-            _, actions, log_probs, _, values, _ = self.network.predict(states, \
-                task_label=batch_task_label)
-            next_states, rewards, terminals, _ = self.task.step(actions.cpu().detach().numpy())
-            self.episode_rewards += rewards
-            rewards = config.reward_normalizer(rewards)
-            for i, terminal in enumerate(terminals):
-                if terminals[i]:
-                    self.last_episode_rewards[i] = self.episode_rewards[i]
-                    self.episode_rewards[i] = 0
-            next_states = config.state_normalizer(next_states)
-
-            # save data to buffer for the detect module
-            self.data_buffer.feed_batch([states, actions, rewards, terminals, next_states])
-
-            rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
-                rewards, 1 - terminals])
-            states = next_states
+        states, rollout = self._rollout_fn(states, batch_task_label)
 
         self.states = states
         pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
@@ -225,6 +218,58 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.total_steps += steps
         self.layers_output = outs
         return np.mean(grad_norms_)
+
+    def _rollout_normal(self, states, batch_task_label):
+        config = self.config
+        rollout = []
+        for _ in range(config.rollout_length):
+            _, actions, log_probs, _, values, _ = self.network.predict(states, \
+                task_label=batch_task_label)
+            next_states, rewards, terminals, _ = self.task.step(actions.cpu().detach().numpy())
+            self.episode_rewards += rewards
+            rewards = config.reward_normalizer(rewards)
+            for i, terminal in enumerate(terminals):
+                if terminals[i]:
+                    self.last_episode_rewards[i] = self.episode_rewards[i]
+                    self.episode_rewards[i] = 0
+            next_states = config.state_normalizer(next_states)
+
+            # save data to buffer for the detect module
+            self.data_buffer.feed_batch([states, actions, rewards, terminals, next_states])
+
+            rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
+                rewards, 1 - terminals])
+            states = next_states
+        return states, rollout
+
+    # rollout for metaworld and continualworld environments. it is similar to normal
+    # rollout with the inclusion of the capture of success rate metric.
+    def _rollout_metaworld(self, states, batch_task_label):
+        config = self.config
+        rollout = []
+        for _ in range(config.rollout_length):
+            _, actions, log_probs, _, values, _ = self.network.predict(states, \
+                task_label=batch_task_label)
+            next_states, rewards, terminals, infos = self.task.step(actions.cpu().detach().numpy())
+            success_rates = [info['success'] for info in infos]
+            self.episode_rewards += rewards
+            self.episode_success_rate += success_rates
+            rewards = config.reward_normalizer(rewards)
+            for i, terminal in enumerate(terminals):
+                if terminals[i]:
+                    self.last_episode_rewards[i] = self.episode_rewards[i]
+                    self.episode_rewards[i] = 0
+                    self.last_episode_success_rate[i] = self.episode_success_rate[i]
+                    self.episode_success_rate[i] = 0
+            next_states = config.state_normalizer(next_states)
+
+            # save data to buffer for the detect module
+            self.data_buffer.feed_batch([states, actions, rewards, terminals, next_states])
+
+            rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
+                rewards, 1 - terminals])
+            states = next_states
+        return states, rollout
 
 class BaselineAgent(PPOContinualLearnerAgent):
     '''
