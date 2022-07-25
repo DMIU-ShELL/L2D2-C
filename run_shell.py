@@ -83,7 +83,7 @@ def shell_mctgraph(name, args, shell_config):
         config.seed = config_seed
         config.state_normalizer = ImageNormalizer()
         # task may repeat, so get number of unique tasks.
-        num_tasks = len(set(shell_config['agents'][idx]['task_ids'])) 
+        num_tasks = len(set(shell_config['agents'][idx]['task_ids']))
         config.cl_num_tasks = num_tasks
         config.task_ids = shell_config['agents'][idx]['task_ids']
         if isinstance(shell_config['agents'][idx]['max_steps'], list):
@@ -95,10 +95,10 @@ def shell_mctgraph(name, args, shell_config):
         eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
         config.eval_task_fn = eval_task_fn
         config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
-            state_dim, action_dim, label_dim, 
-            phi_body=FCBody_SS(state_dim, task_label_dim=label_dim, \
-            hidden_units=(200, 200, 200), num_tasks=num_tasks), 
-            actor_body=DummyBody_CL(200), 
+            state_dim, action_dim, label_dim,
+            phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
+            hidden_units=(200, 200, 200), num_tasks=num_tasks),
+            actor_body=DummyBody_CL(200),
             critic_body=DummyBody_CL(200),
             num_tasks=num_tasks)
 
@@ -131,7 +131,7 @@ def shell_minigrid(name, args, shell_config):
         # rescale state normaliser: suitable for grid encoding of states in minigrid
         config.state_normalizer = RescaleNormalizer(1./10.)
         # task may repeat, so get number of unique tasks.
-        num_tasks = len(set(shell_config['agents'][idx]['task_ids'])) 
+        num_tasks = len(set(shell_config['agents'][idx]['task_ids']))
         config.cl_num_tasks = num_tasks
         config.task_ids = shell_config['agents'][idx]['task_ids']
         if isinstance(shell_config['agents'][idx]['max_steps'], list):
@@ -143,10 +143,57 @@ def shell_minigrid(name, args, shell_config):
         eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
         config.eval_task_fn = eval_task_fn
         config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
-            state_dim, action_dim, label_dim, 
-            phi_body=FCBody_SS(state_dim, task_label_dim=label_dim, \
-            hidden_units=(200, 200, 200), num_tasks=num_tasks), 
-            actor_body=DummyBody_CL(200), 
+            state_dim, action_dim, label_dim,
+            phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
+            hidden_units=(200, 200, 200), num_tasks=num_tasks),
+            actor_body=DummyBody_CL(200),
+            critic_body=DummyBody_CL(200),
+            num_tasks=num_tasks)
+
+        agent = ShellAgent_SP(config)
+        config.agent_name = agent.__class__.__name__ + '_{0}'.format(idx)
+        agents.append(agent)
+
+    shell_train(agents, logger)
+
+##### ContinualWorld environment
+def shell_continualworld(name, args, shell_config):
+    shell_config_path = args.shell_config_path
+    env_config_path = shell_config['env']['env_config_path']
+    config_seed = shell_config['seed']
+
+    agents = []
+    num_agents = len(shell_config['agents'])
+
+    # set up logging system
+    exp_id = args.exp_id
+    log_dir = get_default_log_dir(name + '-shell' + exp_id)
+    logger = get_logger(log_dir=log_dir, file_name='train-log')
+
+    # create/initialise agents
+    for idx in range(num_agents):
+        logger.info('*****initialising agent {0}'.format(idx))
+        config = Config()
+        config = global_config(config, name)
+        config.seed = config_seed
+        config.state_normalizer = RescaleNormalizer(1.) # no rescaling
+        # task may repeat, so get number of unique tasks.
+        num_tasks = len(set(shell_config['agents'][idx]['task_ids']))
+        config.cl_num_tasks = num_tasks
+        config.task_ids = shell_config['agents'][idx]['task_ids']
+        if isinstance(shell_config['agents'][idx]['max_steps'], list):
+            config.max_steps = shell_config['agents'][idx]['max_steps']
+        else:
+            config.max_steps = [shell_config['agents'][idx]['max_steps'], ] * num_tasks
+        task_fn = lambda log_dir: ContinualWorld(name, env_config_path, log_dir, config.seed)
+        config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
+        eval_task_fn= lambda log_dir: ContinualWorld(name, env_config_path, log_dir, config.seed)
+        config.eval_task_fn = eval_task_fn
+        config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
+            state_dim, action_dim, label_dim,
+            phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
+            hidden_units=(200, 200, 200), num_tasks=num_tasks),
+            actor_body=DummyBody_CL(200),
             critic_body=DummyBody_CL(200),
             num_tasks=num_tasks)
 
@@ -172,10 +219,13 @@ if __name__ == '__main__':
         del shell_config['dist_only'] # not used in this setting
 
     if shell_config['env']['env_name'] == 'minigrid':
-        name = 'Minigrid'
+        name = Config.ENV_MINIGRID
         shell_minigrid(name, args, shell_config)
     elif shell_config['env']['env_name'] == 'ctgraph':
-        name = 'MetaCTgraph'
+        name = Config.ENV_METACTGRAPH
         shell_mctgraph(name, args, shell_config)
+    elif shell_config['env']['env_name'] == 'continualworld':
+        name = Config.ENV_CONTINUALWORLD
+        shell_continualworld(name, args, shell_config)
     else:
         raise ValueError('--env_name {0} not implemented'.format(args.env_name))

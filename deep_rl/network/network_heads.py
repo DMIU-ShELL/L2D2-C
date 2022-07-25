@@ -230,6 +230,8 @@ class GaussianActorCriticNet(nn.Module, BaseNet):
 # actor-critic net for continual learning where tasks are labelled using
 # supermask superposition algorithm
 class GaussianActorCriticNet_SS(nn.Module, BaseNet):
+    LOG_STD_MIN = -20.
+    LOG_STD_MAX = 2.
     def __init__(self,
                  state_dim,
                  action_dim,
@@ -241,10 +243,9 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
         super(GaussianActorCriticNet_SS, self).__init__()
         self.network = ActorCriticNetSS(state_dim, action_dim, phi_body, actor_body, critic_body, \
             num_tasks)
-        #self.std = nn.Parameter(torch.ones(1, action_dim))
-        self.network.fc_std = MultitaskMaskLinear(actor_body.feature_dim, action_dim, \
+        self.network.fc_log_std = MultitaskMaskLinear(actor_body.feature_dim, action_dim, \
             num_tasks=num_tasks)
-        self.network.actor_params += list(self.network.fc_std.parameters())
+        self.network.actor_params += list(self.network.fc_log_std.parameters())
         self.to(Config.DEVICE)
 
     def predict(self, obs, action=None, task_label=None, return_layer_output=False, to_numpy=False):
@@ -262,21 +263,23 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
         if to_numpy:
             return mean.cpu().detach().numpy()
         v = self.network.fc_critic(phi_v)
-        #std = F.softplus(self.std)
-        std = self.network.fc_std(phi_a)
-        std = F.softplus(std)
+        log_std = self.network.fc_log_std(phi_a)
+        log_std = torch.clamp(log_std, GaussianActorCriticNet_SS.LOG_STD_MIN, \
+            GaussianActorCriticNet_SS.LOG_STD_MAX)
+        std = torch.exp(log_std)
         dist = torch.distributions.Normal(mean, std)
         if action is None:
             action = dist.sample()
         log_prob = dist.log_prob(action)
         log_prob = torch.sum(log_prob, dim=1, keepdim=True)
-        #entropy = tensor(np.zeros((log_prob.size(0), 1)))
         entropy = dist.entropy()
         entropy = entropy.sum(-1).unsqueeze(-1)
         return mean, action, log_prob, entropy, v, layers_output
 
 # actor-critic net for continual learning where tasks are labelled
 class GaussianActorCriticNet_CL(nn.Module, BaseNet):
+    LOG_STD_MIN = -20.
+    LOG_STD_MAX = 2.
     def __init__(self,
                  state_dim,
                  action_dim,
@@ -288,10 +291,9 @@ class GaussianActorCriticNet_CL(nn.Module, BaseNet):
         self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body)
         self.task_label_dim = task_label_dim
 
-        #self.std = nn.Parameter(torch.ones(1, action_dim))
-        self.network.fc_std = layer_init(nn.Linear(self.network.actor_body.feature_dim, action_dim),\
-            1e-3)
-        self.network.actor_params += list(self.network.fc_std.parameters())
+        self.network.fc_log_std = layer_init(nn.Linear(self.network.actor_body.feature_dim, \
+            action_dim), 1e-3)
+        self.network.actor_params += list(self.network.fc_log_std.parameters())
         self.to(Config.DEVICE)
 
     def predict(self, obs, action=None, task_label=None, return_layer_output=False, to_numpy=False):
@@ -309,15 +311,15 @@ class GaussianActorCriticNet_CL(nn.Module, BaseNet):
         if to_numpy:
             return mean.cpu().detach().numpy()
         v = self.network.fc_critic(phi_v)
-        #std = F.softplus(self.std)
-        std = self.network.fc_std(phi_a)
-        std = F.softplus(std)
+        log_std = self.network.fc_log_std(phi_a)
+        log_std = torch.clamp(log_std, GaussianActorCriticNet_CL.LOG_STD_MIN, \
+            GaussianActorCriticNet_CL.LOG_STD_MAX)
+        std = torch.exp(log_std)
         dist = torch.distributions.Normal(mean, std)
         if action is None:
             action = dist.sample()
         log_prob = dist.log_prob(action)
         log_prob = torch.sum(log_prob, dim=1, keepdim=True)
-        #entropy = tensor(np.zeros((log_prob.size(0), 1)))
         entropy = dist.entropy()
         entropy = entropy.sum(-1).unsqueeze(-1)
         return mean, action, log_prob, entropy, v, layers_output

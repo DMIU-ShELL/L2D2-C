@@ -331,6 +331,7 @@ class MetaCTgraph(BaseTask):
 
         # observation/action space configuration
         self.observation_space = envs[0].observation_space
+        self.action_space = envs[0].action_space
         self.action_dim = envs[0].action_space.n
         self.state_dim = envs[0].observation_space.shape
 
@@ -436,6 +437,7 @@ class MiniGrid(BaseTask):
                     for k in self.envs.keys():
                         self.envs[k] = cls_wrapper(self.envs[k])
         self.observation_space = self.envs[env_names[0]].observation_space
+        self.action_space = self.envs[env_names[0]].action_space
         self.state_dim = self.observation_space.shape
         # note, action_dim of 3 will reduce agent action to left, right, and forward
         if 'action_dim' in env_config.keys():
@@ -504,6 +506,95 @@ class MiniGridFlatObs(MiniGrid):
     def reset(self):
         state = self.env.reset()
         return state.ravel()
+
+class ContinualWorld(BaseTask):
+
+    # subtask: a configuration of object and goal polication in an env/task.
+    RANDOMIZATION_STRATEGIES = [
+        'deterministic', # subtask does not change in per reset in env/task.
+        'random_init_all', # randomly generate a subtask per reset in env/task.
+        'random_init_fixed20', # randomly selected out of 20 predefined subtask per reset in env/task
+    ]
+    def _env_instantiator(self, task_name, randomization):
+        from gym.wrappers import TimeLimit
+        from continualworld.utils.wrappers import RandomizationWrapper, SuccessCounter
+        from continualworld.envs import get_subtasks, MT50, META_WORLD_TIME_HORIZON
+        # adapted from get_single_env in continualworld codebase.
+        env = MT50.train_classes[task_name]()
+        env = RandomizationWrapper(env, get_subtasks(task_name), randomization)
+        # Currently TimeLimit is needed since SuccessCounter looks at dones.
+        env = TimeLimit(env, META_WORLD_TIME_HORIZON)
+        env = SuccessCounter(env)
+        env.name = task_name
+        #env.num_envs = 1
+        return env
+        
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000):
+        BaseTask.__init__(self)
+        self.name = name
+
+        with open(env_config_path, 'r') as f:
+            env_config = json.load(f)
+        self.env_config = env_config
+        env_names = env_config['tasks']
+        rconfig = env_config['randomization']
+        if rconfig not in ContinualWorld.RANDOMIZATION_STRATEGIES:
+            msg = '`randomization` in config should be on of the following: {0}'.format(\
+                ContinualWorld.RANDOMIZATION_STRATEGIES)
+            raise ValueError(msg)
+        self.envs = {env_name : self._env_instantiator(env_name, rconfig) for env_name in env_names}
+        self.observation_space = self.envs[env_names[0]].observation_space # (39,)
+        self.action_space = self.envs[env_names[0]].action_space # (4,)
+        self.state_dim = int(np.prod(self.observation_space.shape))
+        self.action_dim = int(np.prod(self.action_space.shape))
+        # env monitors
+        for env_name in self.envs.keys():
+            self.envs[env_name] = self.set_monitor(self.envs[env_name], log_dir)
+        # task label config
+        self.task_label_dim = env_config['label_dim']
+        self.one_hot_labels = True if env_config['one_hot'] else False
+        # all tasks
+        self.tasks = [{'name': name, 'task': name, 'task_label': None} for name in self.envs.keys()]
+        # generate label for each task
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+        else:
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32) 
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+        # set default task
+        self.current_task = self.tasks[0]
+        self.env = self.envs[self.current_task['task']]
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        return state, reward, done, info
+
+    def reset(self):
+        state = self.env.reset()
+        return state
+
+    def reset_task(self, taskinfo):
+        self.set_task(taskinfo)
+        return self.reset()
+
+    def set_task(self, taskinfo):
+        self.current_task = taskinfo
+        self.env = self.envs[self.current_task['task']]
+    
+    def get_task(self):
+        return self.current_task
+
+    def get_all_tasks(self, requires_task_label=True):
+        return self.tasks
+    
+    def random_tasks(self, num_tasks, requires_task_label=True):
+        raise NotImplementedError
 
 class PixelAtari(BaseTask):
     def __init__(self, name, seed=0, log_dir=None,

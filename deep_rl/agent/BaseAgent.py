@@ -4,6 +4,7 @@
 # declaration at the top                                              #
 #######################################################################
 
+import gym
 import torch
 import numpy as np
 from ..utils import *
@@ -89,11 +90,20 @@ class BaseContinualLearnerAgent(BaseAgent):
         self.config.state_normalizer.unset_read_only()
         if isinstance(out, dict) or isinstance(out, list) or isinstance(out, tuple):
             # for actor-critic and policy gradient approaches
-            logits = out[0]
-            action = np.argmax(logits.cpu().numpy().flatten())
-            ret = {'logits': out[0], 'sampled_action': out[1], 'log_prob': out[2], 
-                'entropy': out[3], 'value': out[4], 'deterministic_action': action}
-            return action, ret
+            if isinstance(self.evaluation_env.action_space, gym.spaces.Discrete):
+                logits = out[0]
+                action = np.argmax(logits.cpu().numpy().flatten())
+                ret = {'policy_output': out[0], 'sampled_action': out[1], 'log_prob': out[2], 
+                    'entropy': out[3], 'value': out[4], 'deterministic_action': action}
+                return action, ret
+            elif isinstance(self.evaluation_env.action_space, gym.spaces.Box):
+                action = out[0].cpu().numpy().flatten() # mean / deterministic action of policy
+                ret = {'policy_output': out[0], 'sampled_action': out[1], 'log_prob': out[2], 
+                    'entropy': out[3], 'value': out[4], 'deterministic_action': out[0]}
+                return action, ret
+            else:
+                raise ValueError('env action space not defined. it should be gym.spaces.Discrete' \
+                    'or gym.spaces.Box')
         else:
             # for dqn approaches
             q = out
@@ -101,7 +111,7 @@ class BaseContinualLearnerAgent(BaseAgent):
             return np.argmax(q), {'logits': q}
 
     def deterministic_episode(self):
-        epi_info = {'logits': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
+        epi_info = {'policy_output': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
             'value': [], 'deterministic_action': [], 'reward': [], 'terminal': []}
 
         #env = self.config.evaluation_env
