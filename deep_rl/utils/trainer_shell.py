@@ -20,6 +20,51 @@ except:
     from pathlib2 import Path
 
 
+def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter):
+    logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
+    'mean/max/min reward %f/%f/%f' % (agent_idx, task_counter, \
+        itr_counter,
+        agent.total_steps,
+        np.mean(agent.last_episode_rewards),
+        np.max(agent.last_episode_rewards),
+        np.min(agent.last_episode_rewards)
+    ))
+    logger.scalar_summary('agent_{0}/avg_reward'.format(agent_idx), \
+        np.mean(agent.last_episode_rewards))
+    logger.scalar_summary('agent_{0}/max_reward'.format(agent_idx), \
+        np.max(agent.last_episode_rewards))
+    logger.scalar_summary('agent_{0}/min_reward'.format(agent_idx), \
+        np.min(agent.last_episode_rewards))
+    return
+
+# metaworld/continualworld
+def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter):
+    logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
+    'mean/max/min reward %f/%f/%f, mean/max/min success rate %f/%f/%f' % (agent_idx, \
+        task_counter,
+        itr_counter,
+        agent.total_steps,
+        np.mean(agent.last_episode_rewards),
+        np.max(agent.last_episode_rewards),
+        np.min(agent.last_episode_rewards),
+        np.mean(agent.last_episode_success_rate),
+        np.max(agent.last_episode_success_rate),
+        np.min(agent.last_episode_success_rate)
+    ))
+    logger.scalar_summary('agent_{0}/avg_reward'.format(agent_idx), \
+        np.mean(agent.last_episode_rewards))
+    logger.scalar_summary('agent_{0}/max_reward'.format(agent_idx), \
+        np.max(agent.last_episode_rewards))
+    logger.scalar_summary('agent_{0}/min_reward'.format(agent_idx), \
+        np.min(agent.last_episode_rewards))
+    logger.scalar_summary('agent_{0}/avg_success_rate'.format(agent_idx), \
+        np.mean(agent.last_episode_success_rate))
+    logger.scalar_summary('agent_{0}/max_success_rate'.format(agent_idx), \
+        np.max(agent.last_episode_success_rate))
+    logger.scalar_summary('agent_{0}/min_success_rate'.format(agent_idx), \
+        np.min(agent.last_episode_success_rate))
+    return
+
 '''
 shell training: single processing, all agents are executed/trained in a single process
 with each agent taking turns to execute a training step.
@@ -43,6 +88,12 @@ def shell_train(agents, logger):
     eval_data_fhs = [open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_idx), 'a', \
         buffering=1) for agent_idx in range(num_agents)]
 
+    if agents[0].task.name == agent[0].config.ENV_METAWORLD or \
+        agent[0].task.name == agent[0].config.ENV_CONTINUALWORLD:
+        itr_log_fn = _itr_log_mw
+    else:
+        itr_log_fn = _itr_log
+
     print()
     logger.info('*****start shell training')
 
@@ -65,20 +116,8 @@ def shell_train(agents, logger):
             shell_iterations[agent_idx] += 1
             # tensorboard log
             if shell_iterations[agent_idx] % agent.config.iteration_log_interval == 0:
-                logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
-                'mean/max/min reward %f/%f/%f' % (agent_idx, shell_task_counter[agent_idx], \
-                    shell_iterations[agent_idx],
-                    agent.total_steps,
-                    np.mean(agent.last_episode_rewards),
-                    np.max(agent.last_episode_rewards),
-                    np.min(agent.last_episode_rewards)
-                ))
-                logger.scalar_summary('agent_{0}/avg_reward'.format(agent_idx), \
-                    np.mean(agent.last_episode_rewards))
-                logger.scalar_summary('agent_{0}/max_reward'.format(agent_idx), \
-                    np.max(agent.last_episode_rewards))
-                logger.scalar_summary('agent_{0}/min_reward'.format(agent_idx), \
-                    np.min(agent.last_episode_rewards))
+                itr_log_fn(logger, agent, agent_idx, shell_iterations[agent_idx], \
+                    shell_task_counter[agent_idx])
 
             # evaluation block
             if (agent.config.eval_interval is not None and \
@@ -204,6 +243,12 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
     eval_data_fh = open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_id), 'a', \
         buffering=1) # buffering=1 means flush data to file after every line written
 
+    if agent.task.name == agent.config.ENV_METAWORLD or \
+        agent.task.name == agent.config.ENV_CONTINUALWORLD:
+        itr_log_fn = _itr_log_mw
+    else:
+        itr_log_fn = _itr_log
+
     await_response = [False,] * num_agents # flag
     # set the first task each agent is meant to train on
     states_ = agent.task.reset_task(shell_tasks[0])
@@ -252,20 +297,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
 
         # tensorboard log
         if shell_iterations % agent.config.iteration_log_interval == 0:
-            logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
-            'mean/max/min reward %f/%f/%f' % (agent_id, shell_task_counter, \
-                shell_iterations,
-                agent.total_steps,
-                np.mean(agent.last_episode_rewards),
-                np.max(agent.last_episode_rewards),
-                np.min(agent.last_episode_rewards)
-            ))
-            logger.scalar_summary('agent_{0}/avg_reward'.format(agent_id), \
-                np.mean(agent.last_episode_rewards))
-            logger.scalar_summary('agent_{0}/max_reward'.format(agent_id), \
-                np.max(agent.last_episode_rewards))
-            logger.scalar_summary('agent_{0}/min_reward'.format(agent_id), \
-                np.min(agent.last_episode_rewards))
+            itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter)
 
         # evaluation block
         if (agent.config.eval_interval is not None and \
