@@ -7,6 +7,7 @@
 import numpy as np
 import pickle
 import os
+import time
 import datetime
 import torch
 from .torch_utils import *
@@ -136,8 +137,10 @@ def shell_train(agents, logger):
                     shell_eval_data[-1][agent_idx, eval_task_idx] = np.mean(rewards)
                 shell_eval_tracker[agent_idx] = True
                 # save latest eval data for current agent to csv
-                np.savetxt(eval_data_fhs[agent_idx], \
-                    shell_eval_data[-1][agent_idx, : ].reshape(1, -1), delimiter=',', fmt='%.4f')
+                _record = np.concatenate([shell_eval_data[-1][agent_idx, : ], \
+                    np.array(time.time()).reshape(1,)])
+                np.savetxt(eval_data_fhs[agent_idx], _record.reshape(1, -1),delimiter=',',fmt='%.4f')
+                del _record
 
             # checker for end of task training
             if not agent.config.max_steps:
@@ -242,6 +245,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
     shell_metric_icr = [] # icr => instant cumulative reward metric. NOTE may be redundant now
     eval_data_fh = open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_id), 'a', \
         buffering=1) # buffering=1 means flush data to file after every line written
+    shell_eval_end_time = None
 
     if agent.task.name == agent.config.ENV_METAWORLD or \
         agent.task.name == agent.config.ENV_CONTINUALWORLD:
@@ -315,6 +319,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
                 agent.task_eval_end()
                 shell_eval_data[-1][eval_task_idx] = np.mean(rewards)
             shell_eval_tracker = True
+            shell_eval_end_time = time.time()
 
         # end of current task training. move onto next task or end training if last task.
         if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
@@ -352,11 +357,10 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
                     
         if shell_eval_tracker:
             # log the last eval metrics to file
-            _data = shell_eval_data[-1]
-            if _data.ndim == 1:
-                _data = np.expand_dims(_data, axis=0)
-            np.savetxt(eval_data_fh, _data, delimiter=',', fmt='%.4f')
-            del _data
+            _record = np.concatenate([shell_eval_data[-1],np.array(shell_eval_end_time).reshape(1,)])
+            np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
+            del _record
+
             # reset eval tracker and add new buffer to save next eval metrics
             shell_eval_tracker = False
             shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
