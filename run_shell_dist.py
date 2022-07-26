@@ -105,12 +105,11 @@ def shell_dist_mctgraph(name, args, shell_config):
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
     eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
     config.eval_task_fn = eval_task_fn
-    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
+    config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_SS(
         state_dim, action_dim, label_dim,
-        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
-        hidden_units=(200, 200, 200), num_tasks=num_tasks),
-        actor_body=DummyBody_CL(200),
-        critic_body=DummyBody_CL(200),
+        phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
+        actor_body=FCBody_SS(state_dim+label_dim, hidden_units=(200, 200, 200), num_tasks=num_tasks),
+        critic_body=FCBody_SS(state_dim+label_dim,hidden_units=(200, 200, 200),num_tasks=num_tasks)),
         num_tasks=num_tasks)
 
     agent = ShellAgent_DP(config)
