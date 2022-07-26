@@ -1,6 +1,7 @@
 import numpy as np
 import pickle
 import os
+import time
 import datetime
 import torch
 from .torch_utils import *
@@ -124,7 +125,9 @@ def run_iterations_w_oracle(agent, tasks_info):
                         rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                         agent.task_eval_end()
                         eval_data[-1][eval_task_idx] = np.mean(rewards)
-                    np.savetxt(eval_data_fh, eval_data[-1].reshape(1, -1), delimiter=',', fmt='%.4f')
+                    _record = np.concatenate([eval_data[-1], np.array(time.time()).reshape(1,)])
+                    np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
+                    del _record
                     icr = eval_data[-1].sum()
                     metric_icr.append(icr)
                     tpot = np.sum(metric_icr)
@@ -297,8 +300,9 @@ def run_iterations_wo_oracle(agent, tasks_info):
                             rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                             agent.task_eval_end()
                             eval_data[-1][eval_task_idx] = np.mean(rewards)
-                        np.savetxt(eval_data_fh, eval_data[-1].reshape(1, -1), delimiter=',', \
-                            fmt='%.4f')
+                        _record = np.concatenate([eval_data[-1], np.array(time.time()).reshape(1,)])
+                        np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
+                        del _record
                         icr = eval_data[-1].sum()
                         metric_icr.append(icr)
                         tpot = np.sum(metric_icr)
