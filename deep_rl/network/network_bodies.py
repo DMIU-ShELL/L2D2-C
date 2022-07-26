@@ -183,11 +183,15 @@ class DummyBody(nn.Module):
         return x
 
 class DummyBody_CL(nn.Module):
-    def __init__(self, state_dim):
+    def __init__(self, state_dim, task_label_dim=None):
         super(DummyBody_CL, self).__init__()
-        self.feature_dim = state_dim
+        self.feature_dim = state_dim + (0 if task_label_dim is None else task_label_dim)
+        self.task_label_dim = task_label_dim
 
     def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+            x = torch.cat([x, task_label], dim=1)
         return x, []
 
 class DummyBody_CL_Mask(nn.Module):

@@ -349,9 +349,9 @@ def ppo_baseline_continualworld(name, args):
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
     config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_CL(
         state_dim, action_dim, label_dim,
-        phi_body=FCBody_CL(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200)),
-        actor_body=DummyBody_CL(200),
-        critic_body=DummyBody_CL(200))
+        phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
+        actor_body=FCBody_CL(state_dim + label_dim, hidden_units=(200, 200, 200)),
+        critic_body=FCBody_CL(state_dim + label_dim, hidden_units=(200, 200, 200)))
     config.policy_fn = SamplePolicy
     config.state_normalizer = RescaleNormalizer(1.) # no rescaling
     config.discount = 0.99
@@ -418,11 +418,11 @@ def ppo_ll_continualworld(name, args):
     eval_task_fn = lambda log_dir: ContinualWorld(name, env_config_path, log_dir, config.seed)
     config.eval_task_fn = eval_task_fn
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
-    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(
+    config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_SS(
         state_dim, action_dim, label_dim,
-        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200), num_tasks=num_tasks),
-        actor_body=DummyBody_CL(200),
-        critic_body=DummyBody_CL(200),
+        phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
+        actor_body=FCBody_SS(state_dim+label_dim, hidden_units=(200, 200, 200), num_tasks=num_tasks),
+        critic_body=FCBody_SS(state_dim+label_dim,hidden_units=(200, 200, 200),num_tasks=num_tasks)),
         num_tasks=num_tasks)
     config.policy_fn = SamplePolicy
     config.state_normalizer = RescaleNormalizer(1.) # no rescaling
