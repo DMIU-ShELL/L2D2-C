@@ -334,7 +334,7 @@ def ppo_baseline_continualworld(name, args):
     exp_id = ''
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
-    config.num_workers = 4
+    config.num_workers = 1
 
     # get num_tasks from env_config
     with open(env_config_path, 'r') as f:
@@ -357,15 +357,15 @@ def ppo_baseline_continualworld(name, args):
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
-    config.entropy_weight = 0.01 #0.1 #0.75
-    config.rollout_length = 256 #128
+    config.entropy_weight = 0.01
+    config.rollout_length = 512
     config.optimization_epochs = 8
     config.num_mini_batches = 64
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = args.max_steps
-    config.evaluation_episodes = 1 #10
+    config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
     config.cl_requires_task_label = True
 
@@ -406,7 +406,7 @@ def ppo_ll_continualworld(name, args):
     exp_id = ''
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
-    config.num_workers = 4
+    config.num_workers = 1
     # get num_tasks from env_config
     with open(env_config_path, 'r') as f:
         env_config_ = json.load(f)
@@ -429,15 +429,15 @@ def ppo_ll_continualworld(name, args):
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
-    config.entropy_weight = 0.01 #0.1 #0.75
-    config.rollout_length = 256 #128
+    config.entropy_weight = 0.01
+    config.rollout_length = 512
     config.optimization_epochs = 8
     config.num_mini_batches = 64
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = args.max_steps
-    config.evaluation_episodes = 1 #10
+    config.evaluation_episodes = 10
     config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
     config.cl_requires_task_label = True
 

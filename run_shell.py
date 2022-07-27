@@ -177,6 +177,9 @@ def shell_continualworld(name, args, shell_config):
         config = global_config(config, name)
         config.seed = config_seed
         config.state_normalizer = RescaleNormalizer(1.) # no rescaling
+        config.num_workers = 1
+        config.rollout_length = 512
+        config.entropy_weight = 0.01
         # task may repeat, so get number of unique tasks.
         num_tasks = len(set(shell_config['agents'][idx]['task_ids']))
         config.cl_num_tasks = num_tasks

@@ -201,10 +201,9 @@ def shell_dist_continualworld(name, args, shell_config):
     config = Config()
     config = global_config(config, name)
     config.state_normalizer = RescaleNormalizer(1.) # no rescaling
+    config.num_workers = 1
+    config.rollout_length = 512
     config.entropy_weight = 0.01
-    config.rollout_length = 256
-    config.iteration_log_interval = 1
-    config.evaluation_episodes = 1
 
     # set seed
     config.seed = config_seed
