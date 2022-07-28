@@ -179,7 +179,11 @@ def shell_continualworld(name, args, shell_config):
         config.state_normalizer = RescaleNormalizer(1.) # no rescaling
         config.num_workers = 1
         config.rollout_length = 512
-        config.entropy_weight = 0.01
+        config.lr = 5e-4
+        config.gae_tau = 0.97
+        config.entropy_weight = 5e-3
+        config.optimization_epochs = 16
+        config.ppo_ratio_clip = 0.2
         # task may repeat, so get number of unique tasks.
         num_tasks = len(set(shell_config['agents'][idx]['task_ids']))
         config.cl_num_tasks = num_tasks
@@ -195,10 +199,10 @@ def shell_continualworld(name, args, shell_config):
         config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_SS(
             state_dim, action_dim, label_dim,
             phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
-            actor_body=FCBody_SS(state_dim + label_dim, \
-                hidden_units=(200, 200, 200), num_tasks=num_tasks),
-            critic_body=FCBody_SS(state_dim + label_dim, \
-                hidden_units=(200, 200, 200), num_tasks=num_tasks),
+            actor_body=FCBody_SS(state_dim + label_dim, hidden_units=(200, 200, 200), \
+                gate=torch.tanh, num_tasks=num_tasks),
+            critic_body=FCBody_SS(state_dim + label_dim, hidden_units=(200, 200, 200), \
+                gate=torch.tanh, num_tasks=num_tasks),
             num_tasks=num_tasks)
 
         agent = ShellAgent_SP(config)

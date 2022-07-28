@@ -327,7 +327,7 @@ def ppo_baseline_continualworld(name, args):
     config = Config()
     config.env_name = name
     config.env_config_path = env_config_path
-    config.lr = 0.00015
+    config.lr = 5e-4
     config.cl_preservation = 'baseline'
     config.seed = 8379
     random_seed(config.seed)
@@ -347,21 +347,24 @@ def ppo_baseline_continualworld(name, args):
     eval_task_fn = lambda log_dir: ContinualWorld(name, env_config_path, log_dir, config.seed)
     config.eval_task_fn = eval_task_fn
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
-    config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_CL(
+    config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_SS(
         state_dim, action_dim, label_dim,
         phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
-        actor_body=FCBody_CL(state_dim + label_dim, hidden_units=(200, 200, 200)),
-        critic_body=FCBody_CL(state_dim + label_dim, hidden_units=(200, 200, 200)))
+        actor_body=FCBody_SS(state_dim + label_dim, hidden_units=(200, 200, 200), \
+            gate=torch.tanh, num_tasks=num_tasks),
+        critic_body=FCBody_SS(state_dim + label_dim,hidden_units=(200, 200, 200), \
+            gate=torch.tanh, num_tasks=num_tasks),
+        num_tasks=num_tasks)
     config.policy_fn = SamplePolicy
     config.state_normalizer = RescaleNormalizer(1.) # no rescaling
     config.discount = 0.99
     config.use_gae = True
-    config.gae_tau = 0.99
-    config.entropy_weight = 0.01
+    config.gae_tau = 0.97
+    config.entropy_weight = 5e-3
     config.rollout_length = 512
-    config.optimization_epochs = 8
+    config.optimization_epochs = 16
     config.num_mini_batches = 64
-    config.ppo_ratio_clip = 0.1
+    config.ppo_ratio_clip = 0.2
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = args.max_steps
@@ -399,7 +402,7 @@ def ppo_ll_continualworld(name, args):
     config = Config()
     config.env_name = name
     config.env_config_path = env_config_path
-    config.lr = 0.00015
+    config.lr = 5e-4 #0.00015
     config.cl_preservation = 'supermask'
     config.seed = 8379
     random_seed(config.seed)
@@ -421,19 +424,21 @@ def ppo_ll_continualworld(name, args):
     config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_SS(
         state_dim, action_dim, label_dim,
         phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
-        actor_body=FCBody_SS(state_dim+label_dim, hidden_units=(200, 200, 200), num_tasks=num_tasks),
-        critic_body=FCBody_SS(state_dim+label_dim,hidden_units=(200, 200, 200),num_tasks=num_tasks),
+        actor_body=FCBody_SS(state_dim + label_dim, hidden_units=(200, 200, 200), \
+            gate=torch.tanh, num_tasks=num_tasks),
+        critic_body=FCBody_SS(state_dim + label_dim,hidden_units=(200, 200, 200), \
+            gate=torch.tanh, num_tasks=num_tasks),
         num_tasks=num_tasks)
     config.policy_fn = SamplePolicy
     config.state_normalizer = RescaleNormalizer(1.) # no rescaling
     config.discount = 0.99
     config.use_gae = True
-    config.gae_tau = 0.99
-    config.entropy_weight = 0.01
+    config.gae_tau = 0.97
+    config.entropy_weight = 5e-3
     config.rollout_length = 512
-    config.optimization_epochs = 8
+    config.optimization_epochs = 16
     config.num_mini_batches = 64
-    config.ppo_ratio_clip = 0.1
+    config.ppo_ratio_clip = 0.2
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = args.max_steps
