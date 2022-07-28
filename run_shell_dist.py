@@ -209,6 +209,7 @@ def shell_dist_continualworld(name, args, shell_config):
     config.entropy_weight = 5e-3
     config.optimization_epochs = 16
     config.ppo_ratio_clip = 0.2
+    config.eval_interval = 200
 
     # set seed
     config.seed = config_seed

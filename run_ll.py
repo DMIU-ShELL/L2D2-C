@@ -347,14 +347,11 @@ def ppo_baseline_continualworld(name, args):
     eval_task_fn = lambda log_dir: ContinualWorld(name, env_config_path, log_dir, config.seed)
     config.eval_task_fn = eval_task_fn
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
-    config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_SS(
+    config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_CL(
         state_dim, action_dim, label_dim,
         phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
-        actor_body=FCBody_SS(state_dim + label_dim, hidden_units=(200, 200, 200), \
-            gate=torch.tanh, num_tasks=num_tasks),
-        critic_body=FCBody_SS(state_dim + label_dim,hidden_units=(200, 200, 200), \
-            gate=torch.tanh, num_tasks=num_tasks),
-        num_tasks=num_tasks)
+        actor_body=FCBody_CL(state_dim + label_dim, hidden_units=(200, 200, 200), gate=torch.tanh),
+        critic_body=FCBody_CL(state_dim + label_dim,hidden_units=(200, 200, 200), gate=torch.tanh))
     config.policy_fn = SamplePolicy
     config.state_normalizer = RescaleNormalizer(1.) # no rescaling
     config.discount = 0.99
@@ -372,7 +369,7 @@ def ppo_baseline_continualworld(name, args):
     config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
     config.cl_requires_task_label = True
 
-    config.eval_interval = 25
+    config.eval_interval = 200
     config.task_ids = np.arange(num_tasks).tolist()
 
     agent = BaselineAgent(config)
@@ -446,7 +443,7 @@ def ppo_ll_continualworld(name, args):
     config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
     config.cl_requires_task_label = True
 
-    config.eval_interval = 25
+    config.eval_interval = 200
     config.task_ids = np.arange(num_tasks).tolist()
 
     agent = LLAgent(config)

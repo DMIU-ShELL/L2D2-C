@@ -270,6 +270,8 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
         dist = torch.distributions.Normal(mean, std)
         if action is None:
             action = dist.sample()
+        if return_layer_output:
+            layers_output += [('mean', mean), ('std', std), ('action', action), ('value', v)]
         log_prob = dist.log_prob(action)
         log_prob = torch.sum(log_prob, dim=1, keepdim=True)
         entropy = dist.entropy()
@@ -318,6 +320,8 @@ class GaussianActorCriticNet_CL(nn.Module, BaseNet):
         dist = torch.distributions.Normal(mean, std)
         if action is None:
             action = dist.sample()
+        if return_layer_output:
+            layers_output += [('mean', mean), ('std', std), ('action', action), ('value', v)]
         log_prob = dist.log_prob(action)
         log_prob = torch.sum(log_prob, dim=1, keepdim=True)
         entropy = dist.entropy()
@@ -381,6 +385,8 @@ class CategoricalActorCriticNet_SS(nn.Module, BaseNet):
         dist = torch.distributions.Categorical(logits=logits)
         if action is None:
             action = dist.sample()
+        if return_layer_output:
+            layers_output += [('logits', logits), ('action', action), ('value', v)]
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 
@@ -415,6 +421,8 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
         dist = torch.distributions.Categorical(logits=logits)
         if action is None:
             action = dist.sample()
+        if return_layer_output:
+            layers_output += [('logits', logits), ('action', action), ('value', v)]
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 
