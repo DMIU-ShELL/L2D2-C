@@ -353,7 +353,8 @@ def ppo_baseline_continualworld(name, args):
         actor_body=FCBody_CL(state_dim + label_dim, hidden_units=(128, 128), gate=torch.tanh),
         critic_body=FCBody_CL(state_dim + label_dim,hidden_units=(128, 128), gate=torch.tanh))
     config.policy_fn = SamplePolicy
-    config.state_normalizer = RescaleNormalizer(1.) # no rescaling
+    #config.state_normalizer = RescaleNormalizer(1.) # no rescaling
+    config.state_normalizer = RunningStatsNormalizer()
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.97
@@ -427,7 +428,8 @@ def ppo_ll_continualworld(name, args):
             gate=torch.tanh, num_tasks=num_tasks),
         num_tasks=num_tasks)
     config.policy_fn = SamplePolicy
-    config.state_normalizer = RescaleNormalizer(1.) # no rescaling
+    #config.state_normalizer = RescaleNormalizer(1.) # no rescaling
+    config.state_normalizer = RunningStatsNormalizer()
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.97
