@@ -571,7 +571,8 @@ class ContinualWorld(BaseTask):
         self.env = self.envs[self.current_task['task']]
 
     def step(self, action):
-        state, reward, done, info = self.env.step(action)
+        _action = np.clip(action, self.env.action_space.low, self.env.action_space.high)
+        state, reward, done, info = self.env.step(_action)
         if done: state = self.reset()
         return state, reward, done, info
 

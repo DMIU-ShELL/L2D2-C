@@ -231,7 +231,7 @@ class GaussianActorCriticNet(nn.Module, BaseNet):
 # supermask superposition algorithm
 class GaussianActorCriticNet_SS(nn.Module, BaseNet):
     LOG_STD_MIN = -20.
-    LOG_STD_MAX = 2.
+    LOG_STD_MAX = 1.3
     def __init__(self,
                  state_dim,
                  action_dim,
@@ -255,11 +255,12 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
         layers_output = []
         phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
         layers_output += out
-        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body')
+        phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
         layers_output += out
-        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body')
+        phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
         layers_output += out
-        mean = F.tanh(self.network.fc_action(phi_a))
+        #mean = F.tanh(self.network.fc_action(phi_a))
+        mean = self.network.fc_action(phi_a)
         if to_numpy:
             return mean.cpu().detach().numpy()
         v = self.network.fc_critic(phi_v)
@@ -281,7 +282,7 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
 # actor-critic net for continual learning where tasks are labelled
 class GaussianActorCriticNet_CL(nn.Module, BaseNet):
     LOG_STD_MIN = -20.
-    LOG_STD_MAX = 2.
+    LOG_STD_MAX = 1.3
     def __init__(self,
                  state_dim,
                  action_dim,
@@ -305,11 +306,12 @@ class GaussianActorCriticNet_CL(nn.Module, BaseNet):
         layers_output = []
         phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
         layers_output += out
-        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body')
+        phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
         layers_output += out
-        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body')
+        phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
         layers_output += out
-        mean = F.tanh(self.network.fc_action(phi_a))
+        #mean = F.tanh(self.network.fc_action(phi_a))
+        mean = self.network.fc_action(phi_a)
         if to_numpy:
             return mean.cpu().detach().numpy()
         v = self.network.fc_critic(phi_v)
@@ -375,9 +377,9 @@ class CategoricalActorCriticNet_SS(nn.Module, BaseNet):
         layers_output = []
         phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
         layers_output += out
-        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body')
+        phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
         layers_output += out
-        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body')
+        phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
         layers_output += out
 
         logits = self.network.fc_action(phi_a)
@@ -411,9 +413,9 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
         layers_output = []
         phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
         layers_output += out
-        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body')
+        phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
         layers_output += out
-        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body')
+        phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
         layers_output += out
 
         logits = self.network.fc_action(phi_a)
