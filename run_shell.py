@@ -176,7 +176,8 @@ def shell_continualworld(name, args, shell_config):
         config = Config()
         config = global_config(config, name)
         config.seed = config_seed
-        config.state_normalizer = RescaleNormalizer(1.) # no rescaling
+        #config.state_normalizer = RescaleNormalizer(1.) # no rescaling
+        config.state_normalizer = RunningStatsNormalizer()
         config.num_workers = 2
         config.rollout_length = 256
         config.lr = 5e-4
