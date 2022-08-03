@@ -23,6 +23,8 @@ def _itr_log(logger, agent, iteration, avg_grad_norm):
             logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
             logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
             logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
+            logger.scalar_summary('debug/{0}_mean'.format(tag), value.mean())
+            logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
     return
 
 # metaworld/continualworld
@@ -51,6 +53,8 @@ def _itr_log_mw(logger, agent, iteration, avg_grad_norm):
             logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
             logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
             logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
+            logger.scalar_summary('debug/{0}_mean'.format(tag), value.mean())
+            logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
     return
 
 # run iterations, lifelong learning
