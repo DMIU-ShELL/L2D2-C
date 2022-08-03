@@ -334,7 +334,7 @@ def ppo_baseline_continualworld(name, args):
     exp_id = ''
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
-    config.num_workers = 2 #1
+    config.num_workers = 1
 
     # get num_tasks from env_config
     with open(env_config_path, 'r') as f:
@@ -346,7 +346,7 @@ def ppo_baseline_continualworld(name, args):
     config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
     eval_task_fn = lambda log_dir: ContinualWorld(name, env_config_path, log_dir, config.seed)
     config.eval_task_fn = eval_task_fn
-    config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
+    config.optimizer_fn = lambda params, lr: torch.optim.Adam(params, lr=lr)
     config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_CL(
         state_dim, action_dim, label_dim,
         phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
@@ -359,9 +359,9 @@ def ppo_baseline_continualworld(name, args):
     config.use_gae = True
     config.gae_tau = 0.97
     config.entropy_weight = 5e-3
-    config.rollout_length = 256 #512
+    config.rollout_length = 512 * 10
     config.optimization_epochs = 16
-    config.num_mini_batches = 64
+    config.num_mini_batches = 160 # with rollout of 5120, 160 mini_batch gives 32 samples per batch
     config.ppo_ratio_clip = 0.2
     config.iteration_log_interval = 1
     config.gradient_clip = 5

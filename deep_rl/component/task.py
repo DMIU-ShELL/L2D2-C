@@ -523,7 +523,8 @@ class ContinualWorld(BaseTask):
         env = MT50.train_classes[task_name]()
         env = RandomizationWrapper(env, get_subtasks(task_name), randomization)
         # Currently TimeLimit is needed since SuccessCounter looks at dones.
-        env = TimeLimit(env, META_WORLD_TIME_HORIZON)
+        #env = TimeLimit(env, META_WORLD_TIME_HORIZON)
+        env = TimeLimit(env, 500)
         #env = SuccessCounter(env)
         env.name = task_name
         #env.num_envs = 1

@@ -230,8 +230,8 @@ class GaussianActorCriticNet(nn.Module, BaseNet):
 # actor-critic net for continual learning where tasks are labelled using
 # supermask superposition algorithm
 class GaussianActorCriticNet_SS(nn.Module, BaseNet):
-    LOG_STD_MIN = -20.
-    LOG_STD_MAX = 1.3
+    LOG_STD_MIN = -0.6931 #-20.
+    LOG_STD_MAX = 0.4055 #1.3
     def __init__(self,
                  state_dim,
                  action_dim,
@@ -281,8 +281,8 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
 
 # actor-critic net for continual learning where tasks are labelled
 class GaussianActorCriticNet_CL(nn.Module, BaseNet):
-    LOG_STD_MIN = -20.
-    LOG_STD_MAX = 1.3
+    LOG_STD_MIN = -0.6931 #-20.
+    LOG_STD_MAX = 0.4055 #1.3
     def __init__(self,
                  state_dim,
                  action_dim,
