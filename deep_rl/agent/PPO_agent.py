@@ -259,7 +259,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                 if terminals[i]:
                     self.last_episode_rewards[i] = self.episode_rewards[i]
                     self.episode_rewards[i] = 0
-                    self.last_episode_success_rate[i] = self.episode_success_rate[i]
+                    self.last_episode_success_rate[i] = (self.episode_success_rate[i] > 0).astype(np.uint8)
                     self.episode_success_rate[i] = 0
             next_states = config.state_normalizer(next_states)
 

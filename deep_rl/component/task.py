@@ -523,8 +523,9 @@ class ContinualWorld(BaseTask):
         env = MT50.train_classes[task_name]()
         env = RandomizationWrapper(env, get_subtasks(task_name), randomization)
         # Currently TimeLimit is needed since SuccessCounter looks at dones.
-        env = TimeLimit(env, META_WORLD_TIME_HORIZON)
-        env = SuccessCounter(env)
+        #env = TimeLimit(env, META_WORLD_TIME_HORIZON)
+        env = TimeLimit(env, 500)
+        #env = SuccessCounter(env)
         env.name = task_name
         #env.num_envs = 1
         return env
@@ -571,7 +572,8 @@ class ContinualWorld(BaseTask):
         self.env = self.envs[self.current_task['task']]
 
     def step(self, action):
-        state, reward, done, info = self.env.step(action)
+        _action = np.clip(action, self.env.action_space.low, self.env.action_space.high)
+        state, reward, done, info = self.env.step(_action)
         if done: state = self.reset()
         return state, reward, done, info
 

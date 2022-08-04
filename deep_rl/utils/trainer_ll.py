@@ -12,10 +12,19 @@ def _itr_log(logger, agent, iteration, avg_grad_norm):
         np.max(agent.last_episode_rewards),
         np.min(agent.last_episode_rewards)
     ))
-    logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
-    logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
-    logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
-    logger.scalar_summary('avg grad norm', avg_grad_norm)
+    logger.scalar_summary('reward/avg', np.mean(agent.last_episode_rewards))
+    logger.scalar_summary('reward/max', np.max(agent.last_episode_rewards))
+    logger.scalar_summary('reward/min', np.min(agent.last_episode_rewards))
+    logger.scalar_summary('grad_norm/avg', avg_grad_norm)
+    if hasattr(agent, 'layers_output'):
+        for tag, value in agent.layers_output:
+            value = value.detach().cpu().numpy()
+            value_norm = np.linalg.norm(value, axis=1)
+            logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
+            logger.scalar_summary('debug/{0}_avg'.format(tag), value.mean())
+            logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
+            logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
+            logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
     return
 
 # metaworld/continualworld
@@ -30,13 +39,22 @@ def _itr_log_mw(logger, agent, iteration, avg_grad_norm):
         np.max(agent.last_episode_success_rate),
         np.min(agent.last_episode_success_rate)
     ))
-    logger.scalar_summary('avg reward', np.mean(agent.last_episode_rewards))
-    logger.scalar_summary('max reward', np.max(agent.last_episode_rewards))
-    logger.scalar_summary('min reward', np.min(agent.last_episode_rewards))
-    logger.scalar_summary('avg success rate', np.mean(agent.last_episode_success_rate))
-    logger.scalar_summary('max success rate', np.max(agent.last_episode_success_rate))
-    logger.scalar_summary('min success rate', np.min(agent.last_episode_success_rate))
-    logger.scalar_summary('avg grad norm', avg_grad_norm)
+    logger.scalar_summary('reward/avg', np.mean(agent.last_episode_rewards))
+    logger.scalar_summary('reward/max', np.max(agent.last_episode_rewards))
+    logger.scalar_summary('reward/min', np.min(agent.last_episode_rewards))
+    logger.scalar_summary('success_rate/avg', np.mean(agent.last_episode_success_rate))
+    logger.scalar_summary('success_rate/max', np.max(agent.last_episode_success_rate))
+    logger.scalar_summary('success_rate/min', np.min(agent.last_episode_success_rate))
+    logger.scalar_summary('grad_norm/avg', avg_grad_norm)
+    if hasattr(agent, 'layers_output'):
+        for tag, value in agent.layers_output:
+            value = value.detach().cpu().numpy()
+            value_norm = np.linalg.norm(value, axis=1)
+            logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
+            logger.scalar_summary('debug/{0}_avg'.format(tag), value.mean())
+            logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
+            logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
+            logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
     return
 
 # run iterations, lifelong learning

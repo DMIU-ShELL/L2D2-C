@@ -230,8 +230,8 @@ class GaussianActorCriticNet(nn.Module, BaseNet):
 # actor-critic net for continual learning where tasks are labelled using
 # supermask superposition algorithm
 class GaussianActorCriticNet_SS(nn.Module, BaseNet):
-    LOG_STD_MIN = -20.
-    LOG_STD_MAX = 2.
+    LOG_STD_MIN = -0.6931 #-20.
+    LOG_STD_MAX = 0.4055 #1.3
     def __init__(self,
                  state_dim,
                  action_dim,
@@ -255,11 +255,12 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
         layers_output = []
         phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
         layers_output += out
-        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body')
+        phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
         layers_output += out
-        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body')
+        phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
         layers_output += out
-        mean = F.tanh(self.network.fc_action(phi_a))
+        #mean = F.tanh(self.network.fc_action(phi_a))
+        mean = self.network.fc_action(phi_a)
         if to_numpy:
             return mean.cpu().detach().numpy()
         v = self.network.fc_critic(phi_v)
@@ -270,6 +271,9 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
         dist = torch.distributions.Normal(mean, std)
         if action is None:
             action = dist.sample()
+        if return_layer_output:
+            layers_output += [('policy_mean', mean), ('policy_std', std), \
+                ('policy_action', action), ('value_fn', v)]
         log_prob = dist.log_prob(action)
         log_prob = torch.sum(log_prob, dim=1, keepdim=True)
         entropy = dist.entropy()
@@ -278,8 +282,8 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
 
 # actor-critic net for continual learning where tasks are labelled
 class GaussianActorCriticNet_CL(nn.Module, BaseNet):
-    LOG_STD_MIN = -20.
-    LOG_STD_MAX = 2.
+    LOG_STD_MIN = -0.6931 #-20.
+    LOG_STD_MAX = 0.4055 #1.3
     def __init__(self,
                  state_dim,
                  action_dim,
@@ -303,11 +307,12 @@ class GaussianActorCriticNet_CL(nn.Module, BaseNet):
         layers_output = []
         phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
         layers_output += out
-        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body')
+        phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
         layers_output += out
-        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body')
+        phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
         layers_output += out
-        mean = F.tanh(self.network.fc_action(phi_a))
+        #mean = F.tanh(self.network.fc_action(phi_a))
+        mean = self.network.fc_action(phi_a)
         if to_numpy:
             return mean.cpu().detach().numpy()
         v = self.network.fc_critic(phi_v)
@@ -318,6 +323,9 @@ class GaussianActorCriticNet_CL(nn.Module, BaseNet):
         dist = torch.distributions.Normal(mean, std)
         if action is None:
             action = dist.sample()
+        if return_layer_output:
+            layers_output += [('policy_mean', mean), ('policy_std', std), \
+                ('policy_action', action), ('value_fn', v)]
         log_prob = dist.log_prob(action)
         log_prob = torch.sum(log_prob, dim=1, keepdim=True)
         entropy = dist.entropy()
@@ -371,9 +379,9 @@ class CategoricalActorCriticNet_SS(nn.Module, BaseNet):
         layers_output = []
         phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
         layers_output += out
-        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body')
+        phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
         layers_output += out
-        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body')
+        phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
         layers_output += out
 
         logits = self.network.fc_action(phi_a)
@@ -381,6 +389,8 @@ class CategoricalActorCriticNet_SS(nn.Module, BaseNet):
         dist = torch.distributions.Categorical(logits=logits)
         if action is None:
             action = dist.sample()
+        if return_layer_output:
+            layers_output += [('policy_logits', logits), ('policy_action', action), ('value_fn', v)]
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 
@@ -405,9 +415,9 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
         layers_output = []
         phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
         layers_output += out
-        phi_a, out = self.network.actor_body(phi, return_layer_output, 'network.actor_body')
+        phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
         layers_output += out
-        phi_v, out = self.network.critic_body(phi, return_layer_output, 'network.critic_body')
+        phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
         layers_output += out
 
         logits = self.network.fc_action(phi_a)
@@ -415,6 +425,8 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
         dist = torch.distributions.Categorical(logits=logits)
         if action is None:
             action = dist.sample()
+        if return_layer_output:
+            layers_output += [('policy_logits', logits), ('policy_action', action), ('value_fn', v)]
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 

@@ -36,6 +36,15 @@ def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter):
         np.max(agent.last_episode_rewards))
     logger.scalar_summary('agent_{0}/min_reward'.format(agent_idx), \
         np.min(agent.last_episode_rewards))
+    if hasattr(agent, 'layers_output'):
+        for tag, value in agent.layers_output:
+            value = value.detach().cpu().numpy()
+            value_norm = np.linalg.norm(value, axis=1)
+            logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
+            logger.scalar_summary('debug/{0}_avg'.format(tag), value.mean())
+            logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
+            logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
+            logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
     return
 
 # metaworld/continualworld
@@ -64,6 +73,15 @@ def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter):
         np.max(agent.last_episode_success_rate))
     logger.scalar_summary('agent_{0}/min_success_rate'.format(agent_idx), \
         np.min(agent.last_episode_success_rate))
+    if hasattr(agent, 'layers_output'):
+        for tag, value in agent.layers_output:
+            value = value.detach().cpu().numpy()
+            value_norm = np.linalg.norm(value, axis=1)
+            logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
+            logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
+            logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
+            logger.scalar_summary('debug/{0}_mean'.format(tag), value.mean())
+            logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
     return
 
 '''
