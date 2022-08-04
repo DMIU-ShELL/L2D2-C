@@ -41,10 +41,10 @@ def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter):
             value = value.detach().cpu().numpy()
             value_norm = np.linalg.norm(value, axis=1)
             logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
+            logger.scalar_summary('debug/{0}_avg'.format(tag), value.mean())
+            logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
             logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
             logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
-            logger.scalar_summary('debug/{0}_mean'.format(tag), value.mean())
-            logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
     return
 
 # metaworld/continualworld

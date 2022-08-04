@@ -272,7 +272,8 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
         if action is None:
             action = dist.sample()
         if return_layer_output:
-            layers_output += [('mean', mean), ('std', std), ('action', action), ('value', v)]
+            layers_output += [('policy_mean', mean), ('policy_std', std), \
+                ('policy_action', action), ('value_fn', v)]
         log_prob = dist.log_prob(action)
         log_prob = torch.sum(log_prob, dim=1, keepdim=True)
         entropy = dist.entropy()
@@ -323,7 +324,8 @@ class GaussianActorCriticNet_CL(nn.Module, BaseNet):
         if action is None:
             action = dist.sample()
         if return_layer_output:
-            layers_output += [('mean', mean), ('std', std), ('action', action), ('value', v)]
+            layers_output += [('policy_mean', mean), ('policy_std', std), \
+                ('policy_action', action), ('value_fn', v)]
         log_prob = dist.log_prob(action)
         log_prob = torch.sum(log_prob, dim=1, keepdim=True)
         entropy = dist.entropy()
@@ -388,7 +390,7 @@ class CategoricalActorCriticNet_SS(nn.Module, BaseNet):
         if action is None:
             action = dist.sample()
         if return_layer_output:
-            layers_output += [('logits', logits), ('action', action), ('value', v)]
+            layers_output += [('policy_logits', logits), ('policy_action', action), ('value_fn', v)]
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 
@@ -424,7 +426,7 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
         if action is None:
             action = dist.sample()
         if return_layer_output:
-            layers_output += [('logits', logits), ('action', action), ('value', v)]
+            layers_output += [('policy_logits', logits), ('policy_action', action), ('value_fn', v)]
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 
