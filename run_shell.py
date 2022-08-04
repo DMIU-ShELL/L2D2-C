@@ -175,17 +175,25 @@ def shell_continualworld(name, args, shell_config):
         logger.info('*****initialising agent {0}'.format(idx))
         config = Config()
         config = global_config(config, name)
+        # set seed
         config.seed = config_seed
+
         #config.state_normalizer = RescaleNormalizer(1.) # no rescaling
         config.state_normalizer = RunningStatsNormalizer()
-        config.num_workers = 2
-        config.rollout_length = 256
+        config.num_workers = 1
+        config.rollout_length = 512 * 10
         config.lr = 5e-4
         config.gae_tau = 0.97
         config.entropy_weight = 5e-3
         config.optimization_epochs = 16
         config.ppo_ratio_clip = 0.2
         config.eval_interval = 200
+        config.num_mini_batches = 160 #with rollout of 5120, 160 minibatch gives 32 samples per batch
+        config.evaluation_episodes = 10
+        config.optimizer_fn = lambda params, lr: torch.optim.Adam(params, lr=lr)
+
+        # create/initialise agent
+        logger.info('*****initialising agent {0}'.format(idx))
         # task may repeat, so get number of unique tasks.
         num_tasks = len(set(shell_config['agents'][idx]['task_ids']))
         config.cl_num_tasks = num_tasks

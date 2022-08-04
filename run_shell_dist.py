@@ -201,19 +201,22 @@ def shell_dist_continualworld(name, args, shell_config):
     # set up config
     config = Config()
     config = global_config(config, name)
+    # set seed
+    config.seed = config_seed
+
     #config.state_normalizer = RescaleNormalizer(1.) # no rescaling
     config.state_normalizer = RunningStatsNormalizer()
-    config.num_workers = 2
-    config.rollout_length = 256
+    config.num_workers = 1
+    config.rollout_length = 512 * 10
     config.lr = 5e-4
     config.gae_tau = 0.97
     config.entropy_weight = 5e-3
     config.optimization_epochs = 16
     config.ppo_ratio_clip = 0.2
     config.eval_interval = 200
-
-    # set seed
-    config.seed = config_seed
+    config.num_mini_batches = 160 # with rollout of 5120, 160 mini_batch gives 32 samples per batch
+    config.evaluation_episodes = 10
+    config.optimizer_fn = lambda params, lr: torch.optim.Adam(params, lr=lr)
 
     # set up logging system
     exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
