@@ -206,6 +206,7 @@ def shell_dist_continualworld(name, args, shell_config):
 
     #config.state_normalizer = RescaleNormalizer(1.) # no rescaling
     config.state_normalizer = RunningStatsNormalizer()
+    config.reward_normalizer = RewardRunningStatsNormalizer()
     config.num_workers = 1
     config.rollout_length = 512 * 10
     config.lr = 5e-4
