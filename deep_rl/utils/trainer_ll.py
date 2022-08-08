@@ -225,7 +225,7 @@ def run_iterations_w_oracle(agent, tasks_info):
     eval_data_fh.close()
     if len(eval_data) > 0:
         to_save = np.stack(eval_data, axis=0)
-        with open(config.logger.log_dir +  + '/eval_metrics.npy', 'wb') as f:
+        with open(config.logger.log_dir + '/eval_metrics.npy', 'wb') as f:
             np.save(f, to_save)
     agent.close()
     return steps, rewards
