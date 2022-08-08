@@ -21,21 +21,30 @@ except:
     from pathlib2 import Path
 
 
-def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter):
+def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter, avg_grad_norm):
     logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
     'mean/max/min reward %f/%f/%f' % (agent_idx, task_counter, \
         itr_counter,
         agent.total_steps,
-        np.mean(agent.last_episode_rewards),
-        np.max(agent.last_episode_rewards),
-        np.min(agent.last_episode_rewards)
+        np.mean(agent.iteration_rewards),
+        np.max(agent.iteration_rewards),
+        np.min(agent.iteration_rewards)
     ))
-    logger.scalar_summary('agent_{0}/avg_reward'.format(agent_idx), \
+    logger.scalar_summary('agent_{0}/last_episode_avg_reward'.format(agent_idx), \
         np.mean(agent.last_episode_rewards))
-    logger.scalar_summary('agent_{0}/max_reward'.format(agent_idx), \
+    logger.scalar_summary('agent_{0}/last_episode_max_reward'.format(agent_idx), \
         np.max(agent.last_episode_rewards))
-    logger.scalar_summary('agent_{0}/min_reward'.format(agent_idx), \
+    logger.scalar_summary('agent_{0}/last_episode_min_reward'.format(agent_idx), \
         np.min(agent.last_episode_rewards))
+    logger.scalar_summary('agent_{0}/iteration_avg_reward'.format(agent_idx), \
+        np.mean(agent.iteration_rewards))
+    logger.scalar_summary('agent_{0}/iteration_max_reward'.format(agent_idx), \
+        np.max(agent.iteration_rewards))
+    logger.scalar_summary('agent_{0}/iteration_min_reward'.format(agent_idx), \
+        np.min(agent.iteration_rewards))
+
+    logger.scalar_summary('grad_norm/avg', avg_grad_norm)
+
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
@@ -48,31 +57,47 @@ def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter):
     return
 
 # metaworld/continualworld
-def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter):
+def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, avg_grad_norm):
     logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
     'mean/max/min reward %f/%f/%f, mean/max/min success rate %f/%f/%f' % (agent_idx, \
         task_counter,
         itr_counter,
         agent.total_steps,
-        np.mean(agent.last_episode_rewards),
-        np.max(agent.last_episode_rewards),
-        np.min(agent.last_episode_rewards),
-        np.mean(agent.last_episode_success_rate),
-        np.max(agent.last_episode_success_rate),
-        np.min(agent.last_episode_success_rate)
+        np.mean(agent.iteration_rewards),
+        np.max(agent.iteration_rewards),
+        np.min(agent.iteration_rewards),
+        np.mean(agent.iteration_success_rate),
+        np.max(agent.iteration_success_rate),
+        np.min(agent.iteration_success_rate)
     ))
-    logger.scalar_summary('agent_{0}/avg_reward'.format(agent_idx), \
+    logger.scalar_summary('agent_{0}/last_episode_avg_reward'.format(agent_idx), \
         np.mean(agent.last_episode_rewards))
-    logger.scalar_summary('agent_{0}/max_reward'.format(agent_idx), \
+    logger.scalar_summary('agent_{0}/last_episode_max_reward'.format(agent_idx), \
         np.max(agent.last_episode_rewards))
-    logger.scalar_summary('agent_{0}/min_reward'.format(agent_idx), \
+    logger.scalar_summary('agent_{0}/last_episode_min_reward'.format(agent_idx), \
         np.min(agent.last_episode_rewards))
-    logger.scalar_summary('agent_{0}/avg_success_rate'.format(agent_idx), \
+    logger.scalar_summary('agent_{0}/iteration_avg_reward'.format(agent_idx), \
+        np.mean(agent.iteration_rewards))
+    logger.scalar_summary('agent_{0}/iteration_max_reward'.format(agent_idx), \
+        np.max(agent.iteration_rewards))
+    logger.scalar_summary('agent_{0}/iteration_min_reward'.format(agent_idx), \
+        np.min(agent.iteration_rewards))
+
+    logger.scalar_summary('agent_{0}/last_episode_avg_success_rate'.format(agent_idx), \
         np.mean(agent.last_episode_success_rate))
-    logger.scalar_summary('agent_{0}/max_success_rate'.format(agent_idx), \
+    logger.scalar_summary('agent_{0}/last_episode_max_success_rate'.format(agent_idx), \
         np.max(agent.last_episode_success_rate))
-    logger.scalar_summary('agent_{0}/min_success_rate'.format(agent_idx), \
+    logger.scalar_summary('agent_{0}/last_episode_min_success_rate'.format(agent_idx), \
         np.min(agent.last_episode_success_rate))
+    logger.scalar_summary('agent_{0}/iteration_avg_success_rate'.format(agent_idx), \
+        np.mean(agent.iteration_success_rate))
+    logger.scalar_summary('agent_{0}/iteration_max_success_rate'.format(agent_idx), \
+        np.max(agent.iteration_success_rate))
+    logger.scalar_summary('agent_{0}/iteration_min_success_rate'.format(agent_idx), \
+        np.min(agent.iteration_success_rate))
+
+    logger.scalar_summary('grad_norm/avg', avg_grad_norm)
+
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
@@ -131,12 +156,12 @@ def shell_train(agents, logger):
         for agent_idx, agent in enumerate(agents):
             if shell_done[agent_idx]:
                 continue
-            agent.iteration()
+            avg_grad_norm = agent.iteration()
             shell_iterations[agent_idx] += 1
             # tensorboard log
             if shell_iterations[agent_idx] % agent.config.iteration_log_interval == 0:
                 itr_log_fn(logger, agent, agent_idx, shell_iterations[agent_idx], \
-                    shell_task_counter[agent_idx])
+                    shell_task_counter[agent_idx], avg_grad_norm)
 
             # evaluation block
             if (agent.config.eval_interval is not None and \
@@ -150,9 +175,11 @@ def shell_train(agents, logger):
                     agent.task_eval_start(eval_task_info['task_label'])
                     eval_states = agent.evaluation_env.reset_task(eval_task_info)
                     agent.evaluation_states = eval_states
-                    rewards, _ = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
+                    # performance (perf) can be success rate in (meta-)continualworld or
+                    # rewards in other environments
+                    perf, eps = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
                     agent.task_eval_end()
-                    shell_eval_data[-1][agent_idx, eval_task_idx] = np.mean(rewards)
+                    shell_eval_data[-1][agent_idx, eval_task_idx] = np.mean(perf)
                 shell_eval_tracker[agent_idx] = True
                 # save latest eval data for current agent to csv
                 _record = np.concatenate([shell_eval_data[-1][agent_idx, : ], \
@@ -314,12 +341,12 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
             agent.distil_task_knowledge(masks)
                     
         # agent iteration (training step): collect on policy data and optimise agent
-        agent.iteration()
+        avg_grad_norm = agent.iteration()
         shell_iterations += 1
 
         # tensorboard log
         if shell_iterations % agent.config.iteration_log_interval == 0:
-            itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter)
+            itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, avg_grad_norm)
 
         # evaluation block
         if (agent.config.eval_interval is not None and \
@@ -333,9 +360,11 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
                 agent.task_eval_start(eval_task_info['task_label'])
                 eval_states = agent.evaluation_env.reset_task(eval_task_info)
                 agent.evaluation_states = eval_states
-                rewards, _ = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
+                # performance (perf) can be success rate in (meta-)continualworld or
+                # rewards in other environments
+                perf, eps = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
                 agent.task_eval_end()
-                shell_eval_data[-1][eval_task_idx] = np.mean(rewards)
+                shell_eval_data[-1][eval_task_idx] = np.mean(perf)
             shell_eval_tracker = True
             shell_eval_end_time = time.time()
 

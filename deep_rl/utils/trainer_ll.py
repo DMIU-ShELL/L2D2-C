@@ -8,14 +8,20 @@ from .torch_utils import *
 
 def _itr_log(logger, agent, iteration, avg_grad_norm):
     logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f'%(
-        iteration, agent.total_steps, np.mean(agent.last_episode_rewards),
-        np.max(agent.last_episode_rewards),
-        np.min(agent.last_episode_rewards)
+        iteration, agent.total_steps,
+        np.mean(agent.iteration_rewards),
+        np.max(agent.iteration_rewards),
+        np.min(agent.iteration_rewards)
     ))
-    logger.scalar_summary('reward/avg', np.mean(agent.last_episode_rewards))
-    logger.scalar_summary('reward/max', np.max(agent.last_episode_rewards))
-    logger.scalar_summary('reward/min', np.min(agent.last_episode_rewards))
+    logger.scalar_summary('last_episode_reward/avg', np.mean(agent.last_episode_rewards))
+    logger.scalar_summary('last_episode_reward/max', np.max(agent.last_episode_rewards))
+    logger.scalar_summary('last_episode_reward/min', np.min(agent.last_episode_rewards))
+    logger.scalar_summary('iteration_reward/avg', np.mean(agent.iteration_rewards))
+    logger.scalar_summary('iteration_reward/max', np.max(agent.iteration_rewards))
+    logger.scalar_summary('iteration_reward/min', np.min(agent.iteration_rewards))
+
     logger.scalar_summary('grad_norm/avg', avg_grad_norm)
+
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
@@ -32,20 +38,29 @@ def _itr_log_mw(logger, agent, iteration, avg_grad_norm):
     logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f, ' \
         'mean/max/min success rate %f/%f/%f'%(
         iteration, agent.total_steps,
-        np.mean(agent.last_episode_rewards),
-        np.max(agent.last_episode_rewards),
-        np.min(agent.last_episode_rewards),
-        np.mean(agent.last_episode_success_rate),
-        np.max(agent.last_episode_success_rate),
-        np.min(agent.last_episode_success_rate)
+        np.mean(agent.iteration_rewards),
+        np.max(agent.iteration_rewards),
+        np.min(agent.iteration_rewards),
+        np.mean(agent.iteration_success_rate),
+        np.max(agent.iteration_success_rate),
+        np.min(agent.iteration_success_rate)
     ))
-    logger.scalar_summary('reward/avg', np.mean(agent.last_episode_rewards))
-    logger.scalar_summary('reward/max', np.max(agent.last_episode_rewards))
-    logger.scalar_summary('reward/min', np.min(agent.last_episode_rewards))
-    logger.scalar_summary('success_rate/avg', np.mean(agent.last_episode_success_rate))
-    logger.scalar_summary('success_rate/max', np.max(agent.last_episode_success_rate))
-    logger.scalar_summary('success_rate/min', np.min(agent.last_episode_success_rate))
+    logger.scalar_summary('last_episode_reward/avg', np.mean(agent.last_episode_rewards))
+    logger.scalar_summary('last_episode_reward/max', np.max(agent.last_episode_rewards))
+    logger.scalar_summary('last_episode_reward/min', np.min(agent.last_episode_rewards))
+    logger.scalar_summary('iteration_reward/avg', np.mean(agent.iteration_rewards))
+    logger.scalar_summary('iteration_reward/max', np.max(agent.iteration_rewards))
+    logger.scalar_summary('iteration_reward/min', np.min(agent.iteration_rewards))
+
+    logger.scalar_summary('last_episode_success_rate/avg', np.mean(agent.last_episode_success_rate))
+    logger.scalar_summary('last_episode_success_rate/max', np.max(agent.last_episode_success_rate))
+    logger.scalar_summary('last_episode_success_rate/min', np.min(agent.last_episode_success_rate))
+    logger.scalar_summary('iteration_success_rate/avg', np.mean(agent.iteration_success_rate))
+    logger.scalar_summary('iteration_success_rate/max', np.max(agent.iteration_success_rate))
+    logger.scalar_summary('iteration_success_rate/min', np.min(agent.iteration_success_rate))
+
     logger.scalar_summary('grad_norm/avg', avg_grad_norm)
+
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
@@ -109,7 +124,7 @@ def run_iterations_w_oracle(agent, tasks_info):
                 avg_grad_norm = agent.iteration()
                 iteration += 1
                 steps.append(agent.total_steps)
-                rewards.append(np.mean(agent.last_episode_rewards))
+                rewards.append(np.mean(agent.iteration_rewards))
 
                 # logging
                 if iteration % config.iteration_log_interval == 0:
@@ -140,9 +155,11 @@ def run_iterations_w_oracle(agent, tasks_info):
                         agent.task_eval_start(eval_task_info['task_label'])
                         eval_states = agent.evaluation_env.reset_task(eval_task_info)
                         agent.evaluation_states = eval_states
-                        rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+                        # performance (perf) can be success rate in (meta-)continualworld or
+                        # rewards in other environments
+                        perf, eps = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                         agent.task_eval_end()
-                        eval_data[-1][eval_task_idx] = np.mean(rewards)
+                        eval_data[-1][eval_task_idx] = np.mean(perf)
                     _record = np.concatenate([eval_data[-1], np.array(time.time()).reshape(1,)])
                     np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
                     del _record
@@ -270,7 +287,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
                     avg_grad_norm = agent.iteration()
                 iteration += 1
                 steps.append(agent.total_steps)
-                rewards.append(np.mean(agent.last_episode_rewards))
+                rewards.append(np.mean(agent.iteration_rewards))
 
                 # detect task
                 bool_execute = mod_rm.operation(ResourceManager.OP_ID_DETECT)
@@ -315,9 +332,11 @@ def run_iterations_wo_oracle(agent, tasks_info):
                             agent.task_eval_start(eval_task_info['name'])
                             eval_states = agent.evaluation_env.reset_task(eval_task_info)
                             agent.evaluation_states = eval_states
-                            rewards, _ = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+                            # performance (perf) can be success rate in (meta-)continualworld or
+                            # rewards in other environments
+                            perf, eps = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
                             agent.task_eval_end()
-                            eval_data[-1][eval_task_idx] = np.mean(rewards)
+                            eval_data[-1][eval_task_idx] = np.mean(perf)
                         _record = np.concatenate([eval_data[-1], np.array(time.time()).reshape(1,)])
                         np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
                         del _record

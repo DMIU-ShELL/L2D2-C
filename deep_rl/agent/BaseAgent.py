@@ -125,7 +125,7 @@ class BaseContinualLearnerAgent(BaseAgent):
         total_rewards = 0
         while True:
             action, output_info = self.evaluation_action(state, task_label)
-            state, reward, done, _ = env.step(action)
+            state, reward, done, info = env.step(action)
             total_rewards += reward
             for k, v in output_info.items(): epi_info[k].append(v)
             epi_info['reward'].append(reward)
@@ -133,13 +133,45 @@ class BaseContinualLearnerAgent(BaseAgent):
             if done: break
         return total_rewards, epi_info
 
+    def deterministic_episode_metaworld(self):
+        epi_info = {'policy_output': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
+            'value': [], 'deterministic_action': [], 'reward': [], 'terminal': [],
+            'success': []}
+
+        #env = self.config.evaluation_env
+        env = self.evaluation_env
+        state = env.reset()
+        if self.curr_eval_task_label is not None:
+            task_label = self.curr_eval_task_label
+        else:
+            task_label = env.get_task()['task_label']
+            assert False, 'manually set (temporary) breakpoint. code should not get here.'
+        total_success = 0
+        while True:
+            action, output_info = self.evaluation_action(state, task_label)
+            state, reward, done, info = env.step(action)
+            total_success += info['success']
+            for k, v in output_info.items(): epi_info[k].append(v)
+            epi_info['reward'].append(reward)
+            epi_info['terminal'].append(done)
+            epi_info['success'].append(info['success'])
+            if done: break
+        total_success = 1. if total_success > 0. else 0.
+        return total_success, epi_info
+
     def evaluate_cl(self, num_iterations=100):
+        fn_episode = None
+        if env.name == self.config.ENV_METAWORLD or env.name == self.config.ENV_CONTINUALWORLD:
+            fn_episode = self.deterministic_episode_metaworld
+        else:
+            fn_episode = self.deterministic_episode
+
         # evaluation method for continual learning agents
         rewards = []
         episodes = []
         with torch.no_grad():
             for ep in range(num_iterations):
-                total_episode_reward, episode_info = self.deterministic_episode()
+                total_episode_reward, episode_info = fn_episode()
                 rewards.append(total_episode_reward)
                 episodes.append(episode_info)
         return rewards, episodes

@@ -117,8 +117,14 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         _params = list(self.network.parameters())
         self.opt = config.optimizer_fn(_params, config.lr)
         self.total_steps = 0
+
         self.episode_rewards = np.zeros(config.num_workers)
         self.last_episode_rewards = np.zeros(config.num_workers)
+        # running reward: used to compute average across all episodes
+        # that may occur in an iteration
+        self.running_episodes_rewards = [[] for _ in range(config.num_workers)]
+        self.iteration_rewards = np.zeros(config.num_workers)
+
         self.states = self.task.reset()
         self.states = config.state_normalizer(self.states)
         self.layers_output = None
@@ -129,13 +135,18 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         # other performance metric (specifically for metaworld environment)
         if self.task.name == config.ENV_METAWORLD or self.task.name == config.ENV_CONTINUALWORLD:
+            self._rollout_fn = self._rollout_metaworld
             self.episode_success_rate = np.zeros(config.num_workers)
             self.last_episode_success_rate = np.zeros(config.num_workers)
-            self._rollout_fn = self._rollout_metaworld
+            # used to compute average across all episodes that may occur in an iteration
+            self.running_episodes_success_rate = [[] for _ in range(config.num_workers)]
+            self.iteration_success_rate = np.zeros(config.num_workers)
         else:
+            self._rollout_fn = self._rollout_normal
             self.episode_success_rate = None
             self.last_episode_success_rate = None
-            self._rollout_fn = self._rollout_normal
+            self.running_episodes_success_rate = None
+            self.iteration_success_rate = None
 
     def iteration(self):
         config = self.config
@@ -220,6 +231,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         return np.mean(grad_norms_)
 
     def _rollout_normal(self, states, batch_task_label):
+        # clear running performance buffers
+        self.running_episodes_rewards = [[] for _ in range(self.config.num_workers)]
+
         config = self.config
         rollout = []
         for _ in range(config.rollout_length):
@@ -230,6 +244,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             rewards = config.reward_normalizer(rewards)
             for i, terminal in enumerate(terminals):
                 if terminals[i]:
+                    self.running_episodes_rewards[i].append(self.episode_rewards[i])
                     self.last_episode_rewards[i] = self.episode_rewards[i]
                     self.episode_rewards[i] = 0
             next_states = config.state_normalizer(next_states)
@@ -240,11 +255,20 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
+
+        # compute average performance across episodes in the rollout
+        for i in range(config.num_workers):
+            self.iteration_rewards[i] = self._avg_episodic_perf(self.running_episodes_rewards[i])
+
         return states, rollout
 
     # rollout for metaworld and continualworld environments. it is similar to normal
     # rollout with the inclusion of the capture of success rate metric.
     def _rollout_metaworld(self, states, batch_task_label):
+        # clear running performance buffers
+        self.running_episodes_rewards = [[] for _ in range(self.config.num_workers)]
+        self.running_episodes_success_rate = [[] for _ in range(self.config.num_workers)]
+
         config = self.config
         rollout = []
         for _ in range(config.rollout_length):
@@ -257,9 +281,12 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             rewards = config.reward_normalizer(rewards)
             for i, terminal in enumerate(terminals):
                 if terminals[i]:
+                    self.running_episodes_rewards[i].append(self.episode_rewards[i])
                     self.last_episode_rewards[i] = self.episode_rewards[i]
                     self.episode_rewards[i] = 0
-                    self.last_episode_success_rate[i] = (self.episode_success_rate[i] > 0).astype(np.uint8)
+                    self.episode_success_rate[i] = (self.episode_success_rate[i] > 0).astype(np.uint8)
+                    self.running_episodes_success_rate[i].append(self.episode_success_rate[i])
+                    self.last_episode_success_rate[i] = self.episode_success_rate[i]
                     self.episode_success_rate[i] = 0
             next_states = config.state_normalizer(next_states)
 
@@ -269,7 +296,17 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
             states = next_states
+
+        # compute average performance across episodes in the rollout
+        for i in range(config.num_workers):
+            self.iteration_rewards[i] = self._avg_episodic_perf(self.running_episodes_rewards[i])
+            self.iteration_success_rate[i] = self._avg_episodic_perf(self.running_episodes_success_rate[i])
+
         return states, rollout
+
+    def _avg_episodic_perf(self, running_perf):
+        if len(running_perf) == 0: return 0.
+        else: return np.mean(running_perf)
 
 class BaselineAgent(PPOContinualLearnerAgent):
     '''
