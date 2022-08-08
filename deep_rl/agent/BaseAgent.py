@@ -161,7 +161,8 @@ class BaseContinualLearnerAgent(BaseAgent):
 
     def evaluate_cl(self, num_iterations=100):
         fn_episode = None
-        if env.name == self.config.ENV_METAWORLD or env.name == self.config.ENV_CONTINUALWORLD:
+        if self.evaluation_env.name == self.config.ENV_METAWORLD or \
+            self.evaluation_env.name == self.config.ENV_CONTINUALWORLD:
             fn_episode = self.deterministic_episode_metaworld
         else:
             fn_episode = self.deterministic_episode

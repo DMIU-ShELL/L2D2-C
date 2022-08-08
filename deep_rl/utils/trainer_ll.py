@@ -25,7 +25,7 @@ def _itr_log(logger, agent, iteration, avg_grad_norm):
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
-            value_norm = np.linalg.norm(value, axis=1)
+            value_norm = np.linalg.norm(value, axis=-1)
             logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
             logger.scalar_summary('debug/{0}_avg'.format(tag), value.mean())
             logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
@@ -64,7 +64,7 @@ def _itr_log_mw(logger, agent, iteration, avg_grad_norm):
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
-            value_norm = np.linalg.norm(value, axis=1)
+            value_norm = np.linalg.norm(value, axis=-1)
             logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
             logger.scalar_summary('debug/{0}_avg'.format(tag), value.mean())
             logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
@@ -83,7 +83,7 @@ def run_iterations_w_oracle(agent, tasks_info):
     log_path_tstats = config.log_dir + '/task_stats'
     if not os.path.exists(log_path_tstats):
         os.makedirs(log_path_tstats)
-    log_path_eval = config.log_dir + '/eval'
+    log_path_eval = config.log_dir + '/eval_stats'
     if not os.path.exists(log_path_eval):
         os.makedirs(log_path_eval)
     random_seed(config.seed)
@@ -198,15 +198,15 @@ def run_iterations_w_oracle(agent, tasks_info):
 
                 eval_states = agent.evaluation_env.reset_task(tasks_info[j])
                 agent.evaluation_states = eval_states
-                rewards, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
-                eval_results[j] += rewards
+                perf, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+                eval_results[j] += perf
 
                 agent.task_eval_end()
 
-                with open(config.log_dir+'/rewards-task{0}_{1}.bin'.format(\
+                with open(log_path_eval+'/rewards-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
-                    pickle.dump(rewards, f)
-                with open(config.log_dir+'/episodes-task{0}_{1}.bin'.format(\
+                    pickle.dump(perf, f)
+                with open(log_path_eval+'/episodes-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
         # end for each task
@@ -225,7 +225,7 @@ def run_iterations_w_oracle(agent, tasks_info):
     eval_data_fh.close()
     if len(eval_data) > 0:
         to_save = np.stack(eval_data, axis=0)
-        with open(log_path_eval + '/eval_metrics.npy', 'wb') as f:
+        with open(config.logger.log_dir +  + '/eval_metrics.npy', 'wb') as f:
             np.save(f, to_save)
     agent.close()
     return steps, rewards
@@ -244,7 +244,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
     log_path_tstats = config.log_dir + '/task_stats'
     if not os.path.exists(log_path_tstats):
         os.makedirs(log_path_tstats)
-    log_path_eval = config.log_dir + '/eval'
+    log_path_eval = config.log_dir + '/eval_stats'
     if not os.path.exists(log_path_eval):
         os.makedirs(log_path_eval)
     random_seed(config.seed)
@@ -372,14 +372,14 @@ def run_iterations_wo_oracle(agent, tasks_info):
 
                 eval_states = agent.evaluation_env.reset_task(tasks_info[j])
                 agent.evaluation_states = eval_states
-                rewards, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
-                eval_results[j] += rewards
+                perf, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+                eval_results[j] += perf
 
                 agent.task_eval_end()
 
                 with open(config.log_dir+'/rewards-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
-                    pickle.dump(rewards, f)
+                    pickle.dump(perf, f)
                 with open(config.log_dir+'/episodes-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
                     pickle.dump(episodes, f)
@@ -399,7 +399,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
     eval_data_fh.close()
     if len(eval_data) > 0:
         to_save = np.stack(eval_data, axis=0)
-        with open(log_path_eval + '/eval_metrics.npy', 'wb') as f:
+        with open(config.logger.log_dir + '/eval_metrics.npy', 'wb') as f:
             np.save(f, to_save)
     agent.close()
     return steps, rewards
