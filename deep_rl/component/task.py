@@ -427,8 +427,22 @@ class MiniGrid(BaseTask):
             env_config = json.load(f)
         self.env_config = env_config
         env_names = env_config['tasks']
-        self.envs = {name : ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) \
-            for name in env_names}
+        if 'seeds' in env_config.keys():
+            seeds = env_config['seeds']
+        else:
+            seeds = seed
+            del seed
+
+        if isinstance(seeds, int): seeds = [seeds,] * len(env_names)
+        elif isinstance(seeds, list):
+            assert len(seeds) == len(env_names), 'number of seeds in config file should match'\
+                ' the number of tasks.'
+        else: raise ValueError('invalid seed specification in config file')
+        self.envs = {'{0}_seed{1}'.format(name, seed) : \
+            ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) \
+            for name, seed in zip(env_names, seeds)}
+        env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
+
         # apply exploration bonus wrapper only to training envs
         if not eval_mode:
             if 'wrappers' in env_config.keys():
@@ -451,7 +465,8 @@ class MiniGrid(BaseTask):
         self.task_label_dim = env_config['label_dim']
         self.one_hot_labels = True if env_config['one_hot'] else False
         # all tasks
-        self.tasks = [{'name': name, 'task': name, 'task_label': None} for name in self.envs.keys()]
+        self.tasks = [{'name': name, 'task': name, 'task_label': None} \
+            for name in self.envs.keys()]
         # generate label for each task
         if self.one_hot_labels:
             for idx in range(len(self.tasks)):
