@@ -355,6 +355,7 @@ def ppo_baseline_continualworld(name, args):
     config.policy_fn = SamplePolicy
     #config.state_normalizer = RescaleNormalizer(1.) # no rescaling
     config.state_normalizer = RunningStatsNormalizer()
+    config.reward_normalizer = RewardRunningStatsNormalizer()
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.97
@@ -431,6 +432,7 @@ def ppo_ll_continualworld(name, args):
     config.policy_fn = SamplePolicy
     #config.state_normalizer = RescaleNormalizer(1.) # no rescaling
     config.state_normalizer = RunningStatsNormalizer()
+    config.reward_normalizer = RewardRunningStatsNormalizer()
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.97
