@@ -340,10 +340,10 @@ class LLAgent(PPOContinualLearnerAgent):
     supermask lifelong learning algorithm: https://arxiv.org/abs/2006.14769
     '''
     def __init__(self, config):
-       PPOContinualLearnerAgent.__init__(self, config)
-       self.seen_tasks = {} # contains task labels that agent has experienced so far.
-       self.new_task = False
-       self.curr_train_task_label = None
+        PPOContinualLearnerAgent.__init__(self, config)
+        self.seen_tasks = {} # contains task labels that agent has experienced so far.
+        self.new_task = False
+        self.curr_train_task_label = None
 
     def _label_to_idx(self, task_label):
         eps = 1e-5
@@ -361,7 +361,9 @@ class LLAgent(PPOContinualLearnerAgent):
             task_idx = len(self.seen_tasks) # generate an internal task index for new task
             self.seen_tasks[task_idx] = task_label
             self.new_task = True
-        set_model_task(self.network, task_idx)
+            set_model_task(self.network, task_idx, new_task=True)
+        else:
+            set_model_task(self.network, task_idx)
         self.curr_train_task_label = task_label
         return
 

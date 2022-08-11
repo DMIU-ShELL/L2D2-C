@@ -11,6 +11,7 @@ from .bench import Monitor
 from ..utils import *
 import uuid
 import json
+import itertools
 
 # fix to enable running the code on MacOS using python>=3.8
 # spawn multiprocessing start method fails to run the lambda
@@ -309,6 +310,10 @@ class MetaCTgraph(BaseTask):
     note, only 2d state/observations are supported since in 1d states ct-graph, the state_dim
     can vary across different ct-graph depth.
     '''
+    _TASK_ORDER_DEFAULT = 'default'
+    _TASK_ORDER_INTERLEAVED = 'interleaved'
+    _TASK_ORDER_RANDOM = 'random'
+    _TASK_ORDER = ['default', 'interleaved', 'random']
     def __init__(self, name, env_config_path, log_dir=None):
         BaseTask.__init__(self)
         self.name = name
@@ -320,6 +325,10 @@ class MetaCTgraph(BaseTask):
         from itertools import product
         with open(env_config_path, 'r') as f:
             env_meta_config = json.load(f)
+        task_order = env_meta_config['task_order']
+        if task_order not in MetaCTgraph._TASK_ORDER:
+            raise ValueError('`task_order` in config should be one of the following: {0}'\
+                .format(MetaCTgraph._TASK_ORDER))
         base_path = os.path.dirname(env_config_path)
         envs = []
         for config_path in env_meta_config['config_paths']:
@@ -336,7 +345,7 @@ class MetaCTgraph(BaseTask):
         self.state_dim = envs[0].observation_space.shape
 
         # generate tasks from all instantiated environments
-        all_tasks = []
+        _all_tasks = []
         for idx, env in enumerate(envs):
             depth = env.DEPTH
             branch = env.BRANCH
@@ -346,7 +355,23 @@ class MetaCTgraph(BaseTask):
                 for j in range(len(tasks))] 
             tasks = [{'name': name, 'task': np.array(task), 'task_label': None, 'env_idx': idx} \
                 for name, task in zip(names, tasks)]
-            all_tasks += tasks
+            _all_tasks.append(tasks)
+        all_tasks = []
+        if task_order == MetaCTgraph._TASK_ORDER_DEFAULT:
+            for env_tasks in _all_tasks: all_tasks += env_tasks
+        elif task_order == MetaCTgraph._TASK_ORDER_INTERLEAVED:
+            if len(envs) == 1:
+                raise ValueError('`interleaved` works when the number of envs (`config_paths`'\
+                    ' in the config file) more than 1')
+            for tasks_mix in itertools.zip_longest(*_all_tasks):
+                for _task in tasks_mix:
+                    if _task is not None: all_tasks.append(_task)
+        elif task_order == MetaCTgraph._TASK_ORDER_RANDOM:
+            for env_tasks in _all_tasks: all_tasks += env_tasks
+            all_tasks = np.array(all_tasks)
+            np.random.shuffle(all_tasks)
+            all_tasks = all_tasks.tolist()
+        del _all_tasks
 
         # set monitor
         envs = [self.set_monitor(env, log_dir) for env in envs]
