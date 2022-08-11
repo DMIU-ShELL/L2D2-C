@@ -52,8 +52,8 @@ class MultitaskMaskLinear(nn.Linear):
 
         self.task = -1
         self.num_tasks_learned = 0
-        #self.new_mask_type = NEW_MASK_RANDOM
-        self.new_mask_type = NEW_MASK_LINEAR_COMB
+        self.new_mask_type = NEW_MASK_RANDOM
+        #self.new_mask_type = NEW_MASK_LINEAR_COMB
         if self.new_mask_type == NEW_MASK_LINEAR_COMB:
             self.betas = nn.Parameter(torch.zeros(num_tasks, num_tasks).type(torch.float32))
             self._forward_mask = self._forward_mask_linear_comb
@@ -165,7 +165,6 @@ class MultitaskMaskLinear(nn.Linear):
     @torch.no_grad()
     def set_task(self, task, new_task=False):
         self.task = task
-        print(self.betas)
         if self.new_mask_type == NEW_MASK_LINEAR_COMB and new_task:
             if task > 0:
                 k = task + 1
