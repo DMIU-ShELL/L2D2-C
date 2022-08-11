@@ -126,7 +126,7 @@ class MultitaskMaskLinear(nn.Linear):
 
     @torch.no_grad()
     def consolidate_mask(self):
-        if self.task <= 0:
+        if self.task <= 0 or self.new_mask_type == NEW_MASK_RANDOM:
             return
         _subnet = self.scores[self.task]
         _subnets = [self.scores[idx].detach() for idx in range(self.task)]
@@ -286,7 +286,8 @@ class MultitaskMaskLinearSparse(nn.Linear):
 
     @torch.no_grad()
     def consolidate_mask(self):
-        if self.task <= 0:
+        
+        if self.task <= 0 or self.new_mask_type == NEW_MASK_RANDOM:
             return
         _subnet = self.scores[self.task]
         _subnets = [self.scores[idx].detach() for idx in range(self.task)]
