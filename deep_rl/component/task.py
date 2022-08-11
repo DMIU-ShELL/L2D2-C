@@ -361,8 +361,8 @@ class MetaCTgraph(BaseTask):
             for env_tasks in _all_tasks: all_tasks += env_tasks
         elif task_order == MetaCTgraph._TASK_ORDER_INTERLEAVED:
             if len(envs) == 1:
-                raise ValueError('`interleaved` works when the number of envs (config_paths) are'\
-                    ' more than 1 in the list')
+                raise ValueError('`interleaved` works when the number of envs (`config_paths`'\
+                    ' in the config file) more than 1')
             for tasks_mix in itertools.zip_longest(*_all_tasks):
                 for _task in tasks_mix:
                     if _task is not None: all_tasks.append(_task)
