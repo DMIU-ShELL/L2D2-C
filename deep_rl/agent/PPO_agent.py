@@ -368,8 +368,9 @@ class LLAgent(PPOContinualLearnerAgent):
         return
 
     def task_train_end(self):
+        #consolidate_mask(self.network) # NOTE, consolidation does not work for now.
+
         self.curr_train_task_label = None
-        consolidate_mask(self.network) # NOTE, new entry
         cache_masks(self.network)
         if self.new_task:
             set_num_tasks_learned(self.network, len(self.seen_tasks))
