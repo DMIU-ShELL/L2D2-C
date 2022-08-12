@@ -53,7 +53,6 @@ class MultitaskMaskLinear(nn.Linear):
         self.task = -1
         self.num_tasks_learned = 0
         self.new_mask_type = new_mask_type
-        print('new_mask_type:', new_mask_type); import sys; sys.exit();
         if self.new_mask_type == NEW_MASK_LINEAR_COMB:
             self.betas = nn.Parameter(torch.zeros(num_tasks, num_tasks).type(torch.float32))
             self._forward_mask = self._forward_mask_linear_comb
