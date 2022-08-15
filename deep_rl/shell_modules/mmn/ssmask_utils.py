@@ -36,8 +36,8 @@ def signed_constant(module):
 NEW_MASK_RANDOM = 'random'
 NEW_MASK_LINEAR_COMB = 'linear_comb'
 class MultitaskMaskLinear(nn.Linear):
-    def __init__(self, *args, num_tasks=1, new_mask_type=NEW_MASK_RANDOM, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, num_tasks=1, new_mask_type=NEW_MASK_RANDOM, bias=False, **kwargs):
+        super().__init__(*args, bias=False, **kwargs)
         self.num_tasks = num_tasks
         self.scores = nn.ParameterList(
             [
@@ -195,8 +195,9 @@ class GetSubnetSparse(autograd.Function):
         return g, None
 
 class MultitaskMaskLinearSparse(nn.Linear):
-    def __init__(self, *args, num_tasks=1, sparsity=0.5, new_mask_type=NEW_MASK_RANDOM, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, num_tasks=1, sparsity=0.5, new_mask_type=NEW_MASK_RANDOM, bias=False, \
+        **kwargs):
+        super().__init__(*args, bias=False, **kwargs)
         self.num_tasks = num_tasks
         self.scores = nn.ParameterList(
             [
