@@ -442,9 +442,11 @@ class MetaCTgraphFlatObs(MetaCTgraph):
         return state.ravel()
 
 class MiniGrid(BaseTask):
+    TIME_LIMIT=200
     def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
         BaseTask.__init__(self)
         self.name = name
+        from gym.wrappers import TimeLimit
         import gym_minigrid
         from gym_minigrid.wrappers import ImgObsWrapper, ReseedWrapper, ActionBonus, StateBonus
         self.wrappers_dict = {'ActionBonus': ActionBonus, 'StateBonus': StateBonus}
@@ -467,6 +469,7 @@ class MiniGrid(BaseTask):
             ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) \
             for name, seed in zip(env_names, seeds)}
         env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
+        self.envs = {name: TimeLimit(env, MiniGrid.TIME_LIMIT) for name, env in self.envs.items()}
 
         # apply exploration bonus wrapper only to training envs
         if not eval_mode:
