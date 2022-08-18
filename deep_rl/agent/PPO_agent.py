@@ -190,9 +190,12 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         states, actions, log_probs_old, returns, advantages = map(lambda x: torch.cat(x, dim=0), \
             zip(*processed_rollout))
-        advantages = (advantages - advantages.mean()) / advantages.std()
+        eps = 1e-6
+        advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
 
-        grad_norms_ = []
+        grad_norm_log = []
+        policy_loss_log = []
+        value_loss_log = []
         batcher = Batcher(states.size(0) // config.num_mini_batches, [np.arange(states.size(0))])
         for _ in range(config.optimization_epochs):
             batcher.shuffle()
@@ -218,17 +221,18 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                     - config.entropy_weight * entropy_loss.mean()
 
                 value_loss = 0.5 * (sampled_returns - values).pow(2).mean()
-
+                policy_loss_log.append(policy_loss.detach().cpu().numpy())
+                value_loss_log.append(value_loss.detach().cpu().numpy())
                 self.opt.zero_grad()
                 (policy_loss + value_loss).backward()
                 norm_ = nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
-                grad_norms_.append(norm_.detach().cpu().numpy())
+                grad_norm_log.append(norm_.detach().cpu().numpy())
                 self.opt.step()
 
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
         self.layers_output = outs
-        return np.mean(grad_norms_)
+        return grad_norm_log, policy_loss_log, value_loss_log
 
     def _rollout_normal(self, states, batch_task_label):
         # clear running performance buffers

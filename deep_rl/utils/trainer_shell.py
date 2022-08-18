@@ -21,7 +21,7 @@ except:
     from pathlib2 import Path
 
 
-def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter, avg_grad_norm):
+def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter, grad_norms, policy_losses, value_losses):
     logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
     'mean/max/min reward %f/%f/%f' % (agent_idx, task_counter, \
         itr_counter,
@@ -43,8 +43,6 @@ def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter, avg_grad
     logger.scalar_summary('agent_{0}/iteration_min_reward'.format(agent_idx), \
         np.min(agent.iteration_rewards))
 
-    logger.scalar_summary('grad_norm/avg', avg_grad_norm)
-
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
@@ -54,10 +52,21 @@ def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter, avg_grad
             logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
             logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
             logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
+
+    logger.scalar_summary('debug_extended/avg_grad_norm', np.mean(grad_norms))
+    logger.scalar_summary('debug_extended/max_grad_norm', np.max(grad_norms))
+    logger.scalar_summary('debug_extended/min_grad_norm', np.min(grad_norms))
+    logger.scalar_summary('debug_extended/avg_policy_loss', np.mean(policy_losses))
+    logger.scalar_summary('debug_extended/max_policy_loss', np.max(policy_losses))
+    logger.scalar_summary('debug_extended/min_policy_loss', np.min(policy_losses))
+    logger.scalar_summary('debug_extended/avg_value_loss', np.mean(value_losses))
+    logger.scalar_summary('debug_extended/max_value_loss', np.max(value_losses))
+    logger.scalar_summary('debug_extended/min_value_loss', np.min(value_losses))
+
     return
 
 # metaworld/continualworld
-def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, avg_grad_norm):
+def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, grad_norms, policy_losses, value_losses):
     logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
     'mean/max/min reward %f/%f/%f, mean/max/min success rate %f/%f/%f' % (agent_idx, \
         task_counter,
@@ -96,8 +105,6 @@ def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, avg_g
     logger.scalar_summary('agent_{0}/iteration_min_success_rate'.format(agent_idx), \
         np.min(agent.iteration_success_rate))
 
-    logger.scalar_summary('grad_norm/avg', avg_grad_norm)
-
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
@@ -107,6 +114,17 @@ def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, avg_g
             logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
             logger.scalar_summary('debug/{0}_mean'.format(tag), value.mean())
             logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
+
+    logger.scalar_summary('debug_extended/avg_grad_norm', np.mean(grad_norms))
+    logger.scalar_summary('debug_extended/max_grad_norm', np.max(grad_norms))
+    logger.scalar_summary('debug_extended/min_grad_norm', np.min(grad_norms))
+    logger.scalar_summary('debug_extended/avg_policy_loss', np.mean(policy_losses))
+    logger.scalar_summary('debug_extended/max_policy_loss', np.max(policy_losses))
+    logger.scalar_summary('debug_extended/min_policy_loss', np.min(policy_losses))
+    logger.scalar_summary('debug_extended/avg_value_loss', np.mean(value_losses))
+    logger.scalar_summary('debug_extended/max_value_loss', np.max(value_losses))
+    logger.scalar_summary('debug_extended/min_value_loss', np.min(value_losses))
+
     return
 
 '''
@@ -156,12 +174,12 @@ def shell_train(agents, logger):
         for agent_idx, agent in enumerate(agents):
             if shell_done[agent_idx]:
                 continue
-            avg_grad_norm = agent.iteration()
+            grad_norms, policy_losses, value_losses = agent.iteration()
             shell_iterations[agent_idx] += 1
             # tensorboard log
             if shell_iterations[agent_idx] % agent.config.iteration_log_interval == 0:
                 itr_log_fn(logger, agent, agent_idx, shell_iterations[agent_idx], \
-                    shell_task_counter[agent_idx], avg_grad_norm)
+                    shell_task_counter[agent_idx], grad_norms, policy_losses, value_losses)
 
             # evaluation block
             if (agent.config.eval_interval is not None and \
@@ -341,12 +359,13 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
             agent.distil_task_knowledge(masks)
                     
         # agent iteration (training step): collect on policy data and optimise agent
-        avg_grad_norm = agent.iteration()
+        grad_norms, policy_losses, value_losses = agent.iteration()
         shell_iterations += 1
 
         # tensorboard log
         if shell_iterations % agent.config.iteration_log_interval == 0:
-            itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, avg_grad_norm)
+            itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, grad_norms, \
+                policy_losses, value_losses)
 
         # evaluation block
         if (agent.config.eval_interval is not None and \

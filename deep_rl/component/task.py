@@ -469,7 +469,7 @@ class MiniGrid(BaseTask):
             ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) \
             for name, seed in zip(env_names, seeds)}
         env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
-        self.envs = {name: TimeLimit(env, MiniGrid.TIME_LIMIT) for name, env in self.envs.items()}
+        #self.envs = {name: TimeLimit(env, MiniGrid.TIME_LIMIT) for name, env in self.envs.items()}
 
         # apply exploration bonus wrapper only to training envs
         if not eval_mode:
