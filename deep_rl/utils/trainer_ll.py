@@ -6,7 +6,7 @@ import datetime
 import torch
 from .torch_utils import *
 
-def _itr_log(logger, agent, iteration, avg_grad_norm):
+def _itr_log(logger, agent, iteration, grad_norms, policy_losses, value_losses):
     logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f'%(
         iteration, agent.total_steps,
         np.mean(agent.iteration_rewards),
@@ -20,8 +20,6 @@ def _itr_log(logger, agent, iteration, avg_grad_norm):
     logger.scalar_summary('iteration_reward/max', np.max(agent.iteration_rewards))
     logger.scalar_summary('iteration_reward/min', np.min(agent.iteration_rewards))
 
-    logger.scalar_summary('grad_norm/avg', avg_grad_norm)
-
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
@@ -31,10 +29,21 @@ def _itr_log(logger, agent, iteration, avg_grad_norm):
             logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
             logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
             logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
+
+    logger.scalar_summary('debug_extended/avg_grad_norm', np.mean(grad_norms))
+    logger.scalar_summary('debug_extended/max_grad_norm', np.max(grad_norms))
+    logger.scalar_summary('debug_extended/min_grad_norm', np.min(grad_norms))
+    logger.scalar_summary('debug_extended/avg_policy_loss', np.mean(policy_losses))
+    logger.scalar_summary('debug_extended/max_policy_loss', np.max(policy_losses))
+    logger.scalar_summary('debug_extended/min_policy_loss', np.min(policy_losses))
+    logger.scalar_summary('debug_extended/avg_value_loss', np.mean(value_losses))
+    logger.scalar_summary('debug_extended/max_value_loss', np.max(value_losses))
+    logger.scalar_summary('debug_extended/min_value_loss', np.min(value_losses))
+
     return
 
 # metaworld/continualworld
-def _itr_log_mw(logger, agent, iteration, avg_grad_norm):
+def _itr_log_mw(logger, agent, iteration, grad_norms, policy_losses, value_losses):
     logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f, ' \
         'mean/max/min success rate %f/%f/%f'%(
         iteration, agent.total_steps,
@@ -59,8 +68,6 @@ def _itr_log_mw(logger, agent, iteration, avg_grad_norm):
     logger.scalar_summary('iteration_success_rate/max', np.max(agent.iteration_success_rate))
     logger.scalar_summary('iteration_success_rate/min', np.min(agent.iteration_success_rate))
 
-    logger.scalar_summary('grad_norm/avg', avg_grad_norm)
-
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
@@ -70,6 +77,17 @@ def _itr_log_mw(logger, agent, iteration, avg_grad_norm):
             logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
             logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
             logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
+
+    logger.scalar_summary('debug_extended/avg_grad_norm', np.mean(grad_norms))
+    logger.scalar_summary('debug_extended/max_grad_norm', np.max(grad_norms))
+    logger.scalar_summary('debug_extended/min_grad_norm', np.min(grad_norms))
+    logger.scalar_summary('debug_extended/avg_policy_loss', np.mean(policy_losses))
+    logger.scalar_summary('debug_extended/max_policy_loss', np.max(policy_losses))
+    logger.scalar_summary('debug_extended/min_policy_loss', np.min(policy_losses))
+    logger.scalar_summary('debug_extended/avg_value_loss', np.mean(value_losses))
+    logger.scalar_summary('debug_extended/max_value_loss', np.max(value_losses))
+    logger.scalar_summary('debug_extended/min_value_loss', np.min(value_losses))
+
     return
 
 # run iterations, lifelong learning
@@ -121,14 +139,15 @@ def run_iterations_w_oracle(agent, tasks_info):
             agent.task_train_start(task_info['task_label'])
             while True:
                 # train step
-                avg_grad_norm = agent.iteration()
+                grad_norms, policy_losses, value_losses = agent.iteration()
+
                 iteration += 1
                 steps.append(agent.total_steps)
                 rewards.append(np.mean(agent.iteration_rewards))
 
                 # logging
                 if iteration % config.iteration_log_interval == 0:
-                    itr_log_fn(config.logger, agent, iteration, avg_grad_norm)
+                    itr_log_fn(config.logger, agent, iteration, grad_norms, policy_losses, value_losses)
 
                     with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
                         (agent_name, config.tag, agent.task.name), 'wb') as f:
@@ -284,7 +303,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
                 # train step
                 bool_execute = mod_rm.operation(ResourceManager.OP_ID_TRAIN)
                 if bool_execute:
-                    avg_grad_norm = agent.iteration()
+                    grad_norms, policy_losses, value_losses = agent.iteration()
                 iteration += 1
                 steps.append(agent.total_steps)
                 rewards.append(np.mean(agent.iteration_rewards))
@@ -303,7 +322,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
 
                 # logging
                 if iteration % config.iteration_log_interval == 0:
-                    itr_log_fn(config.logger, agent, iteration, avg_grad_norm)
+                    itr_log_fn(config.logger, agent, iteration, grad_norms, policy_losses, value_losses)
 
                     with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
                         (agent_name, config.tag, agent.task.name), 'wb') as f:
