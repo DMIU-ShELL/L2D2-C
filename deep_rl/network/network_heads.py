@@ -146,7 +146,8 @@ class ActorCriticNet(nn.Module):
         self.phi_params = list(self.phi_body.parameters())
 
 class ActorCriticNetSS(nn.Module):
-    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body, num_tasks):
+    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body, num_tasks, \
+        new_task_mask):
         super(ActorCriticNetSS, self).__init__()
         if phi_body is None: phi_body = DummyBody(state_dim)
         if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
@@ -154,8 +155,10 @@ class ActorCriticNetSS(nn.Module):
         self.phi_body = phi_body
         self.actor_body = actor_body
         self.critic_body = critic_body
-        self.fc_action = MultitaskMaskLinear(actor_body.feature_dim, action_dim, num_tasks=num_tasks)
-        self.fc_critic = MultitaskMaskLinear(critic_body.feature_dim, 1, num_tasks=num_tasks)
+        self.fc_action = MultitaskMaskLinear(actor_body.feature_dim, action_dim, \
+            num_tasks=num_tasks, new_task_mask=new_task_mask)
+        self.fc_critic = MultitaskMaskLinear(critic_body.feature_dim, 1, \
+            num_tasks=num_tasks, new_task_mask=new_task_mask)
 
         ap = [p for p in self.actor_body.parameters() if p.requires_grad is True]
         ap += [p for p in self.fc_action.parameters() if p.requires_grad is True]
@@ -239,13 +242,16 @@ class GaussianActorCriticNet_SS(nn.Module, BaseNet):
                  phi_body=None,
                  actor_body=None,
                  critic_body=None,
-                 num_tasks=3):
+                 num_tasks=3,
+                 new_task_mask='random'):
         super(GaussianActorCriticNet_SS, self).__init__()
         self.network = ActorCriticNetSS(state_dim, action_dim, phi_body, actor_body, critic_body, \
-            num_tasks)
-        self.network.fc_log_std = MultitaskMaskLinear(actor_body.feature_dim, action_dim, \
-            num_tasks=num_tasks)
-        self.network.actor_params += list(self.network.fc_log_std.parameters())
+            num_tasks, new_task_mask)
+        self.task_label_dim = task_label_dim
+
+        self.network.fc_log_std = MultitaskMaskLinear(self.network.actor_body.feature_dim, \
+            action_dim, num_tasks=num_tasks, new_task_mask=new_task_mask)
+        self.network.actor_params += [p for p in self.network.fc_log_std.parameters() if p.requires_grad is True]
         self.to(Config.DEVICE)
 
     def predict(self, obs, action=None, task_label=None, return_layer_output=False, to_numpy=False):
@@ -297,7 +303,7 @@ class GaussianActorCriticNet_CL(nn.Module, BaseNet):
 
         self.network.fc_log_std = layer_init(nn.Linear(self.network.actor_body.feature_dim, \
             action_dim), 1e-3)
-        self.network.actor_params += list(self.network.fc_log_std.parameters())
+        self.network.actor_params += [p for p in self.network.fc_log_std.parameters() if p.requires_grad is True]
         self.to(Config.DEVICE)
 
     def predict(self, obs, action=None, task_label=None, return_layer_output=False, to_numpy=False):
@@ -366,9 +372,10 @@ class CategoricalActorCriticNet_SS(nn.Module, BaseNet):
                  phi_body=None,
                  actor_body=None,
                  critic_body=None,
-                 num_tasks=3):
+                 num_tasks=3,
+                 new_task_mask='random'):
         super(CategoricalActorCriticNet_SS, self).__init__()
-        self.network = ActorCriticNetSS(state_dim, action_dim, phi_body, actor_body, critic_body, num_tasks)
+        self.network = ActorCriticNetSS(state_dim, action_dim, phi_body, actor_body, critic_body, num_tasks, new_task_mask)
         self.task_label_dim = task_label_dim
         self.to(Config.DEVICE)
 
