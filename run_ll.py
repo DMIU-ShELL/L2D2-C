@@ -425,9 +425,9 @@ def ppo_ll_continualworld(name, args):
         state_dim, action_dim, label_dim,
         phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
         actor_body=FCBody_SS(state_dim + label_dim, hidden_units=(128, 128), \
-            gate=torch.tanh, num_tasks=num_tasks),
+            discrete_mask=False, gate=torch.tanh, num_tasks=num_tasks),
         critic_body=FCBody_SS(state_dim + label_dim, hidden_units=(128, 128), \
-            gate=torch.tanh, num_tasks=num_tasks),
+            discrete_mask=False, gate=torch.tanh, num_tasks=num_tasks),
         num_tasks=num_tasks)
     config.policy_fn = SamplePolicy
     #config.state_normalizer = RescaleNormalizer(1.) # no rescaling
