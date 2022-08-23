@@ -123,13 +123,16 @@ from ..shell_modules.mmn.ssmask_utils import MultitaskMaskLinear
 from ..shell_modules.mmn.ssmask_utils import NEW_MASK_RANDOM
 from ..shell_modules.mmn.ssmask_utils import NEW_MASK_LINEAR_COMB
 class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learning algorithm
-    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu, num_tasks=3, new_task_mask=NEW_MASK_RANDOM):
+    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu, discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM):
         super(FCBody_SS, self).__init__()
         if task_label_dim is None:
             dims = (state_dim, ) + hidden_units
         else:
             dims = (state_dim + task_label_dim, ) + hidden_units
-        self.layers = nn.ModuleList([MultitaskMaskLinear(dim_in, dim_out, num_tasks=num_tasks, new_mask_type=new_task_mask) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.layers = nn.ModuleList([MultitaskMaskLinear(dim_in, dim_out, discrete=discrete_mask, \
+            num_tasks=num_tasks, new_mask_type=new_task_mask) \
+            for dim_in, dim_out in zip(dims[:-1], dims[1:])
+        ])
         self.gate = gate
         self.feature_dim = dims[-1]
         self.task_label_dim = task_label_dim

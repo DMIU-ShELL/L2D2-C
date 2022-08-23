@@ -82,7 +82,7 @@ class BaseContinualLearnerAgent(BaseAgent):
     def penalty(self):
         raise NotImplementedError
 
-    def evaluation_action(self, state, task_label):
+    def evaluation_action(self, state, task_label, deterministic):
         self.config.state_normalizer.set_read_only()
         state = self.config.state_normalizer(np.stack([state]))
         task_label = np.stack([task_label])
@@ -90,16 +90,21 @@ class BaseContinualLearnerAgent(BaseAgent):
         self.config.state_normalizer.unset_read_only()
         if isinstance(out, dict) or isinstance(out, list) or isinstance(out, tuple):
             # for actor-critic and policy gradient approaches
-            if isinstance(self.evaluation_env.action_space, gym.spaces.Discrete):
-                logits = out[0]
-                action = np.argmax(logits.cpu().numpy().flatten())
+            if isinstance(self.evaluation_env.action_space, gym.spaces.Discrete): # discrete action
+                if deterministic:
+                    action = np.argmax(out[0].cpu().numpy().flatten()) # out[0] contains logits
+                else:
+                    action = out[1].cpu().numpy().flatten()
                 ret = {'policy_output': out[0], 'sampled_action': out[1], 'log_prob': out[2], 
-                    'entropy': out[3], 'value': out[4], 'deterministic_action': action}
+                    'entropy': out[3], 'value': out[4], 'agent_action': action}
                 return action, ret
-            elif isinstance(self.evaluation_env.action_space, gym.spaces.Box):
-                action = out[0].cpu().numpy().flatten() # mean / deterministic action of policy
+            elif isinstance(self.evaluation_env.action_space, gym.spaces.Box): # continuous action
+                if deterministic:
+                    action = out[0].cpu().numpy().flatten() # mean / deterministic action of policy
+                else:
+                    action = out[1].cpu().numpy().flatten()
                 ret = {'policy_output': out[0], 'sampled_action': out[1], 'log_prob': out[2], 
-                    'entropy': out[3], 'value': out[4], 'deterministic_action': out[0]}
+                    'entropy': out[3], 'value': out[4], 'agent_action': action}
                 return action, ret
             else:
                 raise ValueError('env action space not defined. it should be gym.spaces.Discrete' \
@@ -110,9 +115,9 @@ class BaseContinualLearnerAgent(BaseAgent):
             q = out.detach().cpu().numpy().ravel()
             return np.argmax(q), {'logits': q}
 
-    def deterministic_episode(self):
+    def run_episode(self, deterministic=True):
         epi_info = {'policy_output': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
-            'value': [], 'deterministic_action': [], 'reward': [], 'terminal': []}
+            'value': [], 'agent_action': [], 'reward': [], 'terminal': []}
 
         #env = self.config.evaluation_env
         env = self.evaluation_env
@@ -124,7 +129,7 @@ class BaseContinualLearnerAgent(BaseAgent):
             assert False, 'manually set (temporary) breakpoint. code should not get here.'
         total_rewards = 0
         while True:
-            action, output_info = self.evaluation_action(state, task_label)
+            action, output_info = self.evaluation_action(state, task_label, deterministic)
             state, reward, done, info = env.step(action)
             total_rewards += reward
             for k, v in output_info.items(): epi_info[k].append(v)
@@ -133,9 +138,9 @@ class BaseContinualLearnerAgent(BaseAgent):
             if done: break
         return total_rewards, epi_info
 
-    def deterministic_episode_metaworld(self):
+    def run_episode_metaworld(self, deterministic=False):
         epi_info = {'policy_output': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
-            'value': [], 'deterministic_action': [], 'reward': [], 'terminal': [],
+            'value': [], 'agent_action': [], 'reward': [], 'terminal': [],
             'success': []}
 
         #env = self.config.evaluation_env
@@ -148,7 +153,7 @@ class BaseContinualLearnerAgent(BaseAgent):
             assert False, 'manually set (temporary) breakpoint. code should not get here.'
         total_success = 0
         while True:
-            action, output_info = self.evaluation_action(state, task_label)
+            action, output_info = self.evaluation_action(state, task_label, deterministic)
             state, reward, done, info = env.step(action)
             total_success += info['success']
             for k, v in output_info.items(): epi_info[k].append(v)
@@ -163,9 +168,9 @@ class BaseContinualLearnerAgent(BaseAgent):
         fn_episode = None
         if self.evaluation_env.name == self.config.ENV_METAWORLD or \
             self.evaluation_env.name == self.config.ENV_CONTINUALWORLD:
-            fn_episode = self.deterministic_episode_metaworld
+            fn_episode = self.run_episode_metaworld
         else:
-            fn_episode = self.deterministic_episode
+            fn_episode = self.run_episode
 
         # evaluation method for continual learning agents
         rewards = []

@@ -32,36 +32,44 @@ def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter, grad_nor
     ))
     logger.scalar_summary('agent_{0}/last_episode_avg_reward'.format(agent_idx), \
         np.mean(agent.last_episode_rewards))
+    logger.scalar_summary('agent_{0}/last_episode_std_reward'.format(agent_idx), \
+        np.std(agent.last_episode_rewards))
     logger.scalar_summary('agent_{0}/last_episode_max_reward'.format(agent_idx), \
         np.max(agent.last_episode_rewards))
     logger.scalar_summary('agent_{0}/last_episode_min_reward'.format(agent_idx), \
         np.min(agent.last_episode_rewards))
     logger.scalar_summary('agent_{0}/iteration_avg_reward'.format(agent_idx), \
         np.mean(agent.iteration_rewards))
+    logger.scalar_summary('agent_{0}/iteration_std_reward'.format(agent_idx), \
+        np.std(agent.iteration_rewards))
     logger.scalar_summary('agent_{0}/iteration_max_reward'.format(agent_idx), \
         np.max(agent.iteration_rewards))
     logger.scalar_summary('agent_{0}/iteration_min_reward'.format(agent_idx), \
         np.min(agent.iteration_rewards))
 
+    prefix = 'agent_{0}_'.format(agent_idx)
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
             value_norm = np.linalg.norm(value, axis=-1)
-            logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
-            logger.scalar_summary('debug/{0}_avg'.format(tag), value.mean())
-            logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
-            logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
-            logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
+            logger.scalar_summary('{0}debug/{1}_avg_norm'.format(prefix, tag), np.mean(value_norm))
+            logger.scalar_summary('{0}debug/{1}_avg'.format(prefix, tag), value.mean())
+            logger.scalar_summary('{0}debug/{1}_std'.format(prefix, tag), value.std())
+            logger.scalar_summary('{0}debug/{1}_max'.format(prefix, tag), value.max())
+            logger.scalar_summary('{0}debug/{1}_min'.format(prefix, tag), value.min())
 
-    logger.scalar_summary('debug_extended/avg_grad_norm', np.mean(grad_norms))
-    logger.scalar_summary('debug_extended/max_grad_norm', np.max(grad_norms))
-    logger.scalar_summary('debug_extended/min_grad_norm', np.min(grad_norms))
-    logger.scalar_summary('debug_extended/avg_policy_loss', np.mean(policy_losses))
-    logger.scalar_summary('debug_extended/max_policy_loss', np.max(policy_losses))
-    logger.scalar_summary('debug_extended/min_policy_loss', np.min(policy_losses))
-    logger.scalar_summary('debug_extended/avg_value_loss', np.mean(value_losses))
-    logger.scalar_summary('debug_extended/max_value_loss', np.max(value_losses))
-    logger.scalar_summary('debug_extended/min_value_loss', np.min(value_losses))
+    logger.scalar_summary('{0}debug_extended/grad_norm_avg'.format(prefix), np.mean(grad_norms))
+    logger.scalar_summary('{0}debug_extended/grad_norm_std'.format(prefix), np.std(grad_norms))
+    logger.scalar_summary('{0}debug_extended/grad_norm_max'.format(prefix), np.max(grad_norms))
+    logger.scalar_summary('{0}debug_extended/grad_norm_min'.format(prefix), np.min(grad_norms))
+    logger.scalar_summary('{0}debug_extended/policy_loss_avg'.format(prefix), np.mean(policy_losses))
+    logger.scalar_summary('{0}debug_extended/policy_loss_std'.format(prefix), np.std(policy_losses))
+    logger.scalar_summary('{0}debug_extended/policy_loss_max'.format(prefix), np.max(policy_losses))
+    logger.scalar_summary('{0}debug_extended/policy_loss_min'.format(prefix), np.min(policy_losses))
+    logger.scalar_summary('{0}debug_extended/value_loss_avg'.format(prefix), np.mean(value_losses))
+    logger.scalar_summary('{0}debug_extended/value_loss_std'.format(prefix), np.std(value_losses))
+    logger.scalar_summary('{0}debug_extended/value_loss_max'.format(prefix), np.max(value_losses))
+    logger.scalar_summary('{0}debug_extended/value_loss_min'.format(prefix), np.min(value_losses))
 
     return
 
@@ -81,12 +89,16 @@ def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, grad_
     ))
     logger.scalar_summary('agent_{0}/last_episode_avg_reward'.format(agent_idx), \
         np.mean(agent.last_episode_rewards))
+    logger.scalar_summary('agent_{0}/last_episode_std_reward'.format(agent_idx), \
+        np.std(agent.last_episode_rewards))
     logger.scalar_summary('agent_{0}/last_episode_max_reward'.format(agent_idx), \
         np.max(agent.last_episode_rewards))
     logger.scalar_summary('agent_{0}/last_episode_min_reward'.format(agent_idx), \
         np.min(agent.last_episode_rewards))
     logger.scalar_summary('agent_{0}/iteration_avg_reward'.format(agent_idx), \
         np.mean(agent.iteration_rewards))
+    logger.scalar_summary('agent_{0}/iteration_std_reward'.format(agent_idx), \
+        np.std(agent.iteration_rewards))
     logger.scalar_summary('agent_{0}/iteration_max_reward'.format(agent_idx), \
         np.max(agent.iteration_rewards))
     logger.scalar_summary('agent_{0}/iteration_min_reward'.format(agent_idx), \
@@ -94,36 +106,44 @@ def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, grad_
 
     logger.scalar_summary('agent_{0}/last_episode_avg_success_rate'.format(agent_idx), \
         np.mean(agent.last_episode_success_rate))
+    logger.scalar_summary('agent_{0}/last_episode_std_success_rate'.format(agent_idx), \
+        np.std(agent.last_episode_success_rate))
     logger.scalar_summary('agent_{0}/last_episode_max_success_rate'.format(agent_idx), \
         np.max(agent.last_episode_success_rate))
     logger.scalar_summary('agent_{0}/last_episode_min_success_rate'.format(agent_idx), \
         np.min(agent.last_episode_success_rate))
     logger.scalar_summary('agent_{0}/iteration_avg_success_rate'.format(agent_idx), \
         np.mean(agent.iteration_success_rate))
+    logger.scalar_summary('agent_{0}/iteration_std_success_rate'.format(agent_idx), \
+        np.std(agent.iteration_success_rate))
     logger.scalar_summary('agent_{0}/iteration_max_success_rate'.format(agent_idx), \
         np.max(agent.iteration_success_rate))
     logger.scalar_summary('agent_{0}/iteration_min_success_rate'.format(agent_idx), \
         np.min(agent.iteration_success_rate))
 
+    prefix = 'agent_{0}_'.format(agent_idx)
     if hasattr(agent, 'layers_output'):
         for tag, value in agent.layers_output:
             value = value.detach().cpu().numpy()
             value_norm = np.linalg.norm(value, axis=-1)
-            logger.scalar_summary('debug/{0}_avg_norm'.format(tag), np.mean(value_norm))
-            logger.scalar_summary('debug/{0}_max'.format(tag), value.max())
-            logger.scalar_summary('debug/{0}_min'.format(tag), value.min())
-            logger.scalar_summary('debug/{0}_mean'.format(tag), value.mean())
-            logger.scalar_summary('debug/{0}_std'.format(tag), value.std())
+            logger.scalar_summary('{0}debug/{1}_avg_norm'.format(prefix, tag), np.mean(value_norm))
+            logger.scalar_summary('{0}debug/{1}_avg'.format(prefix, tag), value.mean())
+            logger.scalar_summary('{0}debug/{1}_std'.format(prefix, tag), value.std())
+            logger.scalar_summary('{0}debug/{1}_max'.format(prefix, tag), value.max())
+            logger.scalar_summary('{0}debug/{1}_min'.format(prefix, tag), value.min())
 
-    logger.scalar_summary('debug_extended/avg_grad_norm', np.mean(grad_norms))
-    logger.scalar_summary('debug_extended/max_grad_norm', np.max(grad_norms))
-    logger.scalar_summary('debug_extended/min_grad_norm', np.min(grad_norms))
-    logger.scalar_summary('debug_extended/avg_policy_loss', np.mean(policy_losses))
-    logger.scalar_summary('debug_extended/max_policy_loss', np.max(policy_losses))
-    logger.scalar_summary('debug_extended/min_policy_loss', np.min(policy_losses))
-    logger.scalar_summary('debug_extended/avg_value_loss', np.mean(value_losses))
-    logger.scalar_summary('debug_extended/max_value_loss', np.max(value_losses))
-    logger.scalar_summary('debug_extended/min_value_loss', np.min(value_losses))
+    logger.scalar_summary('{0}debug_extended/grad_norm_avg'.format(prefix), np.mean(grad_norms))
+    logger.scalar_summary('{0}debug_extended/grad_norm_std'.format(prefix), np.std(grad_norms))
+    logger.scalar_summary('{0}debug_extended/grad_norm_max'.format(prefix), np.max(grad_norms))
+    logger.scalar_summary('{0}debug_extended/grad_norm_min'.format(prefix), np.min(grad_norms))
+    logger.scalar_summary('{0}debug_extended/policy_loss_avg'.format(prefix), np.mean(policy_losses))
+    logger.scalar_summary('{0}debug_extended/policy_loss_std'.format(prefix), np.std(policy_losses))
+    logger.scalar_summary('{0}debug_extended/policy_loss_max'.format(prefix), np.max(policy_losses))
+    logger.scalar_summary('{0}debug_extended/policy_loss_min'.format(prefix), np.min(policy_losses))
+    logger.scalar_summary('{0}debug_extended/value_loss_avg'.format(prefix), np.mean(value_losses))
+    logger.scalar_summary('{0}debug_extended/value_loss_std'.format(prefix), np.std(value_losses))
+    logger.scalar_summary('{0}debug_extended/value_loss_max'.format(prefix), np.max(value_losses))
+    logger.scalar_summary('{0}debug_extended/value_loss_min'.format(prefix), np.min(value_losses))
 
     return
 

@@ -372,7 +372,9 @@ class LLAgent(PPOContinualLearnerAgent):
         return
 
     def task_train_end(self):
-        #consolidate_mask(self.network) # NOTE, consolidation does not work for now.
+        # NOTE, comment/uncomment alongside a block of code in `_forward_mask_lnear_comb` method in
+        # MultitaskMaskLinear and MultiMaskLinearSparse classes
+        consolidate_mask(self.network)
 
         self.curr_train_task_label = None
         cache_masks(self.network)
