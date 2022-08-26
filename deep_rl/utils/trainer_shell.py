@@ -172,9 +172,9 @@ def shell_train(agents, logger):
 
     if agents[0].task.name == agent[0].config.ENV_METAWORLD or \
         agent[0].task.name == agent[0].config.ENV_CONTINUALWORLD:
-        itr_log_fn = _itr_log_mw
+        itr_log_fn = _shell_itr_log_mw
     else:
-        itr_log_fn = _itr_log
+        itr_log_fn = _shell_itr_log
 
     print()
     logger.info('*****start shell training')
@@ -332,9 +332,9 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
 
     if agent.task.name == agent.config.ENV_METAWORLD or \
         agent.task.name == agent.config.ENV_CONTINUALWORLD:
-        itr_log_fn = _itr_log_mw
+        itr_log_fn = _shell_itr_log_mw
     else:
-        itr_log_fn = _itr_log
+        itr_log_fn = _shell_itr_log
 
     await_response = [False,] * num_agents # flag
     # set the first task each agent is meant to train on
