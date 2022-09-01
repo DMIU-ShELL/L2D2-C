@@ -196,6 +196,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         grad_norm_log = []
         policy_loss_log = []
         value_loss_log = []
+        log_probs_log = []
+        entropy_log = []
+        ratio_log = []
         batcher = Batcher(states.size(0) // config.num_mini_batches, [np.arange(states.size(0))])
         for _ in range(config.optimization_epochs):
             batcher.shuffle()
@@ -221,8 +224,13 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                     - config.entropy_weight * entropy_loss.mean()
 
                 value_loss = 0.5 * (sampled_returns - values).pow(2).mean()
+
+                log_probs_log.append(log_probs.detach().cpu().numpy().mean())
+                entropy_log.append(entropy_loss.detach().cpu().numpy().mean())
+                ratio_log.append(ratio.detach().cpu().numpy().mean())
                 policy_loss_log.append(policy_loss.detach().cpu().numpy())
                 value_loss_log.append(value_loss.detach().cpu().numpy())
+
                 self.opt.zero_grad()
                 (policy_loss + value_loss).backward()
                 norm_ = nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
@@ -232,7 +240,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
         self.layers_output = outs
-        return grad_norm_log, policy_loss_log, value_loss_log
+        return {'grad_norm': grad_norm_log, 'policy_loss': policy_loss_log, \
+            'value_loss': value_loss_log, 'log_prob': log_probs_log, 'entropy': entropy_log, \
+            'ppo_ratio': ratio_log}
 
     def _rollout_normal(self, states, batch_task_label):
         # clear running performance buffers
