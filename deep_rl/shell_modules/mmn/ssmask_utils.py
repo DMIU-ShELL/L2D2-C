@@ -32,6 +32,12 @@ class GetSubnetContinuous(autograd.Function):
         # send the gradient g straight-through on the backward pass.
         return g
 
+# may not work as well as the alternative above (which is the default choice)
+class GetSubnetContinuousV2:
+    @staticmethod
+    def apply(scores, a=0):
+        return (scores >= a).float() * scores
+
 def mask_init(module):
     scores = torch.Tensor(module.weight.size())
     nn.init.kaiming_uniform_(scores, a=math.sqrt(5))
@@ -226,6 +232,21 @@ class GetSubnetSparseContinuous(autograd.Function):
     def backward(ctx, g):
         # send the gradient g straight-through on the backward pass.
         return g, None
+
+# may not work as well as the alternative above (which is the default choice)
+class GetSubnetSparseContinuousV2:
+    @staticmethod
+    def apply(scores, k):
+        # Get the supermask by sorting the scores and using the top k%
+        out = scores.clone()
+        _, idx = scores.flatten().sort()
+        j = int((1 - k) * scores.numel())
+
+        # flat_out and out access the same memory.
+        flat_out = out.flatten()
+        flat_out[idx[:j]] = 0
+
+        return out
 
 class MultitaskMaskLinearSparse(nn.Linear):
     def __init__(self, *args, discrete=True, num_tasks=1, sparsity=0.5, \
