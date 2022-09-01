@@ -21,7 +21,7 @@ except:
     from pathlib2 import Path
 
 
-def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter, grad_norms, policy_losses, value_losses):
+def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter, dict_logs):
     logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
     'mean/max/min reward %f/%f/%f' % (agent_idx, task_counter, \
         itr_counter,
@@ -58,23 +58,16 @@ def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter, grad_nor
             logger.scalar_summary('{0}debug/{1}_max'.format(prefix, tag), value.max())
             logger.scalar_summary('{0}debug/{1}_min'.format(prefix, tag), value.min())
 
-    logger.scalar_summary('{0}debug_extended/grad_norm_avg'.format(prefix), np.mean(grad_norms))
-    logger.scalar_summary('{0}debug_extended/grad_norm_std'.format(prefix), np.std(grad_norms))
-    logger.scalar_summary('{0}debug_extended/grad_norm_max'.format(prefix), np.max(grad_norms))
-    logger.scalar_summary('{0}debug_extended/grad_norm_min'.format(prefix), np.min(grad_norms))
-    logger.scalar_summary('{0}debug_extended/policy_loss_avg'.format(prefix), np.mean(policy_losses))
-    logger.scalar_summary('{0}debug_extended/policy_loss_std'.format(prefix), np.std(policy_losses))
-    logger.scalar_summary('{0}debug_extended/policy_loss_max'.format(prefix), np.max(policy_losses))
-    logger.scalar_summary('{0}debug_extended/policy_loss_min'.format(prefix), np.min(policy_losses))
-    logger.scalar_summary('{0}debug_extended/value_loss_avg'.format(prefix), np.mean(value_losses))
-    logger.scalar_summary('{0}debug_extended/value_loss_std'.format(prefix), np.std(value_losses))
-    logger.scalar_summary('{0}debug_extended/value_loss_max'.format(prefix), np.max(value_losses))
-    logger.scalar_summary('{0}debug_extended/value_loss_min'.format(prefix), np.min(value_losses))
+    for key, value in dict_logs.items():
+        logger.scalar_summary('{0}debug_extended/{1}_avg'.format(prefix, key), np.mean(value))
+        logger.scalar_summary('{0}debug_extended/{1}_std'.format(prefix, key), np.std(value))
+        logger.scalar_summary('{0}debug_extended/{1}_max'.format(prefix, key), np.max(value))
+        logger.scalar_summary('{0}debug_extended/{1}_min'.format(prefix, key), np.min(value))
 
     return
 
 # metaworld/continualworld
-def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, grad_norms, policy_losses, value_losses):
+def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, dict_logs):
     logger.info('agent %d, task %d / iteration %d, total steps %d, ' \
     'mean/max/min reward %f/%f/%f, mean/max/min success rate %f/%f/%f' % (agent_idx, \
         task_counter,
@@ -132,18 +125,11 @@ def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, grad_
             logger.scalar_summary('{0}debug/{1}_max'.format(prefix, tag), value.max())
             logger.scalar_summary('{0}debug/{1}_min'.format(prefix, tag), value.min())
 
-    logger.scalar_summary('{0}debug_extended/grad_norm_avg'.format(prefix), np.mean(grad_norms))
-    logger.scalar_summary('{0}debug_extended/grad_norm_std'.format(prefix), np.std(grad_norms))
-    logger.scalar_summary('{0}debug_extended/grad_norm_max'.format(prefix), np.max(grad_norms))
-    logger.scalar_summary('{0}debug_extended/grad_norm_min'.format(prefix), np.min(grad_norms))
-    logger.scalar_summary('{0}debug_extended/policy_loss_avg'.format(prefix), np.mean(policy_losses))
-    logger.scalar_summary('{0}debug_extended/policy_loss_std'.format(prefix), np.std(policy_losses))
-    logger.scalar_summary('{0}debug_extended/policy_loss_max'.format(prefix), np.max(policy_losses))
-    logger.scalar_summary('{0}debug_extended/policy_loss_min'.format(prefix), np.min(policy_losses))
-    logger.scalar_summary('{0}debug_extended/value_loss_avg'.format(prefix), np.mean(value_losses))
-    logger.scalar_summary('{0}debug_extended/value_loss_std'.format(prefix), np.std(value_losses))
-    logger.scalar_summary('{0}debug_extended/value_loss_max'.format(prefix), np.max(value_losses))
-    logger.scalar_summary('{0}debug_extended/value_loss_min'.format(prefix), np.min(value_losses))
+    for key, value in dict_logs.items():
+        logger.scalar_summary('{0}debug_extended/{1}_avg'.format(prefix, key), np.mean(value))
+        logger.scalar_summary('{0}debug_extended/{1}_std'.format(prefix, key), np.std(value))
+        logger.scalar_summary('{0}debug_extended/{1}_max'.format(prefix, key), np.max(value))
+        logger.scalar_summary('{0}debug_extended/{1}_min'.format(prefix, key), np.min(value))
 
     return
 
@@ -194,12 +180,12 @@ def shell_train(agents, logger):
         for agent_idx, agent in enumerate(agents):
             if shell_done[agent_idx]:
                 continue
-            grad_norms, policy_losses, value_losses = agent.iteration()
+            dict_logs = agent.iteration()
             shell_iterations[agent_idx] += 1
             # tensorboard log
             if shell_iterations[agent_idx] % agent.config.iteration_log_interval == 0:
                 itr_log_fn(logger, agent, agent_idx, shell_iterations[agent_idx], \
-                    shell_task_counter[agent_idx], grad_norms, policy_losses, value_losses)
+                    shell_task_counter[agent_idx], dict_logs)
 
             # evaluation block
             if (agent.config.eval_interval is not None and \
@@ -379,13 +365,12 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
             agent.distil_task_knowledge(masks)
                     
         # agent iteration (training step): collect on policy data and optimise agent
-        grad_norms, policy_losses, value_losses = agent.iteration()
+        dict_logs = agent.iteration()
         shell_iterations += 1
 
         # tensorboard log
         if shell_iterations % agent.config.iteration_log_interval == 0:
-            itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, grad_norms, \
-                policy_losses, value_losses)
+            itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, dict_logs)
 
         # evaluation block
         if (agent.config.eval_interval is not None and \
