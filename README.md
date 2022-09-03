@@ -50,6 +50,9 @@ Note: Minigrid (with 3 simple crossing tasks) is specified as the default enviro
 ...
 ```
 
+## Metrics/Plots
+To compute metrics and generate plots in multi_process ShELL settings (i.e. using `run_shell_dist.py` script to run ShELL experiments), read the documenation in this [link](README_plots.md)
+
 ## Maintainers
 The repository is currently developed and maintained by researchers from Loughborough Univeristy, Vanderbilt University, UC Riverside, and UT Dallas
 

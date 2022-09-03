@@ -33,7 +33,7 @@ def ppo_baseline_mctgraph(name, args):
     config.cl_preservation = 'baseline'
     config.seed = 8379
     random_seed(config.seed)
-    exp_id = ''
+    exp_id = '-seed-{0}'.format(config.seed)
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 4
@@ -106,7 +106,7 @@ def ppo_ll_mctgraph(name, args):
     config.cl_preservation = 'supermask'
     config.seed = 8379
     random_seed(config.seed)
-    exp_id = ''
+    exp_id = '-seed-{0}'.format(config.seed)
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 4
@@ -180,7 +180,7 @@ def ppo_baseline_minigrid(name, args):
     config.cl_preservation = 'baseline'
     config.seed = 8379
     random_seed(config.seed)
-    exp_id = ''
+    exp_id = '-seed-{0}'.format(config.seed)
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 4
@@ -255,7 +255,7 @@ def ppo_ll_minigrid(name, args):
     config.cl_preservation = 'supermask'
     config.seed = 8379
     random_seed(config.seed)
-    exp_id = ''
+    exp_id = '-seed-{0}'.format(config.seed)
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 4
@@ -331,7 +331,7 @@ def ppo_baseline_continualworld(name, args):
     config.cl_preservation = 'baseline'
     config.seed = 8379
     random_seed(config.seed)
-    exp_id = ''
+    exp_id = '-seed-{0}'.format(config.seed)
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 1
@@ -405,7 +405,7 @@ def ppo_ll_continualworld(name, args):
     config.cl_preservation = 'supermask'
     config.seed = 8379
     random_seed(config.seed)
-    exp_id = ''
+    exp_id = '-seed-{0}'.format(config.seed)
     log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
     config.log_dir = get_default_log_dir(log_name)
     config.num_workers = 1
