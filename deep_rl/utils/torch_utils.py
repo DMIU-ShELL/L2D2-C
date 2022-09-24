@@ -15,6 +15,7 @@ def select_device(gpu_id):
     else:
         Config.DEVICE = torch.device('cpu')
 
+# COME BACK AND CHECK IF 32 IS NEEDED OR IF WE CAN USE FLOAT16
 def tensor(x):
     if isinstance(x, torch.Tensor):
         return x

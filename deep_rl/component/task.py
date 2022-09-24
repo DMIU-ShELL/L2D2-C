@@ -5,7 +5,8 @@
 #######################################################################
 import copy
 from .atari_wrapper import *
-import multiprocessing as mp
+import multiprocess as mp
+#from pathos.multiprocessing import ProcessingPool
 import sys
 from .bench import Monitor
 from ..utils import *
@@ -16,9 +17,9 @@ import itertools
 # fix to enable running the code on MacOS using python>=3.8
 # spawn multiprocessing start method fails to run the lambda
 # env initialisation function.
-if mp.get_start_method() == 'spawn':
-    #print('setting multiprocessing start method to use fork')
-    mp.set_start_method('fork', force=True)
+#if mp.get_start_method() == 'spawn':
+#    #print('setting multiprocessing start method to use fork')
+#    mp.set_start_method('fork', force=True)
 
 class BaseTask:
     def __init__(self):
@@ -823,7 +824,103 @@ class ProcessWrapper(mp.Process):
                 self.pipe.send(task.random_tasks(*data))
             else:
                 raise Exception('Unknown command')
+'''
+# Multiprocessing w/ spawn start method fix using pathos
+class ProcessTask:
+    def __init__(self, task_fn, log_dir=None):
+        # Creates a pathos pool object here
+        self.worker = ProcessWrapper(task_fn, log_dir)
+        # Initalise ProcessTask class by running run() from ProcessWrapper. Get the initial state_dim, action_dim and name
+        self.state_dim, self.action_dim, self.name = self.worker.pipe(self.worker.run, 3, None)
 
+    # Run functions using ProcessingPool.pipe from pathos. Return the result of the operation
+    def step(self, action):
+        return self.worker.pipe(self.worker.run, ProcessWrapper.STEP, action)
+
+    def reset(self):
+        return self.worker.pipe(self.worker.run, ProcessWrapper.RESET, None)
+
+    def close(self):
+        self.worker.close()
+
+    def reset_task(self, task_info):
+        return self.worker.pipe(self.worker.run, ProcessWrapper.RESET_TASK, task_info)
+
+    def set_task(self, task_info):
+        return self.worker.pipe(self.worker.run, ProcessWrapper.RESET_TASK, task_info)
+
+    def get_task(self):
+        return self.worker.pipe(self.worker.run, ProcessWrapper.GET_TASK, None)
+
+    def get_all_tasks(self, requires_task_label):
+        return self.worker.pipe(self.worker.run, ProcessWrapper.GET_ALL_TASKS, requires_task_label)
+
+    def random_tasks(self, num_tasks, requires_task_label):
+        return self.worker.pipe(self.worker.run, ProcessWrapper.RANDOM_TASKS, [num_tasks, reqiures_task_label])
+
+class ProcessWrapper(ProcessingPool):
+    STEP = 0
+    RESET = 1
+    EXIT = 2
+    SPECS = 3
+    RESET_TASK = 4
+    SET_TASK = 5
+    GET_TASK = 6
+    GET_ALL_TASKS = 7
+    RANDOM_TASKS = 8
+    def __init__(self, task_fn, log_dir):
+        ProcessingPool.__init__(self)
+        #self.pipe = pipe
+        self.task_fn = task_fn
+        self.log_dir = log_dir
+
+    def run(self, op, data):
+        np.random.seed()
+        #seed = np.random.randint(0, sys.maxsize)
+        seed = np.random.randint(0, 2**32 - 1)
+        task = self.task_fn(log_dir=self.log_dir)
+        task.seed(seed)
+
+        while True:
+            if op == self.STEP:
+                #self.pipe.send(task.step(data))
+                return task.step(data)
+
+            elif op == self.RESET:
+                #self.pipe.send(task.reset())
+                return task.reset()
+
+            elif op == self.EXIT:
+                self.pipe.close()
+                return
+
+            elif op == self.SPECS:
+                #self.pipe.send([task.state_dim, task.action_dim, task.name])
+                return [task.state_dim, task.action_dim, task.name]
+
+            elif op == self.RESET_TASK:
+                #self.pipe.send(task.reset_task(data))
+                return task.reset_task(data)
+
+            elif op == self.SET_TASK:
+                #self.pipe.send(task.set_task(data))
+                return task.set_task(data)
+
+            elif op == self.GET_TASK:
+                #self.pipe.send(task.get_task())
+                return task.get_task()
+
+            elif op == self.GET_ALL_TASKS:
+                #self.pipe.send(task.get_all_tasks(data))
+                return task.get_all_tasks(data)
+
+            elif op == self.RANDOM_TASKS:
+                #self.pipe.send(task.random_tasks(*data))
+                return task.random_tasks(*data)
+
+            else:
+                raise Exception('Unknown command')
+'''
 class ParallelizedTask:
     def __init__(self, task_fn, num_workers, log_dir=None, single_process=False):
 
