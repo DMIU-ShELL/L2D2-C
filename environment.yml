@@ -159,7 +159,6 @@ dependencies:
     - packaging==21.3
     - pandas==1.4.3
     - pathlib==1.0.1
-    - pathos==0.3.0.dev0
     - pox==0.3.1
     - ppft==1.7.6.5
     - protobuf==3.19.4

@@ -7,13 +7,13 @@
 from ..network import *
 from ..component import *
 from .BaseAgent import *
+from ..shell_modules import *
 from copy import deepcopy
 import numpy as np
 
 '''
 Original PPO agent implementations for single agent, single process shell and distributed shell.
 '''
-
 class PPOAgent(BaseAgent):
     def __init__(self, config):
         BaseAgent.__init__(self, config)
@@ -117,6 +117,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         # set seed before creating network to ensure network parameters are
         # same across all shell agents
         torch.manual_seed(config.seed)
+
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)
         _params = list(self.network.parameters())
         self.opt = config.optimizer_fn(_params, config.lr)
@@ -156,6 +157,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
     #    raise Exception
 
     def iteration(self):
+        #select_device(0) # -1 is CPU, a positive integer is the index of GPU
         config = self.config
         rollout = []
         states = self.states
@@ -669,9 +671,12 @@ class LLAgent_NoOracle(PPOContinualLearnerAgent):
 
 
 '''
-Multiprocessing implementations of the above PPO agents. 
+Multiprocessing implementations of the above PPO agents. Data Collection and Optimisation can take place in parallel.
+Uses pipes to communicate data between the main process and the agent's functions.
 '''
 import multiprocess as mp
+import dill
+dill.settings["recurse"] = True
 
 # PPO_Agent
 class PPOContinualLearnerAgent_mp(BaseContinualLearnerAgent):
@@ -679,6 +684,7 @@ class PPOContinualLearnerAgent_mp(BaseContinualLearnerAgent):
         BaseContinualLearnerAgent.__init__(self, config)
         self.config = config
         self.task = None if config.task_fn is None else config.task_fn()
+        #self.task = ParallelizedTask(MiniGridFlatObs(name, env_config_path, config.log_dir, config.seed, False), config.num_workers, log_dir=config.log_dir, single_process=False)
         if config.eval_task_fn is None:
             self.evaluation_env = None
         else:
@@ -734,6 +740,9 @@ class PPOContinualLearnerAgent_mp(BaseContinualLearnerAgent):
     which environment is used (i.e. MetaWorld/ContinualWorld or MiniGrid/CTGraph)
     '''
     def data_collection(self, data_conn_parent):
+        print(torch.cuda.is_initialized())
+        select_device(0) # -1 is CPU, a positive integer is the index of GPU
+        print(torch.cuda.is_initialized())
         config = self.config
         rollout = []
         states = self.states
@@ -762,6 +771,7 @@ class PPOContinualLearnerAgent_mp(BaseContinualLearnerAgent):
     connection pipeline and
     '''
     def optimisation(self, data_conn_child, dict_conn_parent):
+        select_device(0) # -1 is CPU, a positive integer is the index of GPU
         # Get all necessary data from the data collection pipe
         states, rollout, batch_task_label = data_conn_child.recv()
 
@@ -1009,51 +1019,6 @@ class LLAgent_mp(PPOContinualLearnerAgent_mp):
     #class CustomProcess(mp.Process):
     #    def __init__(self, task, seed)
 
-class ShellAgent_SP(LLAgent_mp):
-    '''
-    Lifelong learning (ppo continual learning with supermask) agent in ShELL
-    settings. All agents executing in a single/uni process (SP) setting.
-    '''
-    def __init__(self, config):
-        LLAgent_mp.__init__(self, config)
-
-    def _select_mask(self, agents, masks, ensemble=False):
-        found_mask = None
-        if ensemble:
-            raise NotImplementedError
-        else:
-            for agent, mask in zip(agents, masks):
-                if mask is not None:
-                    found_mask = mask
-                    break
-        return found_mask
-
-    def ping_agents(self, agents):
-        task_label = self.task.get_task()['task_label']
-        task_idx = self._label_to_idx(task_label)
-        masks = [agent.ping_response(task_label) for agent in agents]
-        masks_count = sum([1 if m is not None else 0 for m in masks])
-        mask = self._select_mask(agents, masks)
-        if mask is not None:
-            # function from deep_rl/shell_modules/mmn/ssmask_utils.py
-            set_mask(self.network, mask, task_idx)
-            #return True
-            return masks_count
-        else:
-            #return False
-            return masks_count
-
-    def ping_response(self, task_label):
-        task_idx = self._label_to_idx(task_label)
-        # get task mask.
-        if task_idx is None:
-            mask = None
-        else:
-            # function from deep_rl/shell_modules/mmn/ssmask_utils.py
-            mask = get_mask(self.network, task_idx)
-        return mask
-
-class ShellAgent_DP(LLAgent_mp):
     '''
     Lifelong learning (ppo continual learning with supermask) agent in ShELL
     settings. All agents executing in a distributed (multi-) process (DP) setting.
@@ -1130,7 +1095,465 @@ class ShellAgent_DP(LLAgent_mp):
             start = stop
         return dict_mask
 
-#class CustomProcess(mp.Process,):
-#    def __init__(self, config):
-#        mp.Process.__init__(self)
-#        self.agent = ShellAgent_DP(config)
+
+'''
+Multiprocessing implementation of PPO agent using a custom process wrapper. Data collection and optimisation take place
+together through iteration(), like the original code. Using the constructor of, generate the Model (network function) and
+select the CUDA device for just this agent. Using a process wrapper, run the iteration() function.
+'''
+import shutil
+import time
+
+class PPOContinualLearnerAgent_mpu(BaseContinualLearnerAgent):
+    def __init__(self, config):
+        BaseContinualLearnerAgent.__init__(self, config)
+
+        # Initialise CUDA inside the iteration
+        select_device(0) # -1 is CPU, a positive integer is the index of GPU
+
+
+        self.config = config
+        self.task = None if config.task_fn is None else config.task_fn()
+        if config.eval_task_fn is None:
+            self.evaluation_env = None
+        else:
+            self.evaluation_env = config.eval_task_fn(config.log_dir)
+            self.task = self.evaluation_env if self.task is None else self.task
+        tasks_ = self.task.get_all_tasks(config.cl_requires_task_label)
+        tasks = [tasks_[task_id] for task_id in config.task_ids]
+        del tasks_
+        self.config.cl_tasks_info = tasks
+        label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label'])
+        self.task_label_dim = label_dim 
+
+        # set seed before creating network to ensure network parameters are
+        # same across all shell agents
+        torch.manual_seed(config.seed)
+
+
+        #### CREATE NETWORK FUNCTION FROM INSIDE PPOAGENT INSTEAD OF FROM MAIN PROCESS
+        #self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)
+        self.network = CategoricalActorCriticNet_SS(
+            self.state_dim, self.action_dim, label_dim,
+            phi_body=FCBody_SS(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200), num_tasks=num_tasks),
+            actor_body=DummyBody_CL(200),
+            critic_body=DummyBody_CL(200),
+            num_tasks=num_tasks)
+
+
+        _params = list(self.network.parameters())
+        self.opt = config.optimizer_fn(_params, config.lr)
+        self.total_steps = 0
+
+        self.episode_rewards = np.zeros(config.num_workers)
+        self.last_episode_rewards = np.zeros(config.num_workers)
+        # running reward: used to compute average across all episodes
+        # that may occur in an iteration
+        self.running_episodes_rewards = [[] for _ in range(config.num_workers)]
+        self.iteration_rewards = np.zeros(config.num_workers)
+
+        self.states = self.task.reset()
+        self.states = config.state_normalizer(self.states)
+        self.layers_output = None
+        self.data_buffer = Replay(memory_size=int(1e4), batch_size=256)
+
+        self.curr_train_task_label = None
+        self.curr_eval_task_label = None
+
+        # other performance metric (specifically for metaworld environment)
+        if self.task.name == config.ENV_METAWORLD or self.task.name == config.ENV_CONTINUALWORLD:
+            self._rollout_fn = self._rollout_metaworld
+            self.episode_success_rate = np.zeros(config.num_workers)
+            self.last_episode_success_rate = np.zeros(config.num_workers)
+            # used to compute average across all episodes that may occur in an iteration
+            self.running_episodes_success_rate = [[] for _ in range(config.num_workers)]
+            self.iteration_success_rate = np.zeros(config.num_workers)
+        else:
+            self._rollout_fn = self._rollout_normal
+            self.episode_success_rate = None
+            self.last_episode_success_rate = None
+            self.running_episodes_success_rate = None
+            self.iteration_success_rate = None
+
+    def iteration(self):
+        print('Starting Iteration', flush=True)
+        config = self.config
+        rollout = []
+        states = self.states
+        if self.curr_train_task_label is not None:
+            task_label = self.curr_train_task_label
+        else:
+            task_label = self.task.get_task()['task_label']
+            assert False, 'manually set (temporary) breakpoint. code should not get here.'
+
+        task_label = tensor(task_label)
+        batch_dim = config.num_workers
+        if batch_dim == 1:
+            batch_task_label = task_label.reshape(1, -1)
+        else:
+            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+
+        print('Running Rollout Function', flush=True)
+        states, rollout = self._rollout_fn(states, batch_task_label)
+        ####################### DATA COLLECTION (FORWARD PASS) ENDS HERE #######################
+
+
+
+        ####################### OPTIMISATION PHASE STARTS HERE #######################
+        ## PREPROCESSING FOR MODEL UPDATES
+        self.states = states
+        pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
+        rollout.append([states, pending_value, None, None, None, None])
+        processed_rollout = [None] * (len(rollout) - 1)
+        advantages = tensor(np.zeros((config.num_workers, 1)))
+        returns = pending_value.detach()
+        for i in reversed(range(len(rollout) - 1)):
+            states, value, actions, log_probs, rewards, terminals = rollout[i]
+            terminals = tensor(terminals).unsqueeze(1)
+            rewards = tensor(rewards).unsqueeze(1)
+            actions = tensor(actions)
+            states = tensor(states)
+            next_value = rollout[i + 1][1]
+            returns = rewards + config.discount * terminals * returns
+            if not config.use_gae:
+                advantages = returns - value.detach()
+            else:
+                td_error = rewards + config.discount*terminals*next_value.detach() - value.detach()
+                advantages = advantages * config.gae_tau * config.discount * terminals + td_error
+            processed_rollout[i] = [states, actions, log_probs, returns, advantages]
+
+        states, actions, log_probs_old, returns, advantages = map(lambda x: torch.cat(x, dim=0), \
+            zip(*processed_rollout))
+        eps = 1e-6
+        advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
+
+        grad_norm_log = []
+        policy_loss_log = []
+        value_loss_log = []
+        log_probs_log = []
+        entropy_log = []
+        ratio_log = []
+        batcher = Batcher(states.size(0) // config.num_mini_batches, [np.arange(states.size(0))])
+
+
+        ## OPTIMISATIONS
+
+        for _ in range(config.optimization_epochs):
+            batcher.shuffle()
+            while not batcher.end():
+                batch_indices = batcher.next_batch()[0]
+                batch_indices = tensor(batch_indices).long()
+                sampled_states = states[batch_indices]
+                sampled_actions = actions[batch_indices]
+                sampled_log_probs_old = log_probs_old[batch_indices]
+                sampled_returns = returns[batch_indices]
+                sampled_advantages = advantages[batch_indices]
+
+                batch_dim = sampled_states.shape[0]
+                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
+                    dim=0)
+                _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
+                    sampled_actions, task_label=batch_task_label, return_layer_output=True)
+                ratio = (log_probs - sampled_log_probs_old).exp()
+                obj = ratio * sampled_advantages
+                obj_clipped = ratio.clamp(1.0 - self.config.ppo_ratio_clip,
+                                          1.0 + self.config.ppo_ratio_clip) * sampled_advantages
+                policy_loss = -torch.min(obj, obj_clipped).mean(0) \
+                    - config.entropy_weight * entropy_loss.mean()
+
+                value_loss = 0.5 * (sampled_returns - values).pow(2).mean()
+
+                log_probs_log.append(log_probs.detach().cpu().numpy().mean())
+                entropy_log.append(entropy_loss.detach().cpu().numpy().mean())
+                ratio_log.append(ratio.detach().cpu().numpy().mean())
+                policy_loss_log.append(policy_loss.detach().cpu().numpy())
+                value_loss_log.append(value_loss.detach().cpu().numpy())
+
+                self.opt.zero_grad()
+                (policy_loss + value_loss).backward()
+                norm_ = nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
+                grad_norm_log.append(norm_.detach().cpu().numpy())
+                self.opt.step()
+
+        steps = config.rollout_length * config.num_workers
+        self.total_steps += steps
+        self.layers_output = outs
+
+        print('Getting ready to output logging dictionary', flush=True)
+        return {'grad_norm': grad_norm_log, 'policy_loss': policy_loss_log, \
+            'value_loss': value_loss_log, 'log_prob': log_probs_log, 'entropy': entropy_log, \
+            'ppo_ratio': ratio_log}
+
+    def _rollout_normal(self, states, batch_task_label):
+        # clear running performance buffers
+        self.running_episodes_rewards = [[] for _ in range(self.config.num_workers)]
+
+        config = self.config
+        rollout = []
+        for _ in range(config.rollout_length):
+            _, actions, log_probs, _, values, _ = self.network.predict(states, \
+                task_label=batch_task_label)
+            next_states, rewards, terminals, _ = self.task.step(actions.cpu().detach().numpy())
+            self.episode_rewards += rewards
+            rewards = config.reward_normalizer(rewards)
+            for i, terminal in enumerate(terminals):
+                if terminals[i]:
+                    self.running_episodes_rewards[i].append(self.episode_rewards[i])
+                    self.last_episode_rewards[i] = self.episode_rewards[i]
+                    self.episode_rewards[i] = 0
+            next_states = config.state_normalizer(next_states)
+
+            # save data to buffer for the detect module
+            self.data_buffer.feed_batch([states, actions, rewards, terminals, next_states])
+
+            rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
+                rewards, 1 - terminals])
+            states = next_states
+
+        # compute average performance across episodes in the rollout
+        for i in range(config.num_workers):
+            self.iteration_rewards[i] = self._avg_episodic_perf(self.running_episodes_rewards[i])
+
+        return states, rollout
+
+    # rollout for metaworld and continualworld environments. it is similar to normal
+    # rollout with the inclusion of the capture of success rate metric.
+    def _rollout_metaworld(self, states, batch_task_label):
+        # clear running performance buffers
+        self.running_episodes_rewards = [[] for _ in range(self.config.num_workers)]
+        self.running_episodes_success_rate = [[] for _ in range(self.config.num_workers)]
+
+        config = self.config
+        rollout = []
+        for _ in range(config.rollout_length):
+            _, actions, log_probs, _, values, _ = self.network.predict(states, \
+                task_label=batch_task_label)
+            next_states, rewards, terminals, infos = self.task.step(actions.cpu().detach().numpy())
+            success_rates = [info['success'] for info in infos]
+            self.episode_rewards += rewards
+            self.episode_success_rate += success_rates
+            rewards = config.reward_normalizer(rewards)
+            for i, terminal in enumerate(terminals):
+                if terminals[i]:
+                    self.running_episodes_rewards[i].append(self.episode_rewards[i])
+                    self.last_episode_rewards[i] = self.episode_rewards[i]
+                    self.episode_rewards[i] = 0
+                    self.episode_success_rate[i] = (self.episode_success_rate[i] > 0).astype(np.uint8)
+                    self.running_episodes_success_rate[i].append(self.episode_success_rate[i])
+                    self.last_episode_success_rate[i] = self.episode_success_rate[i]
+                    self.episode_success_rate[i] = 0
+            next_states = config.state_normalizer(next_states)
+
+            # save data to buffer for the detect module
+            self.data_buffer.feed_batch([states, actions, rewards, terminals, next_states])
+
+            rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
+                rewards, 1 - terminals])
+            states = next_states
+
+        # compute average performance across episodes in the rollout
+        for i in range(config.num_workers):
+            self.iteration_rewards[i] = self._avg_episodic_perf(self.running_episodes_rewards[i])
+            self.iteration_success_rate[i] = self._avg_episodic_perf(self.running_episodes_success_rate[i])
+
+        return states, rollout
+
+    def _avg_episodic_perf(self, running_perf):
+        if len(running_perf) == 0: return 0.
+        else: return np.mean(running_perf)
+
+class LLAgent_mpu(PPOContinualLearnerAgent_mpu):
+    '''
+    PPO continual learning agent using supermask superposition algorithm
+    task oracle available: agent informed about task boundaries (i.e., when
+    one task ends and the other begins)
+
+    supermask lifelong learning algorithm: https://arxiv.org/abs/2006.14769
+    '''
+    def __init__(self, config):
+        PPOContinualLearnerAgent_mp.__init__(self, config)
+        self.seen_tasks = {} # contains task labels that agent has experienced so far.
+        self.new_task = False
+        self.curr_train_task_label = None
+
+    def _label_to_idx(self, task_label):
+        eps = 1e-5
+        found_task_idx = None
+        for task_idx, seen_task_label in self.seen_tasks.items():
+            if np.linalg.norm((task_label - seen_task_label), ord=2) < eps:
+                found_task_idx = task_idx
+                break
+        return found_task_idx
+        
+    def task_train_start(self, task_label):
+        task_idx = self._label_to_idx(task_label)
+        if task_idx is None:
+            # new task. add it to the agent's seen_tasks dictionary
+            task_idx = len(self.seen_tasks) # generate an internal task index for new task
+            self.seen_tasks[task_idx] = task_label
+            self.new_task = True
+            set_model_task(self.network, task_idx, new_task=True)
+        else:
+            set_model_task(self.network, task_idx)
+        self.curr_train_task_label = task_label
+        return
+
+    def task_train_end(self):
+        # NOTE, comment/uncomment alongside a block of code in `_forward_mask_lnear_comb` method in
+        # MultitaskMaskLinear and MultiMaskLinearSparse classes
+        consolidate_mask(self.network)
+
+        self.curr_train_task_label = None
+        cache_masks(self.network)
+        if self.new_task:
+            set_num_tasks_learned(self.network, len(self.seen_tasks))
+        self.new_task = False # reset flag
+        return
+
+    def task_eval_start(self, task_label):
+        self.network.eval()
+        task_idx = self._label_to_idx(task_label)
+        if task_idx is None:
+            # agent has not been trained on current task
+            # being evaluated. therefore use a random mask
+            # TODO: random task hardcoded to the first learnt
+            # task/mask. update this later to use a random
+            # previous task, or implementing a way for
+            # agent to use an ensemble of different mask
+            # internally for the task not yet seen.
+            task_idx = 0
+        set_model_task(self.network, task_idx)
+        self.curr_eval_task_label = task_label
+        return
+
+    def task_eval_end(self):
+        self.curr_eval_task_label = None
+        self.network.train()
+        # resume training the model on train task label if training
+        # was on before running evaluations.
+        if self.curr_train_task_label is not None:
+            task_idx = self._label_to_idx(self.curr_train_task_label)
+            set_model_task(self.network, task_idx)
+        return
+
+class AgentProcess(mp.Process):
+    ITERATION = 0
+    GET_TASKS = 1
+    GET_TASK_NAME = 2
+    RUN_RESET_TASK = 3
+    DATA_BUFFER_CLEAR = 4
+    TASK_TRAIN_START = 5
+    GET_TOTAL_STEPS = 6
+    GET_ITERATION_REWARDS = 7
+    GET_LAST_EPISODE_REWARDS = 8
+    SET_STATES = 9
+
+    def __init__(self, pipe_child, pipe_parent, Agent, config):
+        mp.Process.__init__(self)
+        # Get the pipe child
+        self.pipe_child = pipe_child
+        self.pipe_parent = pipe_parent
+        # Make instance of an Agent object i.e., LLAgent_mpu
+        self.agent = Agent(config)
+
+        config.agent_name = self.agent.__class__.__name__
+        self.tasks = self.agent.config.cl_tasks_info
+        config.cl_num_learn_blocks = 1
+
+        #shutil.copy(config.env_config_path, config.log_dir + '/env_config.json')
+        #with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
+        #    pickle.dump(self.tasks, f)
+
+    def run(self):
+        while True:
+            op, data = self.pipe_child.recv()
+            print(op, data, flush=True)
+            if op == self.ITERATION:
+                # Run the LLAgent iteration() function and return loggin dictionary
+                # through the pipe child.
+                result = self.agent.iteration()
+                self.pipe_parent.send(result)
+
+            elif op == self.GET_TASKS:
+                self.pipe_parent.send(self.tasks)
+
+            elif op == self.GET_TASK_NAME:
+                self.pipe_parent.send(self.agent.task.name)
+
+            elif op == self.RUN_RESET_TASK:
+                self.pipe_parent.send(self.agent.task.reset_task(data))
+
+            elif op == self.DATA_BUFFER_CLEAR:
+                self.pipe_parent.send(self.agent.data_buffer.clear())
+
+            elif op == self.TASK_TRAIN_START:
+                self.agent.task_train_start(data)
+
+            elif op == self.GET_TOTAL_STEPS:
+                self.pipe_parent.send(self.agent.total_steps)
+
+            elif op == self.GET_ITERATION_REWARDS:
+                self.pipe_parent.send(self.agent.iteration_rewards)
+
+            elif op == self.GET_LAST_EPISODE_REWARDS:
+                self.pipe_parent.send(self.agent.last_episode_rewards)
+
+            elif op == self.SET_STATES:
+                self.agent.states = data
+
+            else:
+                raise Exception('Unknown command')
+
+class ParallelizedAgent:
+    def __init__(self, Agent, config):
+        self.pipe1, worker_pipe1 = mp.Pipe([False])
+        pipe2, self.worker_pipe2 = mp.Pipe([False])
+        self.worker = AgentProcess(worker_pipe1, pipe2, Agent, config)
+        self.worker.start()
+
+    def iteration(self):
+        # Send OPCODE to AgentWrapper to run LLAgent_mpu.iteration()
+        self.pipe1.send([AgentProcess.ITERATION, None])
+
+    def get_tasks(self):
+        self.pipe1.send([AgentProcess.GET_TASKS, None])
+        return self.worker_pipe2.recv()
+
+    def get_task_name(self):
+        self.pipe1.send([AgentProcess.GET_TASK_NAME, None])
+        return self.worker_pipe2.recv()
+
+    def task_reset_task(self, data):
+        self.pipe1.send([AgentProcess.RUN_RESET_TASK, data])
+        return self.worker_pipe2.recv()
+
+    def data_buffer_clear(self):
+        self.pipe1.send([AgentProcess.DATA_BUFFER_CLEAR, None])
+        return self.worker_pipe2.recv()
+
+    def task_train_start(self, data):
+        self.pipe1.send([AgentProcess.TASK_TRAIN_START, data])
+        return self.worker_pipe2.recv()
+
+    def get_total_steps(self):
+        self.pipe1.send([AgentProcess.GET_TOTAL_STEPS, None])
+        return self.worker_pipe2.recv()
+    
+    def get_iteration_rewards(self):
+        self.pipe1.send([AgentProcess.GET_ITERATION_REWARDS, None])
+        return self.worker_pipe2.recv()
+
+    def get_last_episode_rewards(self):
+        self.pipe1.send([AgentProcess.GET_LAST_EPISODE_REWARDS, None])
+        return self.worker_pipe2.recv()
+
+    def set_states(self, data):
+        self.pipe1.send([AgentProcess.SET_STATES, data])
+        return self.worker_pipe2.recv()
+
+    def get_pipe(self):
+        return self.worker_pipe2.recv()
+
+
+if __name__ == '__main__':
+    pass

@@ -795,6 +795,12 @@ class ProcessWrapper(mp.Process):
         self.task_fn = task_fn
         self.log_dir = log_dir
 
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, d):
+        self.__dict__ = d
+
     def run(self):
         np.random.seed()
         #seed = np.random.randint(0, sys.maxsize)
