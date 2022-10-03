@@ -791,8 +791,11 @@ def ppo_ll_minigrid_mpu(name, args):
 
 
     # Start single agent lifecycle
-    run_iterations_w_oracle_mpu(Agent, config)
-
+    # Returns steps<list>, rewards<list>, and tasks
+    _, _, tasks = run_iterations_w_oracle_mpu(Agent, config)
+    tasks = tasks[0]
+    
+    print(tasks)
 
 
     with open('{0}/tasks_info_after_train.bin'.format(config.log_dir), 'wb') as f:

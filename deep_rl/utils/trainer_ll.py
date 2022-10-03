@@ -93,20 +93,6 @@ Iteration Logging function for unified multiprocessing approach.
 This is used in the run_iterations_w_oracle_mpu
 '''
 def _itr_log_mpu(logger, agent, iteration, dict_logs):
-    print('iteration', iteration)
-
-    ttotal_steps = agent.get_total_steps()
-    print('total_steps', ttotal_steps)
-    print('total_steps', type(ttotal_steps))
-
-    titeration_rewards = agent.get_iteration_rewards()
-    print('iteration_rewards', titeration_rewards)
-    print('iteration_rewards', type(titeration_rewards))
-
-    tlast_rewards = agent.get_last_episode_rewards()
-    print('last_episode_rewards', tlast_rewards)
-    print('last_episode_rewards', type(tlast_rewards))
-
     logger.info('iteration %d, total steps %d, mean/max/min reward %f/%f/%f'%(
         iteration, agent.get_total_steps(),
         np.mean(agent.get_iteration_rewards()),
@@ -168,8 +154,6 @@ def run_iterations_w_oracle(agent, tasks_info):
     eval_data = []
     metric_icr = [] # icr => total cumulative reward
 
-    print(agent.task.name)
-
     if agent.task.name == config.ENV_METAWORLD or agent.task.name == config.ENV_CONTINUALWORLD:
         itr_log_fn = _itr_log_mw
     else:
@@ -186,19 +170,15 @@ def run_iterations_w_oracle(agent, tasks_info):
             config.logger.info('task_label: {0}'.format(task_info['task_label']))
 
             states = agent.task.reset_task(task_info)
-            print(states)
             agent.states = config.state_normalizer(states)
             agent.data_buffer.clear()
             agent.task_train_start(task_info['task_label'])
             while True:
-                # train step
                 dict_logs = agent.iteration()
-                #print(dict_logs)
 
                 iteration += 1
-                print(agent.total_steps)
+
                 steps.append(agent.total_steps)
-                print(agent.iteration_rewards)
                 rewards.append(np.mean(agent.iteration_rewards))
 
                 # logging
@@ -210,6 +190,7 @@ def run_iterations_w_oracle(agent, tasks_info):
                         pickle.dump({'rewards': rewards, 'steps': steps}, f)
                     agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
                         agent.task.name))
+                    
                     for tag, value in agent.network.named_parameters():
                         tag = tag.replace('.', '/')
                         config.logger.histo_summary(tag, value.data.cpu().numpy())
@@ -687,7 +668,8 @@ def run_iterations_w_oracle_mp(agent, tasks_info):
 
 
 from ..agent.PPO_agent import ParallelizedAgent
-
+'''
+Has all the print statements for checking functionality. Ignore.
 def run_iterations_w_oracle_mpu(Agent, config):
     # Initialise agent as a child of the parent process
     p_agent = ParallelizedAgent(Agent, config)
@@ -695,7 +677,7 @@ def run_iterations_w_oracle_mpu(Agent, config):
     #tasks_info = p_agent.get_pipe()
     print('tasks_info', tasks_info)
 
-    #agent_task_name = p_agent.get_task_name()
+    agent_task_name = p_agent.get_task_name()
 
     log_path_tstats = config.log_dir + '/task_stats'
     if not os.path.exists(log_path_tstats):
@@ -708,6 +690,7 @@ def run_iterations_w_oracle_mpu(Agent, config):
     # COME BACK TO THIS. WILL LIKELY NEED A GETTER FUNCTION
     # TO GET THE AGENT CLASS NAME
     #agent_name = agent.__class__.__name__
+    agent_name = p_agent.get_agent_name()
 
     iteration = 0
     steps = []
@@ -752,7 +735,9 @@ def run_iterations_w_oracle_mpu(Agent, config):
             while True:
                 ####################### MULTIPROCESSING AGENT ITERATIONS #######################
                 p_agent.iteration()
-                dict_logs = p_agent.get_pipe()
+                dict_logs = None
+                while not isinstance(dict_logs, dict):
+                    dict_logs = p_agent.get_pipe()
                 print('dict_logs', dict_logs)
                 iteration += 1
 
@@ -773,21 +758,32 @@ def run_iterations_w_oracle_mpu(Agent, config):
                     itr_log_fn(config.logger, p_agent, iteration, dict_logs)
 
                     with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
-                        (agent_name, config.tag, agent.task.name), 'wb') as f:
+                        #(agent_name, config.tag, agent.task.name), 'wb') as f:
+                        (agent_name, config.tag, agent_task_name), 'wb') as f:
                         pickle.dump({'rewards': rewards, 'steps': steps}, f)
-                    agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
-                        agent.task.name))
-                    for tag, value in agent.network.named_parameters():
+                    p_agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
+                        agent_task_name))
+
+                    agent_network_named_parameters = p_agent.get_named_parameters()
+                    for tag, value in agent_network_named_parameters:
                         tag = tag.replace('.', '/')
                         config.logger.histo_summary(tag, value.data.cpu().numpy())
-                    if hasattr(agent, 'layers_output'):
-                        for tag, value in agent.layers_output:
+                    
+                    agent_attr = p_agent.get_attr()
+                    
+                    #if hasattr(agent, 'layers_output'):
+                    if 'layers_output' in agent_attr:
+                        temp_layers_output = p_agent.get_layers_output()
+                        for tag, value in temp_layers_output:
                             tag = 'layer_output/' + tag
                             config.logger.histo_summary(tag, value.data.cpu().numpy())
 
+                    del agent_attr
+                    del temp_layers_output
+
                 # evaluation block
-                if (agent.config.eval_interval is not None and \
-                    iteration % agent.config.eval_interval == 0):
+                if (config.eval_interval is not None and \
+                    iteration % config.eval_interval == 0):
                     config.logger.info('*****agent / evaluation block')
                     _tasks = tasks_info
                     _names = [eval_task_info['name'] for eval_task_info in _tasks]
@@ -817,33 +813,43 @@ def run_iterations_w_oracle_mpu(Agent, config):
 
                 # check whether task training has been completed
                 task_steps_limit = config.max_steps * (num_tasks * learn_block_idx + task_idx + 1)
-                if config.max_steps and agent.total_steps >= task_steps_limit:
+                if config.max_steps and p_agent.get_total_steps() >= task_steps_limit:
                     with open(log_path_tstats + '/%s-%s-online-stats-%s-run-%d-task-%d.bin' % \
-                        (agent_name, config.tag, agent.task.name, learn_block_idx+1, task_idx+1), 'wb') as f:
+                        (agent_name, config.tag, agent_task_name, learn_block_idx+1, task_idx+1), 'wb') as f:
                         pickle.dump({'rewards': rewards[task_start_idx : ], \
                         'steps': steps[task_start_idx : ]}, f)
-                    agent.save(log_path_tstats +'/%s-%s-model-%s-run-%d-task-%d.bin' % (agent_name, \
-                        config.tag, agent.task.name, learn_block_idx+1, task_idx+1))
-                    agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
-                        agent.task.name))
+                    p_agent.save(log_path_tstats +'/%s-%s-model-%s-run-%d-task-%d.bin' % (agent_name, \
+                        config.tag, agent_task_name, learn_block_idx+1, task_idx+1))
+                    p_agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
+                        agent_task_name))
                     task_start_idx = len(rewards)
                     break
             # end of while True. current task training
             if agent_name != 'BaselineAgent':
                 config.logger.info('cacheing mask for current task')
-            ret = agent.task_train_end()
+            ret = p_agent.task_train_end()
             # evaluate agent across task exposed to agent so far
             config.logger.info('evaluating agent across all tasks exposed so far to agent')
             for j in range(task_idx+1):
                 _eval_task = tasks_info[j]
-                agent.task_eval_start(_eval_task['task_label'])
+                p_agent.task_eval_start(_eval_task['task_label'])
 
-                eval_states = agent.evaluation_env.reset_task(tasks_info[j])
-                agent.evaluation_states = eval_states
-                perf, episodes = agent.evaluate_cl(num_iterations=config.evaluation_episodes)
+                eval_states = p_agent.evaluation_env_reset_task(tasks_info[j])
+                p_agent.set_evaluation_states(eval_states)
+
+
+                # COME BACK TO THIS AT ANOTHER TIME :^)
+                #perf, episodes = agent.evaluate_cl(config.evaluation_episodes)
+                p_agent.evaluate_cl(config.evaluation_episodes)
+                results = None
+                while not isinstance(results, list):
+                    results = p_agent.get_pipe()
+
+                perf, episodes = results
+                print(type(perf), type(episodes))
                 eval_results[j] += perf
 
-                agent.task_eval_end()
+                p_agent.task_eval_end()
 
                 with open(log_path_eval+'/rewards-task{0}_{1}.bin'.format(\
                     task_idx+1, j+1), 'wb') as f:
@@ -869,5 +875,197 @@ def run_iterations_w_oracle_mpu(Agent, config):
         to_save = np.stack(eval_data, axis=0)
         with open(config.logger.log_dir + '/eval_metrics.npy', 'wb') as f:
             np.save(f, to_save)
-    agent.close()
-    return steps, rewards
+    p_agent.close()
+    p_agent.kill()
+    return steps, rewards, p_agent.get_tasks()
+    
+'''
+
+def run_iterations_w_oracle_mpu(Agent, config):
+    # Initialise agent as a child of the parent process
+    p_agent = ParallelizedAgent(Agent, config)
+    tasks_info = p_agent.get_tasks()
+
+    agent_task_name = p_agent.get_task_name()
+
+    log_path_tstats = config.log_dir + '/task_stats'
+    if not os.path.exists(log_path_tstats):
+        os.makedirs(log_path_tstats)
+    log_path_eval = config.log_dir + '/eval_stats'
+    if not os.path.exists(log_path_eval):
+        os.makedirs(log_path_eval)
+    random_seed(config.seed)
+    
+    agent_name = p_agent.get_agent_name()
+
+    iteration = 0
+    steps = []
+    rewards = []
+    task_start_idx = 0
+    num_tasks = len(tasks_info)
+    eval_data_fh = open(config.logger.log_dir + '/eval_metrics.csv', 'a', buffering=1)
+
+    eval_tracker = False
+    eval_data = []
+    metric_icr = [] # icr => total cumulative reward
+
+    # TEMPORARY SOLUTION FOR ITERATION LOGGING FUNCTION
+    # Make MPU version of the Metaworld/Continual World Iteration Logging Function
+    #if agent_task_name == config.ENV_METAWORLD or agent_task_name == config.ENV_CONTINUALWORLD:
+    #    itr_log_fn = _itr_log_mw
+    #else:
+    # For now just set it to this one
+    itr_log_fn = _itr_log_mpu
+
+    for learn_block_idx in range(config.cl_num_learn_blocks):
+        config.logger.info('********** start of learning block {0}'.format(learn_block_idx))
+        eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
+
+        for task_idx, task_info in enumerate(tasks_info):
+            config.logger.info('*****start training on task {0}'.format(task_idx))
+            config.logger.info('name: {0}'.format(task_info['name']))
+            config.logger.info('task: {0}'.format(task_info['task']))
+            config.logger.info('task_label: {0}'.format(task_info['task_label']))
+
+            states = p_agent.task_reset_task(task_info)
+
+            p_agent.set_states(config.state_normalizer(states))
+
+            p_agent.data_buffer_clear()
+
+            p_agent.task_train_start(task_info['task_label'])
+
+            while True:
+                ####################### MULTIPROCESSING AGENT ITERATIONS #######################
+                p_agent.iteration()
+                dict_logs = None
+                while not isinstance(dict_logs, dict):
+                    dict_logs = p_agent.get_pipe()
+                iteration += 1
+
+                steps.append(p_agent.get_total_steps())
+
+                rewards.append(np.mean(p_agent.get_iteration_rewards()))
+
+                # logging
+                if iteration % config.iteration_log_interval == 0:
+                    itr_log_fn(config.logger, p_agent, iteration, dict_logs)
+
+                    with open(config.log_dir + '/%s-%s-online-stats-%s.bin' % \
+                        (agent_name, config.tag, agent_task_name), 'wb') as f:
+                        pickle.dump({'rewards': rewards, 'steps': steps}, f)
+                    p_agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
+                        agent_task_name))
+
+                    for tag, value in p_agent.get_named_parameters():
+                        tag = tag.replace('.', '/')
+                        config.logger.histo_summary(tag, value.data.cpu().numpy())
+                    
+                    #if hasattr(agent, 'layers_output'):
+                    if 'layers_output' in p_agent.get_attr():
+                        for tag, value in p_agent.get_layers_output():
+                            tag = 'layer_output/' + tag
+                            config.logger.histo_summary(tag, value.data.cpu().numpy())
+
+                # evaluation block
+                if (config.eval_interval is not None and \
+                    iteration % config.eval_interval == 0):
+                    config.logger.info('*****agent / evaluation block')
+                    _tasks = tasks_info
+                    _names = [eval_task_info['name'] for eval_task_info in _tasks]
+                    config.logger.info('eval tasks: {0}'.format(', '.join(_names)))
+                    eval_data.append(np.zeros(len(_tasks),))
+                    for eval_task_idx, eval_task_info in enumerate(_tasks):
+                        p_agent.task_eval_start(eval_task_info['task_label'])
+                        eval_states = p_agent.evaluation_env_reset_task(eval_task_info)
+                        p_agent.set_evaluation_states(eval_states)
+                        # performance (perf) can be success rate in (meta-)continualworld or
+                        # rewards in other environments
+                        p_agent.evaluate_cl(config.evaluation_episodes)
+                        results = None
+                        while not isinstance(results, list):
+                            results = p_agent.get_pipe()
+                        perf, eps = results
+                        del results
+
+                        p_agent.task_eval_end()
+                        eval_data[-1][eval_task_idx] = np.mean(perf)
+                    _record = np.concatenate([eval_data[-1], np.array(time.time()).reshape(1,)])
+                    np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
+                    del _record
+                    icr = eval_data[-1].sum()
+                    metric_icr.append(icr)
+                    tpot = np.sum(metric_icr)
+                    config.logger.info('*****cl evaluation:')
+                    config.logger.info('cl eval ICR: {0}'.format(icr))
+                    config.logger.info('cl eval TPOT: {0}'.format(tpot))
+                    config.logger.scalar_summary('cl_eval/icr', icr)
+                    config.logger.scalar_summary('cl_eval/tpot', np.sum(metric_icr))
+
+
+                # check whether task training has been completed
+                task_steps_limit = config.max_steps * (num_tasks * learn_block_idx + task_idx + 1)
+                if config.max_steps and p_agent.get_total_steps() >= task_steps_limit:
+                    with open(log_path_tstats + '/%s-%s-online-stats-%s-run-%d-task-%d.bin' % \
+                        (agent_name, config.tag, agent_task_name, learn_block_idx+1, task_idx+1), 'wb') as f:
+                        pickle.dump({'rewards': rewards[task_start_idx : ], \
+                        'steps': steps[task_start_idx : ]}, f)
+                    p_agent.save(log_path_tstats +'/%s-%s-model-%s-run-%d-task-%d.bin' % (agent_name, \
+                        config.tag, agent_task_name, learn_block_idx+1, task_idx+1))
+                    p_agent.save(config.log_dir + '/%s-%s-model-%s.bin' % (agent_name, config.tag, \
+                        agent_task_name))
+                    task_start_idx = len(rewards)
+                    break
+            # end of while True. current task training
+            if agent_name != 'BaselineAgent':
+                config.logger.info('cacheing mask for current task')
+            ret = p_agent.task_train_end()
+            # evaluate agent across task exposed to agent so far
+            config.logger.info('evaluating agent across all tasks exposed so far to agent')
+            for j in range(task_idx+1):
+                _eval_task = tasks_info[j]
+                p_agent.task_eval_start(_eval_task['task_label'])
+
+                eval_states = p_agent.evaluation_env_reset_task(tasks_info[j])
+                p_agent.set_evaluation_states(eval_states)
+
+
+                #perf, episodes = agent.evaluate_cl(config.evaluation_episodes)
+                p_agent.evaluate_cl(config.evaluation_episodes)
+                results = None
+                while not isinstance(results, list):
+                    results = p_agent.get_pipe()
+                perf, episodes = results
+                del results
+
+                eval_results[j] += perf
+
+                p_agent.task_eval_end()
+
+                with open(log_path_eval+'/rewards-task{0}_{1}.bin'.format(\
+                    task_idx+1, j+1), 'wb') as f:
+                    pickle.dump(perf, f)
+                with open(log_path_eval+'/episodes-task{0}_{1}.bin'.format(\
+                    task_idx+1, j+1), 'wb') as f:
+                    pickle.dump(episodes, f)
+        # end for each task
+        print('eval stats')
+        with open(log_path_eval + '/eval_full_stats.bin', 'wb') as f: pickle.dump(eval_results, f)
+
+        f = open(log_path_eval + '/eval_stats.csv', 'w')
+        f.write('task_id,avg_reward\n')
+        for k, v in eval_results.items():
+            print('{0}: {1:.4f}'.format(k, np.mean(v)))
+            f.write('{0},{1:.4f}\n'.format(k, np.mean(v)))
+            config.logger.scalar_summary('zeval/task_{0}/avg_reward'.format(k), np.mean(v))
+        f.close()
+        config.logger.info('********** end of learning block {0}\n'.format(learn_block_idx))
+    # end for learning block
+    eval_data_fh.close()
+    if len(eval_data) > 0:
+        to_save = np.stack(eval_data, axis=0)
+        with open(config.logger.log_dir + '/eval_metrics.npy', 'wb') as f:
+            np.save(f, to_save)
+    p_agent.close()
+    p_agent.kill()
+    return steps, rewards, p_agent.get_tasks()

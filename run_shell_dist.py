@@ -31,7 +31,7 @@ def global_config(config, name):
     random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
-    config.num_workers = 4
+    config.num_workers = 1
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
@@ -46,13 +46,13 @@ def global_config(config, name):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 1e3
+    config.max_steps = 16
     config.evaluation_episodes = 10
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
     config.network_fn = None 
-    config.eval_interval = 25
+    config.eval_interval = 16
     return config
 
 '''
@@ -166,7 +166,7 @@ def shell_dist_minigrid(name, args, shell_config):
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * num_tasks
     task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
-    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
     eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
     config.eval_task_fn = eval_task_fn
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
@@ -264,10 +264,81 @@ def shell_dist_continualworld(name, args, shell_config):
     # start training
     shell_dist_train(agent, comm, args.agent_id, args.num_agents)
 
+
+'''
+ShELL distributed system with multiprocessing.
+Currently only communication. Data collection and model optimisation to be added
+in the future.
+'''
+##### Minigrid environment
+def shell_dist_minigrid_mp(name, args, shell_config):
+    shell_config_path = args.shell_config_path
+    num_agents = args.num_agents
+
+    env_config_path = shell_config['env']['env_config_path']
+    config_seed = shell_config['seed']
+    # address and port number of the master/first agent (rank/id 0) in the pool of agents
+    init_address = shell_config['dist_only']['init_address']
+    init_port = shell_config['dist_only']['init_port']
+
+    # set up config
+    config = Config()
+    config = global_config(config, name)
+    # rescale state normaliser: suitable for grid encoding of states in minigrid
+    config.state_normalizer = RescaleNormalizer(1./10.)
+
+    # set seed
+    config.seed = config_seed
+    
+    # set up logging system
+    exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
+    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
+    log_dir = get_default_log_dir(path_name)
+    logger = get_logger(log_dir=log_dir, file_name='train-log')
+    config.logger = logger
+    config.log_dir = log_dir
+
+    # save shell config and env config
+    shutil.copy(shell_config_path, log_dir)
+    shutil.copy(env_config_path, log_dir)
+
+    # create/initialise agent
+    logger.info('*****initialising agent {0}'.format(args.agent_id))
+    # task may repeat, so get number of unique tasks.
+    num_tasks = len(set(shell_config['curriculum']['task_ids']))
+    config.cl_num_tasks = num_tasks
+    config.task_ids = shell_config['curriculum']['task_ids']
+    if isinstance(shell_config['curriculum']['max_steps'], list):
+        config.max_steps = shell_config['curriculum']['max_steps']
+    else:
+        config.max_steps = [shell_config['curriculum']['max_steps'], ] * num_tasks
+    task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
+    eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
+    config.eval_task_fn = eval_task_fn
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
+        state_dim, action_dim, label_dim,
+        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
+        hidden_units=(200, 200, 200), num_tasks=num_tasks),
+        actor_body=DummyBody_CL(200),
+        critic_body=DummyBody_CL(200),
+        num_tasks=num_tasks)
+
+    agent = ShellAgent_DP(config)
+    config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
+
+    # start training
+    shell_dist_train_mp(agent, args.agent_id, args.num_agents, agent.task_label_dim, \
+        agent.model_mask_dim, logger, init_address, init_port)
+
+
+
 if __name__ == '__main__':
     mkdir('log')
     set_one_thread()
     select_device(0) # -1 is CPU, a positive integer is the index of GPU
+
+    mp.set_start_method('fork', force=True)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)
@@ -277,6 +348,8 @@ if __name__ == '__main__':
         'up structured directory of experiment results/data', default='upz', type=str)
     args = parser.parse_args()
 
+    print(args)
+
     with open(args.shell_config_path, 'r') as f:
         shell_config = json.load(f)
         shell_config['curriculum'] = shell_config['agents'][args.agent_id]
@@ -284,7 +357,7 @@ if __name__ == '__main__':
 
     if shell_config['env']['env_name'] == 'minigrid':
         name = Config.ENV_MINIGRID
-        shell_dist_minigrid(name, args, shell_config)
+        shell_dist_minigrid_mp(name, args, shell_config)
     elif shell_config['env']['env_name'] == 'ctgraph':
         name = Config.ENV_METACTGRAPH
         shell_dist_mctgraph(name, args, shell_config)
@@ -293,3 +366,15 @@ if __name__ == '__main__':
         shell_dist_continualworld(name, args, shell_config)
     else:
         raise ValueError('--env_name {0} not implemented'.format(args.env_name))
+
+
+'''
+0 2 3 110800 <deep_rl.utils.logger.Logger object at 0x7efebfe652b0> 127.0.0.1 5283
+0 2 3 110800 <deep_rl.utils.logger.Logger object at 0x7efebfe652b0>
+<class 'int'> <class 'int'> <class 'int'> <class 'numpy.int64'> <class 'deep_rl.utils.logger.Logger'> <class 'str'> <class 'str'>
+
+
+0 2 3 110800 <deep_rl.utils.logger.Logger object at 0x7f4c2bd1c250> 127.0.0.1 5283
+0 2 3 110800 <deep_rl.utils.logger.Logger object at 0x7f4c2bd1c250>
+<class 'int'> <class 'int'> <class 'int'> <class 'numpy.int64'> <class 'deep_rl.utils.logger.Logger'> <class 'str'> <class 'str'>
+'''

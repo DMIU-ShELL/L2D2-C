@@ -130,6 +130,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.running_episodes_rewards = [[] for _ in range(config.num_workers)]
         self.iteration_rewards = np.zeros(config.num_workers)
 
+
+        self.mask_to_rewards = dict()
+
         self.states = self.task.reset()
         self.states = config.state_normalizer(self.states)
         self.layers_output = None
@@ -1100,6 +1103,10 @@ class LLAgent_mp(PPOContinualLearnerAgent_mp):
 Multiprocessing implementation of PPO agent using a custom process wrapper. Data collection and optimisation take place
 together through iteration(), like the original code. Using the constructor of, generate the Model (network function) and
 select the CUDA device for just this agent. Using a process wrapper, run the iteration() function.
+
+In the future this approach needs to be revisited to consider using semaphores and events.
+Further ideas:
+ -> Using a Pool to run agent functions.
 '''
 import shutil
 import time
@@ -1176,7 +1183,6 @@ class PPOContinualLearnerAgent_mpu(BaseContinualLearnerAgent):
             self.iteration_success_rate = None
 
     def iteration(self):
-        print('Starting Iteration', flush=True)
         config = self.config
         rollout = []
         states = self.states
@@ -1193,7 +1199,7 @@ class PPOContinualLearnerAgent_mpu(BaseContinualLearnerAgent):
         else:
             batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
 
-        print('Running Rollout Function', flush=True)
+
         states, rollout = self._rollout_fn(states, batch_task_label)
         ####################### DATA COLLECTION (FORWARD PASS) ENDS HERE #######################
 
@@ -1279,7 +1285,6 @@ class PPOContinualLearnerAgent_mpu(BaseContinualLearnerAgent):
         self.total_steps += steps
         self.layers_output = outs
 
-        print('Getting ready to output logging dictionary', flush=True)
         return {'grad_norm': grad_norm_log, 'policy_loss': policy_loss_log, \
             'value_loss': value_loss_log, 'log_prob': log_probs_log, 'entropy': entropy_log, \
             'ppo_ratio': ratio_log}
@@ -1447,6 +1452,18 @@ class AgentProcess(mp.Process):
     GET_ITERATION_REWARDS = 7
     GET_LAST_EPISODE_REWARDS = 8
     SET_STATES = 9
+    GET_AGENT_NAME = 10
+    SAVE = 11
+    NAMED_PARAMS = 12
+    GET_ATTR = 13
+    GET_LAYERS_OUTPUT = 14
+    TASK_TRAIN_END = 15
+    TASK_EVAL_END = 16
+    TASK_EVAL_START = 17
+    SET_EVAL_STATES = 18
+    RESET_EVAL_ENV = 19
+    EVALUATE_CL = 20
+    CLOSE = 21
 
     def __init__(self, pipe_child, pipe_parent, Agent, config):
         mp.Process.__init__(self)
@@ -1467,7 +1484,6 @@ class AgentProcess(mp.Process):
     def run(self):
         while True:
             op, data = self.pipe_child.recv()
-            print(op, data, flush=True)
             if op == self.ITERATION:
                 # Run the LLAgent iteration() function and return loggin dictionary
                 # through the pipe child.
@@ -1501,6 +1517,43 @@ class AgentProcess(mp.Process):
             elif op == self.SET_STATES:
                 self.agent.states = data
 
+            elif op == self.GET_AGENT_NAME:
+                self.pipe_parent.send(self.agent.__class__.__name__)
+
+            elif op == self.SAVE:
+                self.agent.save(data)
+
+            elif op == self.NAMED_PARAMS:
+                self.pipe_parent.send(list(self.agent.network.named_parameters()))
+
+            elif op == self.GET_ATTR:
+                self.pipe_parent.send(dir(self.agent))
+
+            elif op == self.GET_LAYERS_OUTPUT:
+                self.pipe_parent.send(self.agent.layers_output)
+
+            elif op == self.TASK_TRAIN_END:
+                self.pipe_parent.send(self.agent.task_train_end())
+
+            elif op == self.TASK_EVAL_START:
+                self.agent.task_eval_start(data)
+
+            elif op == self.TASK_EVAL_END:
+                self.agent.task_eval_end()
+
+            elif op == self.SET_EVAL_STATES:
+                self.agent.evaluation_states = data
+
+            elif op == self.RESET_EVAL_ENV:
+                self.pipe_parent.send(self.agent.evaluation_env.reset_task(data))
+
+            elif op == self.EVALUATE_CL:
+                perf, episodes = self.agent.evaluate_cl(data)
+                self.pipe_parent.send([perf, episodes])
+
+            elif op == self.CLOSE:
+                self.agent.close()
+
             else:
                 raise Exception('Unknown command')
 
@@ -1529,11 +1582,9 @@ class ParallelizedAgent:
 
     def data_buffer_clear(self):
         self.pipe1.send([AgentProcess.DATA_BUFFER_CLEAR, None])
-        return self.worker_pipe2.recv()
 
     def task_train_start(self, data):
         self.pipe1.send([AgentProcess.TASK_TRAIN_START, data])
-        return self.worker_pipe2.recv()
 
     def get_total_steps(self):
         self.pipe1.send([AgentProcess.GET_TOTAL_STEPS, None])
@@ -1549,11 +1600,51 @@ class ParallelizedAgent:
 
     def set_states(self, data):
         self.pipe1.send([AgentProcess.SET_STATES, data])
-        return self.worker_pipe2.recv()
 
     def get_pipe(self):
         return self.worker_pipe2.recv()
 
+    def get_agent_name(self):
+        self.pipe1.send([AgentProcess.GET_AGENT_NAME, None])
+        return self.worker_pipe2.recv()
 
-if __name__ == '__main__':
-    pass
+    def save(self, data):
+        self.pipe1.send([AgentProcess.SAVE, data])
+
+    def get_named_parameters(self):
+        self.pipe1.send([AgentProcess.NAMED_PARAMS, None])
+        return self.worker_pipe2.recv()
+
+    def get_attr(self):
+        self.pipe1.send([AgentProcess.GET_ATTR, None])
+        return self.worker_pipe2.recv()
+
+    def get_layers_output(self):
+        self.pipe1.send([AgentProcess.GET_LAYERS_OUTPUT, None])
+        return self.worker_pipe2.recv()
+
+    def task_train_end(self):
+        self.pipe1.send([AgentProcess.TASK_TRAIN_END, None])
+        return self.worker_pipe2.recv()
+
+    def task_eval_start(self, data):
+        self.pipe1.send([AgentProcess.TASK_EVAL_START, data])
+
+    def task_eval_end(self):
+        self.pipe1.send([AgentProcess.TASK_EVAL_END, None])
+
+    def set_evaluation_states(self, data):
+        self.pipe1.send([AgentProcess.SET_EVAL_STATES, data])
+
+    def evaluation_env_reset_task(self, data):
+        self.pipe1.send([AgentProcess.RESET_EVAL_ENV, data])
+
+    def evaluate_cl(self, data):
+        self.pipe1.send([AgentProcess.EVALUATE_CL, data])
+
+    def close(self):
+        self.pipe1.send([AgentProcess.CLOSE, None])
+
+    def kill(self):
+        self.worker.join()
+        self.worker.close()
