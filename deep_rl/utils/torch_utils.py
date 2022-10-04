@@ -16,6 +16,7 @@ def select_device(gpu_id):
         Config.DEVICE = torch.device('cpu')
 
 # COME BACK AND CHECK IF 32 IS NEEDED OR IF WE CAN USE FLOAT16
+# torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction
 def tensor(x):
     if isinstance(x, torch.Tensor):
         return x

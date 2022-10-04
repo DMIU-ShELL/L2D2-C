@@ -4,6 +4,18 @@
 # declaration at the top                                              #
 #######################################################################
 
+
+'''
+
+__________.__                           __  .__    .__                                       
+\______   \  |   ____   ______ ______ _/  |_|  |__ |__| ______   _____   ____   ______ ______
+ |    |  _/  | _/ __ \ /  ___//  ___/ \   __\  |  \|  |/  ___/  /     \_/ __ \ /  ___//  ___/
+ |    |   \  |_\  ___/ \___ \ \___ \   |  | |   Y  \  |\___ \  |  Y Y  \  ___/ \___ \ \___ \ 
+ |______  /____/\___  >____  >____  >  |__| |___|  /__/____  > |__|_|  /\___  >____  >____  >
+        \/          \/     \/     \/             \/        \/        \/     \/     \/     \/
+
+'''
+
 import numpy as np
 import pickle
 import os
@@ -503,6 +515,10 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
         model_mask_dim, logger, init_address, init_port)
     comm.init_dist()
 
+
+    # Threshold for embedding/tasklabel distance (similarity)
+    THRESHOLD = 0
+
     logger.info('*****start shell training')
 
     shell_done = False
@@ -593,51 +609,78 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
 
 
         
-        ####################### COMMUNICATE THE MASK REWARDS #######################
+        ####################### SEND THE META DATA TO OTHER AGENT REQUESTS #######################
         # Send response with the mask reward, mask=None, and embedding/tasklabel
         requests = []
         for req in other_agents_request:
             if req is None: continue
+            # Compute embedding distances between requested label and stored labels
+            # i.e., subtract the requested embedding/tasklabel with the ones stored in the agent
+
+
+            for key, val in enumerate(mask_rewards_dict.items()):
+                dist = abs(np.sum(np.subtract(req['task_label'], np.array(key))))
+                if dist <= THRESHOLD:
+                    req['mask_reward'] = val
+                    req['dist'] = dist
+
+                else:
+                    rq['mask_reward'] = None
+                    req['dist'] = None
+
             # Set mask to none and send the mask reward
-            req['mask'] = None
-            req['mask_reward'] = mask_rewards_dict[np.argmax(req['task_label'], axis=1)]
+            #req['mask'] = None
+            #req['mask_reward'] = mask_rewards_dict[tuple(req['task_label'])]
             # Task label/Embedding is in req['task_label']
             requests.append(req)
 
         # Do a check and send out the responses
         if len(requests) > 0:
-            comm.send_response(requests)
+            comm.send_meta_response(requests)
+        ####################### SEND THE META DATA TO OTHER AGENT REQUESTS #######################
 
+
+
+        ####################### RECEIVE THE META DATA FOR THIS AGENTS REQUESTS #######################
+        best_agents = dict()
         # Listen for any responses from other agents (containing the mask rewards)
         # if the agent earlier sent a request, check whether response has been sent.
         if any(await_response):
             logger.info('awaiting response: {0}'.format(await_response))
             mask_rewards = dict() # Change to dictionary to store agent id as key
-            _agent_id, received_mask_rewards = comm.receive_response()
-            for i in range(len(await_response)):
-                if await_response[i] is False: continue
+            results = comm.receive_meta_response()
 
-                if received_mask_rewards[i] is False: continue
-                elif received_mask_rewards[i] is None: await_response[i] = False
+            # Sort received meta data by distance and then reward.
+            results = sorted(results, key=lambda d: (d['dist'], -d['mask_reward']))
+
+            for idx in range(len(await_response)):
+
+                if await_response[idx] is False: continue
+
+                if results[idx] is False: continue
+                elif results[idx] is None: await_response[idx] = False
                 else:
-                    mask_rewards[_agent_id[i]] = received_mask_rewards[i]
-                    await_response[i] = False
+                    recv_agent_id = results[idx]['agent_id']
+                    recv_msk_rw = results[idx]['mask_reward']
+                    recv_label = results[idx]['emb_label']
+                    recv_dist = results[idx]['dist']
+                    if recv_dist <= THRESHOLD:
+                        best_agents[recv_agent_id] = recv_label
+
+                    await_response[idx] = False
+
             logger.info('number of task knowledge received: {0}'.format(len(mask_rewards)))
 
-            # Get the best agent : mask reward key : value pair from the dictionary
-            # this agent id will be the agent to ask for the mask.
-            best_agent = max(stats, key=mask_rewards.get)
+        # Get agent ids for the top three performing agents (based on the meta data recevied)
+        topthree = best_agents[0:3]
 
-        print(best_agent)
+        ####################### RECEIVE THE META DATA FOR THIS AGENTS REQUESTS #######################
 
-        ####################### COMMUNICATE THE MASK REWARDS END #######################
-
-
-        ####################### COMMUNICATE THE MASKS #######################
+        ####################### SEND A REQUEST FOR THE MASKS #######################
         # Respond the requests with the mask (Responses should only come if the mask
         # from this agent is selected)
-        if best_agent is not None:
-            comm.send_mask(best_agent, msg)
+        if topthree:
+            comm.send_receive_mask_request(topthree)
 
         # if the agent earlier sent a request, check whether response has been sent.
         if any(await_response):
@@ -672,7 +715,7 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
             
             # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
             # logging cycle. Take average of all worker averages as the most recent reward score for a given task
-            mask_rewards_dict[np.argmax(shell_tasks[shell_task_counter]['task_label'], axis=0)] = np.mean(agent.iteration_rewards)
+            mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.mean(agent.iteration_rewards)
             print(mask_rewards_dict)
 
 

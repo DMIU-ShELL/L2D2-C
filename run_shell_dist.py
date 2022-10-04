@@ -46,7 +46,7 @@ def global_config(config, name):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 16
+    config.max_steps = 1e3
     config.evaluation_episodes = 10
     config.cl_requires_task_label = True
     config.task_fn = None
