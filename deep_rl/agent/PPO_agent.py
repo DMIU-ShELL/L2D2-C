@@ -544,6 +544,23 @@ class ShellAgent_DP(LLAgent):
         else:
             return False
 
+    def distil_task_knowledge_single(self, mask):
+        # New distil task knowledge algorithm
+        # this function receives only one mask
+        # which is the best mask.
+
+        task_label = self.curr_train_task_label
+        task_idx = self._label_to_idx(task_label)
+
+        # Process the single mask as opposed to multiple
+        mask = self.vec_to_mask(mask.to(self.config.DEVICE))
+
+        if mask is not None:
+            set_mask(self.network, mask, task_idx)
+            return True
+        else:
+            return False
+
     def mask_to_vec(self, dict_mask):
         with torch.no_grad():
             vec_mask = torch.zeros(self.model_mask_dim,)

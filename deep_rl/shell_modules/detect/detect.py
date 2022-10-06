@@ -3,7 +3,7 @@
 
 # Temmporary content for the Detect module. To be replaced with latest code.
 
-
+'''
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, SubsetRandomSampler
@@ -119,3 +119,4 @@ if __name__ == '__main__':
     tasks['T1']
     d = Detect(reference, one_hot=False, normalized=False)
     dist = d.detect(tasks)
+'''

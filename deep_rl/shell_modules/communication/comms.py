@@ -9,8 +9,185 @@ import torch.distributed as dist
 import multiprocess as mp
 #import ray
 
-
+'''
+Original communication class. Contains the original implementation of the communication module
+fast but at the expense of bandwidth.
+'''
 class Communication(object):
+    META_INF_SZ = 3
+    META_INF_IDX_PROC_ID = 0
+    META_INF_IDX_MSG_TYPE = 1
+    META_INF_IDX_MSG_DATA = 2
+    
+    # message type (META_INF_IDX_MSG_TYPE) values
+    MSG_TYPE_SEND_REQ = 0
+    MSG_TYPE_RECV_RESP = 1
+    MSG_TYPE_RECV_REQ = 2
+    MSG_TYPE_SEND_RESP = 3
+
+    # message data (META_INF_IDX_MSG_DATA) values
+    MSG_DATA_NULL = 0 # an empty message
+    MSG_DATA_SET = 1
+
+    # number of seconds to sleep/wait
+    SLEEP_DURATION = 1
+
+    def __init__(self, agent_id, num_agents, task_label_sz, mask_sz, logger, init_address, init_port):
+        super(Communication, self).__init__()
+        self.agent_id = agent_id
+        self.num_agents = num_agents
+        self.task_label_sz = task_label_sz
+        self.mask_sz = mask_sz
+        self.logger = logger
+
+        if init_address in ['127.0.0.1', 'localhost']:
+            os.environ['MASTER_ADDR'] = init_address
+            os.environ['MASTER_PORT'] = init_port
+            comm_init_str = 'env://'
+        else:
+            comm_init_str = 'tcp://{0}:{1}'.format(init_address, init_port)
+
+        self.handle_send_recv_req = None
+        self.handle_recv_resp = [None, ] * num_agents
+        self.handle_send_resp = [None, ] * num_agents
+
+        self.buff_send_recv_req = [torch.ones(Communication.META_INF_SZ + task_label_sz, ) \
+            * torch.inf for _ in range(num_agents)]
+        self.buff_recv_resp = [torch.ones(Communication.META_INF_SZ + mask_sz, ) * torch.inf \
+            for _ in range(num_agents)]
+        self.buff_send_resp = [torch.ones(Communication.META_INF_SZ + mask_sz, ) * torch.inf \
+            for _ in range(num_agents)]
+
+        logger.info('*****agent {0} / initialising transfer (communication) module'.format(agent_id))
+        dist.init_process_group(backend='gloo', init_method=comm_init_str, rank=agent_id, \
+            world_size=num_agents, timeout=datetime.timedelta(seconds=30))
+
+    def _null_message(self, msg):
+        # check whether message sent denotes or is none.
+        if bool(msg[Communication.META_INF_IDX_MSG_DATA] == Communication.MSG_DATA_NULL):
+            return True
+        else:
+            return False
+
+    '''
+    method to receive request from other agents (query whether current agent possess knowledge
+    about queried task), as well as query (send request to) other agents.
+    '''
+    def send_receive_request(self, task_label):
+        if isinstance(task_label, np.ndarray):
+            task_label = torch.tensor(task_label, dtype=torch.float32)
+        self.logger.info('send_recv_req, req data: {0}'.format(task_label))
+        # from message to send from agent (current node), can be NULL message or a valid
+        # request based on given task label
+        data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
+        data[Communication.META_INF_IDX_PROC_ID] = self.agent_id
+        data[Communication.META_INF_IDX_MSG_TYPE] = Communication.MSG_TYPE_SEND_REQ
+        if task_label is None:
+            data[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_NULL
+        else:
+            data[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_SET
+            data[Communication.META_INF_SZ : ] = task_label # NOTE deepcopy?
+
+        # actual send/receive
+        self.handle_send_recv_req = dist.all_gather(tensor_list=self.buff_send_recv_req, \
+            tensor=data, async_op=True)
+        # briefly wait to see if other agents will send their request
+        time.sleep(Communication.SLEEP_DURATION)
+        
+        # check buffer for incoming requests
+        idxs = list(range(len(self.buff_send_recv_req)))
+        idxs.remove(self.agent_id)
+        ret = []
+        for idx in idxs :
+            buff = self.buff_send_recv_req[idx]
+            if self._null_message(buff):
+                ret.append(None)
+            else:
+                self.logger.info('send_recv_req: request received from agent {0}'.format(idx))
+                d = {}
+                d['sender_agent_id'] = int(buff[Communication.META_INF_IDX_PROC_ID])
+                d['msg_type'] = int(buff[Communication.META_INF_IDX_MSG_TYPE])
+                d['msg_data'] = int(buff[Communication.META_INF_IDX_MSG_DATA])
+                d['task_label'] = buff[Communication.META_INF_SZ : ]
+                ret.append(d)
+        return ret
+
+    def send_response(self, requesters):
+        self.logger.info('send_resp:')
+        for requester in requesters:
+            self._send_response(requester)
+
+    def _send_response(self, req_dict):
+        requester_agent_id = req_dict['sender_agent_id']
+        mask = req_dict['mask']
+        buff = self.buff_send_resp[requester_agent_id]
+        buff[Communication.META_INF_IDX_PROC_ID] = self.agent_id
+        buff[Communication.META_INF_IDX_MSG_TYPE] = Communication.MSG_TYPE_SEND_RESP
+
+        self.logger.info('send_resp: responding to agent {0} query'.format(requester_agent_id))
+        self.logger.info('send_resp: mask (response) data type: {0}'.format(type(mask)))
+
+        if mask is None:
+            buff[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_NULL
+            buff[Communication.META_INF_SZ : ] = torch.inf
+        else:
+            buff[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_SET
+            buff[Communication.META_INF_SZ : ] = mask # NOTE deepcopy? 
+
+        # actual send
+        self.handle_send_resp[requester_agent_id] = dist.isend(tensor=buff, dst=requester_agent_id)
+        return
+
+    def receive_response(self):
+        self.logger.info('recv_resp:')
+        for idx in range(self.num_agents):
+            if idx == self.agent_id:
+                continue
+            if self.handle_recv_resp[idx] is None:
+                self.logger.info('recv_resp: set up handle to receive response from agent {0}'.format(idx))
+                self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_resp[idx], src=idx)
+
+        time.sleep(Communication.SLEEP_DURATION)
+
+        # check whether message has been received
+        ret = []
+        for idx in range(self.num_agents):
+            if idx == self.agent_id:
+                ret.append(None)
+                continue
+
+            msg = self.buff_recv_resp[idx]
+            if self._null_message(msg):
+                ret.append(None)
+                self.logger.info('recv_resp: appending {0} response'.format(None))
+            elif msg[Communication.META_INF_IDX_MSG_DATA] == torch.inf:
+                ret.append(False)
+                self.logger.info('recv_resp: appending False response')
+            else:
+                mask = copy.deepcopy(msg[Communication.META_INF_SZ : ])
+                ret.append(mask)
+                self.logger.info('recv_resp: appending {0} response'.format(mask))
+
+            # reset buffer and handle
+            self.buff_recv_resp[idx][:] = torch.inf
+            self.handle_recv_resp[idx] = None 
+        return ret
+
+    def barrier(self):
+        dist.barrier()
+
+'''
+Revise communication class. Contains the new implementation of the communication module
+Improves on the bandwidth efficiency by some margin by reducing the amount of masks
+that are communicated over the network, but will likely take longer to complete
+
+Is currently the communication method used in the parallelisation wrapper
+
+TODO: Debug this version of the communication module. Ensure it is working as expected.
+probably best to use it in a synchronised setting first before moving to full async mode.
+To do this use waits for the handlers etc. The code should work fingers crossed.
+'''
+class Communication_mp(object):
     META_INF_IDX_PROC_ID = 0
     META_INF_IDX_MSG_TYPE = 1
     META_INF_IDX_MSG_DATA = 2
@@ -41,7 +218,7 @@ class Communication(object):
 
     # Task label size can be replaced with the embedding size.
     def __init__(self, agent_id, num_agents, emb_label_sz, mask_sz, logger, init_address, init_port):
-        super(Communication, self).__init__()
+        super(Communication_mp, self).__init__()
         self.agent_id = agent_id
         self.num_agents = num_agents
         self.emb_label_sz = emb_label_sz
@@ -60,15 +237,15 @@ class Communication(object):
         self.handle_recv_resp = [None, ] * num_agents
         self.handle_send_resp = [None, ] * num_agents
 
-        self.buff_send_recv_req = [torch.ones(Communication.META_INF_TASK_SZ + emb_label_sz, ) \
+        self.buff_send_recv_req = [torch.ones(Communication_mp.META_INF_IDX_TASK_SZ + emb_label_sz, ) \
             * torch.inf for _ in range(num_agents)]
 
-        self.buff_recv_resp = [torch.ones(Communication.META_INF_IDX_MASK_SZ + mask_sz, ) * torch.inf \
+        self.buff_recv_resp = [torch.ones(Communication_mp.META_INF_IDX_MASK_SZ + mask_sz, ) * torch.inf \
             for _ in range(num_agents)]
-        self.buff_send_resp = [torch.ones(Communication.META_INF_IDX_MASK_SZ + mask_sz, ) * torch.inf \
+        self.buff_send_resp = [torch.ones(Communication_mp.META_INF_IDX_MASK_SZ + mask_sz, ) * torch.inf \
             for _ in range(num_agents)]
 
-        self.buff_send_recv_req_msk = [torch.ones(Communication.META_INF_IDX_TASK_SZ)]
+        self.buff_send_recv_msk_req = torch.ones(Communication_mp.META_INF_IDX_TASK_SZ + emb_label_sz, ) * torch.inf
 
     def init_dist(self):
         '''
@@ -115,14 +292,14 @@ class Communication(object):
         data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
 
         # Send the task label or embedding to the other agents.
-        data[Communication.META_INF_IDX_PROC_ID] = self.agent_id
-        data[Communication.META_INF_IDX_MSG_TYPE] = Communication.MSG_TYPE_SEND_REQ
+        data[Communication_mp.META_INF_IDX_PROC_ID] = self.agent_id
+        data[Communication_mp.META_INF_IDX_MSG_TYPE] = Communication_mp.MSG_TYPE_SEND_REQ
 
         if emb_label is None:
-            data[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_NULL
+            data[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_NULL
         else:
-            data[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_TSK
-            data[Communication.META_INF_IDX_TASK_SZ : ] = emb_label # NOTE deepcopy?
+            data[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_TSK
+            data[Communication_mp.META_INF_IDX_TASK_SZ : ] = emb_label # NOTE deepcopy?
 
 
         # actual send/receive
@@ -133,7 +310,7 @@ class Communication(object):
 
 
         # briefly wait to see if other agents will send their request
-        time.sleep(Communication.SLEEP_DURATION)
+        time.sleep(Communication_mp.SLEEP_DURATION)
         
         # check buffer for incoming requests
         idxs = list(range(len(self.buff_send_recv_req)))
@@ -147,10 +324,10 @@ class Communication(object):
             else:
                 self.logger.info('send_recv_req: request received from agent {0}'.format(idx))
                 d = {}
-                d['sender_agent_id'] = int(buff[Communication.META_INF_IDX_PROC_ID])
-                d['msg_type'] = int(buff[Communication.META_INF_IDX_MSG_TYPE])
-                d['msg_data'] = int(buff[Communication.META_INF_IDX_MSG_DATA])
-                d['task_label'] = buff[Communication.META_INF_IDX_TASK_SZ : ]
+                d['sender_agent_id'] = int(buff[Communication_mp.META_INF_IDX_PROC_ID])
+                d['msg_type'] = int(buff[Communication_mp.META_INF_IDX_MSG_TYPE])
+                d['msg_data'] = int(buff[Communication_mp.META_INF_IDX_MSG_DATA])
+                d['task_label'] = buff[Communication_mp.META_INF_IDX_TASK_SZ : ]
                 ret.append(d)
         return ret
 
@@ -166,7 +343,7 @@ class Communication(object):
         '''
         Sends either the mask or meta data to another agent.
         '''
-        requester_agent_id = req_dict['sender_agent_id']
+        dst_agent_id = req_dict['sender_agent_id']
 
         # Get the mask, mask reward and embedding/tasklabel
         mask_reward = req_dict['mask_reward']
@@ -174,28 +351,28 @@ class Communication(object):
         distance = req_dict['distance']
 
 
-        buff = self.buff_send_resp[requester_agent_id]
-        buff[Communication.META_INF_IDX_PROC_ID] = self.agent_id
-        buff[Communication.META_INF_IDX_MSG_TYPE] = Communication.MSG_TYPE_SEND_RESP
+        buff = self.buff_send_resp[dst_agent_id]
+        buff[Communication_mp.META_INF_IDX_PROC_ID] = self.agent_id
+        buff[Communication_mp.META_INF_IDX_MSG_TYPE] = Communication_mp.MSG_TYPE_SEND_RESP
 
-        self.logger.info('send_resp: responding to agent {0} query'.format(requester_agent_id))
+        self.logger.info('send_resp: responding to agent {0} query'.format(dst_agent_id))
         self.logger.info('send_resp: mask (response) data type: {0}'.format(type(mask)))
 
         # If mask is none then send back torch.inf
         # otherwise send mask
         if mask_reward is None:
-            buff[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_NULL
+            buff[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_NULL
 
         else:
             # if the mask is none but there is a mask reward, then overwrite the buffer with
             # the meta data. Otherwise don't do anything.
-            buff[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_META
-            buff[Communication.META_INF_IDX_MSK_RW] = mask_reward
-            buff[Communication.META_INF_IDX_DIST] = distance
-            buff[Communication.META_INF_IDX_TASK_SZ_ :] = emb_label
+            buff[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_META
+            buff[Communication_mp.META_INF_IDX_MSK_RW] = mask_reward
+            buff[Communication_mp.META_INF_IDX_DIST] = distance
+            buff[Communication_mp.META_INF_IDX_TASK_SZ_ :] = emb_label
 
         # actual send
-        self.handle_send_resp[requester_agent_id] = dist.isend(tensor=buff, dst=requester_agent_id)
+        self.handle_send_resp[dst_agent_id] = dist.isend(tensor=buff, dst=dst_agent_id)
         return
 
     def receive_meta_response(self):
@@ -210,7 +387,7 @@ class Communication(object):
                 self.logger.info('recv_resp: set up handle to receive response from agent {0}'.format(idx))
                 self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_resp[idx], src=idx)
 
-        time.sleep(Communication.SLEEP_DURATION)
+        time.sleep(Communication_mp.SLEEP_DURATION)
 
         # check whether message has been received
         results = list()
@@ -225,11 +402,11 @@ class Communication(object):
                 results.append(None)
                 self.logger.info('recv_resp: appending {0} response'.format(None))
 
-            elif msg[Communication.META_INF_IDX_MSG_DATA] == MSG_DATA_META:
-                ret['agent_id'] = copy.deepcopy(msg[Communication.META_INF_IDX_PROC_ID])
-                ret['mask_reward'] = copy.deepcopy(msg[Communication.META_INF_IDX_MSK_RW])
-                ret['dist'] = copy.deepcopy(msg[Communication.META_INF_IDX_DIST])
-                ret['emb_label'] = copy.deepcopy(msg[Communication.META_INF_IDX_TASK_SZ_ :])
+            elif msg[Communication_mp.META_INF_IDX_MSG_DATA] == MSG_DATA_META:
+                ret['agent_id'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_PROC_ID])
+                ret['mask_reward'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_MSK_RW])
+                ret['dist'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_DIST])
+                ret['emb_label'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_TASK_SZ_ :])
                 results.append(ret)
 
                 # Change this at some point to take the original data and not string
@@ -257,74 +434,115 @@ class Communication(object):
     def barrier(self):
         dist.barrier()
 
-    def send_receive_mask_request(self, topthree):
+    def send_receive_mask_request(self, msk_requests, expecting):
         # TODO: Merge this function with the other send_receive_mask function.
         '''
         Sends a request to the top three agents for masks using the their embeddings.
         Checks for similar requests.
         '''
-        topthreeids = list(topthree.keys())
-        topthreeids.append(self.agent_id)
 
-        # Get the labels for the top three agents
-        topthreelabels = list(topthree.values())
-
-        agents = [torch.ones(self.num_agents) * torch.inf]
-
-        # make new sub process group for this agent and the top one ~ three agents
-        group = dist.new_group(topthreeids)
-
-        gather_tensor = []
-
-        for idx in enumerate(topthreeids):
-            if idx == self.agent_id
-            agent_id = topthreeids[idx]
-            emb_label = topthreelabels[idx]
-
+        # For each 
+        for agent_id, emb_label in msk_requests.items():
+            # Convert embedding label to tensor
             if isinstance(emb_label, np.ndarray):
                 emb_label = torch.tensor(emb_label, dtype=torch.float32)
 
+            # Initialise a buffer for one agent embedding/tasklabel
             data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
 
-            data = self.buff_send_request[agent_id]
-            data[Communication.META_INF_IDX_PROC_ID] = self.agent_id
-            data[Communication.META_INF_IDX_MSG_TYPE] = Communication.MSG_TYPE_SEND_REQ
+            # Populate the tensor with necessary data
+            data[Communication_mp.META_INF_IDX_PROC_ID] = self.agent_id
+            data[Communication_mp.META_INF_IDX_MSG_TYPE] = Communication_mp.MSG_TYPE_SEND_REQ
             
             if emb_label is None:
-                # Should never reach this point in the code. If it does then reality has broken.
-                data[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_NULL
-                 
+                # If emb_label is none it means we reject the agent
+                data[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_NULL
+                    
             else:
-                data[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_TSK
-                data[Communication.META_INF_TASK_SZ : ] = emb_label # NOTE deepcopy?
+                # Otherwise we want the agent's mask
+                data[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_TSK
+                data[Communication_mp.META_INF_TASK_SZ : ] = emb_label # NOTE deepcopy?
 
+            # Send out the mask request or rejection to each agent that sent metadata
+            self.handle_send_recv_req = dist.isend(tensor=data, dst=agent_id)
 
-            if 
-            self.handle_send_recv_req = dist.isend(tensor=data, gather_list=gather_tensor dst=self.agent_id, group=group, async_op=True)
-
-
-        time.sleep(Communication.SLEEP_DURATION)
-
-        check buffer for incoming requests
-        idxs = list(range(len(self.buff_send_recv_req)))
-        idxs.remove(self.agent_id)
+        # Check for mask requests from other agents if expecting any requests
         ret = []
-        for idx in idxs :
-            buff = self.buff_send_recv_req[idx]
+        if expecting:
+            # If expecting a request for a mask, check for each expected agent id
+            for idx in expecting:
+                data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
+                self.handle_send_recv_req = dist.irecv(tensor=data, src=idx)
+                time.sleep(Communication_mp.SLEEP_DURATION)
 
-            if self._null_message(buff):
-                ret.append(None)
-            else:
-                self.logger.info('send_recv_req: request received from agent {0}'.format(idx))
-                d = {}
-                d['sender_agent_id'] = int(buff[Communication.META_INF_IDX_PROC_ID])
-                d['msg_type'] = int(buff[Communication.META_INF_IDX_MSG_TYPE])
-                d['msg_data'] = int(buff[Communication.META_INF_IDX_MSG_DATA])
-                d['task_label'] = buff[Communication.META_INF_IDX_TASK_SZ : ]
-                ret.append(d)
+                # If response was null message then this agent has been rejected.
+                # If so, remove the idx from expecting and check the next id.
+                # if no more idxs then return the list of dictionaries. (can be empty)
+                if self._null_message(data):
+                    expecting.remove(idx)
+
+                # If not rejected then we need to send the mask to the requester
+                else:
+                    d = {}
+                    d['requester_agent_id'] = int(buff[Communication_mp.META_INF_IDX_PROC_ID])
+                    d['msg_type'] = int(buff[Communication_mp.META_INF_IDX_MSG_TYPE])
+                    d['msg_data'] = int(buff[Communication_mp.META_INF_IDX_MSG_DATA])
+                    d['task_label'] = buff[Communication_mp.META_INF_IDX_TASK_SZ : ]
+                    ret.append(d)
+
+        # Return a list of dictionaries for each agent that wants a mask
         return ret
 
+    def send_mask_response(self, dst_agent_id, mask):
+        buff = torch.ones_like(self.buff_send_resp[0]) * torch.inf
 
+        buff[Communication_mp.META_INF_IDX_PROC_ID] = self.agent_id
+        buff[Communication_mp.META_INF_IDX_MSG_TYPE] = Communication_mp.MSG_TYPE_SEND_RESP
+
+        if mask is None:
+            buff[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_NULL
+            buff[Communication_mp.META_INF_SZ : ] = torch.inf
+
+        else:
+            buff[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_MSK
+            buff[Communication_mp.META_INF_SZ : ] = mask # NOTE deepcopy?
+
+        # Send the mask to the destination agent id
+        req = dist.isend(tensor=buff, dst=dst_agent_id)
+        return
+
+    def receive_mask_response(self, best_agent_id):
+        buff = torch.ones_like(self.buff_send_resp[0]) * torch.inf
+
+        # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
+        req = dist.irecv(tensor=buff, src=best_agent_id)
+        time.sleep(Communication_mp.SLEEP_DURATION)
+
+        # If the buffer was a null response (which it shouldn't be)
+        # meep
+        if self._null_message(buff):
+            # Shouldn't reach this hopefully :^)
+            return None
+
+        # otherwise return the mask
+        elif buff[Communication_mp.META_INF_IDX_MSG_DATA] == Communication_mp.MSG_DATA_MSK:
+            if buff[Communication_mp.META_INF_IDX_PROC_ID] == best_agent_id:
+                return buff[Communication_mp.META_INF_IDX_MASK_SZ : ]
+
+    def fetch_all(self):
+        '''
+        Copy the code 
+        '''
+
+
+'''
+Communication parallelisation wrapper. These handle the parallelisation of the selected
+communication module, and provide interface methods to call the functions. Interfacing
+methods must match the ones inside the communication module implementation used.
+
+TODO: Need to modify the communication interfacing methods in these to match the ones used in
+the revised communication module Communication_mp.
+'''
 class CommProcess(mp.Process):
     SR_REQUEST = 0
     S_REPSPONSE = 1
@@ -336,7 +554,7 @@ class CommProcess(mp.Process):
     def __init__(self, pipe, agent_id, num_agents, task_label_sz, mask_sz, logger, init_address, init_port):
         mp.Process.__init__(self)
         self.pipe = pipe
-        self.comm = Communication(agent_id, num_agents, task_label_sz, mask_sz, logger, init_address, init_port)
+        self.comm = Communication_mp(agent_id, num_agents, task_label_sz, mask_sz, logger, init_address, init_port)
 
     def run(self):
         while True:

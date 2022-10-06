@@ -357,7 +357,11 @@ if __name__ == '__main__':
 
     if shell_config['env']['env_name'] == 'minigrid':
         name = Config.ENV_MINIGRID
+
+
         shell_dist_minigrid_mp(name, args, shell_config)
+
+
     elif shell_config['env']['env_name'] == 'ctgraph':
         name = Config.ENV_METACTGRAPH
         shell_dist_mctgraph(name, args, shell_config)
@@ -366,15 +370,3 @@ if __name__ == '__main__':
         shell_dist_continualworld(name, args, shell_config)
     else:
         raise ValueError('--env_name {0} not implemented'.format(args.env_name))
-
-
-'''
-0 2 3 110800 <deep_rl.utils.logger.Logger object at 0x7efebfe652b0> 127.0.0.1 5283
-0 2 3 110800 <deep_rl.utils.logger.Logger object at 0x7efebfe652b0>
-<class 'int'> <class 'int'> <class 'int'> <class 'numpy.int64'> <class 'deep_rl.utils.logger.Logger'> <class 'str'> <class 'str'>
-
-
-0 2 3 110800 <deep_rl.utils.logger.Logger object at 0x7f4c2bd1c250> 127.0.0.1 5283
-0 2 3 110800 <deep_rl.utils.logger.Logger object at 0x7f4c2bd1c250>
-<class 'int'> <class 'int'> <class 'int'> <class 'numpy.int64'> <class 'deep_rl.utils.logger.Logger'> <class 'str'> <class 'str'>
-'''

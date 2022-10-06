@@ -14,6 +14,7 @@ __________.__                           __  .__    .__
  |______  /____/\___  >____  >____  >  |__| |___|  /__/____  > |__|_|  /\___  >____  >____  >
         \/          \/     \/     \/             \/        \/        \/     \/     \/     \/
 
+                        and may god help you if you try to understand it.
 '''
 
 import numpy as np
@@ -353,10 +354,12 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
     while True:
         # listen for and send info (task label or NULL message) to other agents
         other_agents_request = comm.send_receive_request(msg)
+        print(other_agents_request)
         msg = None # reset message
 
         requests = []
         for req in other_agents_request:
+            print(req)
             if req is None: continue
             req['mask'] = agent.label_to_mask(req['task_label'])
             requests.append(req)
@@ -561,71 +564,59 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
 
     # Msg can be embedding or task label.
     msg = None
-    best_agent = None
+    best_agent_id = None
+    # Store list of agent IDs that this agent has sent meta data to
+    expecting = list()
+
     while True:
-        # listen for and send info (task label or NULL message) to other agents
-        #c1 = mp.Process(target=comm.send_receive_request, args=(msg, parent))
-        #c1.start()
-        #c1.join()
-        #other_agents_request = child.recv()
-
-
-        # Original code. Uncomment to run in original mode.
         start = time.time()
+        # There will only be requests if there is a task change.
+        # Most of the time the msg will be None
+        # so nothing will happen
         other_agents_request = comm.send_receive_request(msg)
         print('SEND RECEIVE REQUEST: ', time.time() - start)
         msg = None # reset message
-        best_agent = None
-
-        '''start = time.time()
-        requests = []
-        for req in other_agents_request:
-            if req is None: continue
-            req['mask'] = agent.label_to_mask(req['task_label'])
-            requests.append(req)
-        if len(requests) > 0:
-            comm.send_response(requests)        
-        print('SEND RESPONSE: ', time.time() - start)
 
 
-        start = time.time()
-        # if the agent earlier sent a request, check whether response has been sent.
-        if any(await_response):
-            logger.info('awaiting response: {0}'.format(await_response))
-            masks = []
-            received_masks = comm.receive_response()
-            for i in range(len(await_response)):
-                if await_response[i] is False: continue
-
-                if received_masks[i] is False: continue
-                elif received_masks[i] is None: await_response[i] = False
-                else:
-                    masks.append(received_masks[i])
-                    await_response[i] = False
-            logger.info('number of task knowledge received: {0}'.format(len(masks)))
-            # TODO still need to fix how mask is used.
-            agent.distil_task_knowledge(masks)
-        print('RECEIVE RESPONSE: ', time.time() - start)'''
-
-
-        
         ####################### SEND THE META DATA TO OTHER AGENT REQUESTS #######################
         # Send response with the mask reward, mask=None, and embedding/tasklabel
+
+        # Go through each request from the network of agents
         requests = []
         for req in other_agents_request:
             if req is None: continue
             # Compute embedding distances between requested label and stored labels
             # i.e., subtract the requested embedding/tasklabel with the ones stored in the agent
 
+            # If this agent has not learned anything yet, then respond with nothing
+            if not mask_rewards_dict:
+                req['mask_reward'] = None
+                req['dist'] = None
+                continue
 
+            # If the agent has learned something (however useless it might be), check if the data is of
+            # use to the requester.
+
+            # For each embedding/tasklabel (i.e., task) learned by the agent
+            # check if the embedding/tasklabel is similar enough (using THRESHOLD) to justify
+            # sending back to requester.
             for key, val in enumerate(mask_rewards_dict.items()):
                 dist = abs(np.sum(np.subtract(req['task_label'], np.array(key))))
+                
+                # If similarity is good enough send the task reward and embedding/tasklabel distance.
+                # i.e., SEND META DATA TO REQUESTER
+
                 if dist <= THRESHOLD:
                     req['mask_reward'] = val
                     req['dist'] = dist
 
+                    # Append the requester agent id. We use this to listen for a mask request
+                    # or to get rejected.
+                    expecting.append(req['sender_agent_id'])
+
+                # Otherwise send nothing
                 else:
-                    rq['mask_reward'] = None
+                    req['mask_reward'] = None
                     req['dist'] = None
 
             # Set mask to none and send the mask reward
@@ -634,70 +625,98 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
             # Task label/Embedding is in req['task_label']
             requests.append(req)
 
-        # Do a check and send out the responses
+        # Do a check and send out the responses to request
         if len(requests) > 0:
             comm.send_meta_response(requests)
         ####################### SEND THE META DATA TO OTHER AGENT REQUESTS #######################
 
 
 
+
+
+
+
         ####################### RECEIVE THE META DATA FOR THIS AGENTS REQUESTS #######################
-        best_agents = dict()
-        # Listen for any responses from other agents (containing the mask rewards)
+        # receive meta data response from other agents for a embedding/tasklabel request from 
+        # this agent.
+
+        send_msk_request = dict()
+        selected = False
+
+        # Listen for any responses from other agents (containing the metadata)
         # if the agent earlier sent a request, check whether response has been sent.
         if any(await_response):
             logger.info('awaiting response: {0}'.format(await_response))
-            mask_rewards = dict() # Change to dictionary to store agent id as key
             results = comm.receive_meta_response()
 
-            # Sort received meta data by distance and then reward.
+            # Sort received meta data by smallest distance (primary) and highest reward (secondary),
+            # using full bidirectional multikey sorting (fancy words for such a simple concept)
             results = sorted(results, key=lambda d: (d['dist'], -d['mask_reward']))
 
+            # Iterate through the await_response list. Upon task change this is an array
+            # [True,] * num_agents
             for idx in range(len(await_response)):
-
+                # Do some checks to remove to useless results
                 if await_response[idx] is False: continue
-
                 if results[idx] is False: continue
                 elif results[idx] is None: await_response[idx] = False
+
+                # Otherwise unpack the metadata
+                # At this stage we want to make a mapping between the requested embedding/tasklabel
+                # and the received embeddings from metadata. This will make it easier to 
                 else:
                     recv_agent_id = results[idx]['agent_id']
                     recv_msk_rw = results[idx]['mask_reward']
                     recv_label = results[idx]['emb_label']
                     recv_dist = results[idx]['dist']
-                    if recv_dist <= THRESHOLD:
-                        best_agents[recv_agent_id] = recv_label
+                    if recv_dist <= THRESHOLD and selected == False:
+                        send_msk_request[recv_agent_id] = recv_label
+                        # Make a note of the best agent id in memory of this agent
+                        # We will use this later to check the response from the best agent
+                        best_agent_id = recv_agent_id
+                        selected = True
+
+                    else:
+                        send_msk_request[recv_agent_id] = None
 
                     await_response[idx] = False
 
-            logger.info('number of task knowledge received: {0}'.format(len(mask_rewards)))
-
-        # Get agent ids for the top three performing agents (based on the meta data recevied)
-        topthree = best_agents[0:3]
+            # Need to fix this logging message
+            logger.info('meta data received from other agents')
 
         ####################### RECEIVE THE META DATA FOR THIS AGENTS REQUESTS #######################
 
+
+
         ####################### SEND A REQUEST FOR THE MASKS #######################
-        # Respond the requests with the mask (Responses should only come if the mask
-        # from this agent is selected)
-        if topthree:
-            comm.send_receive_mask_request(topthree)
+        # Send a response back to each agent that sent this agent metadata. Tell them to either
+        # send mask or move on.
 
-        # if the agent earlier sent a request, check whether response has been sent.
-        if any(await_response):
-            logger.info('awaiting response: {0}'.format(await_response))
-            masks = []
-            received_masks = comm.receive_response()
-            for i in range(len(await_response)):
-                if await_response[i] is False: continue
+        # Also receive the same response from other agents. If other agents want a mask from this
+        # agent, then msk_requests will be populated with a dictionary for each request.
+        if send_msk_request:
+            msk_requests = comm.send_receive_mask_request(send_msk_request, expecting)
 
-                if received_masks[i] is False: continue
-                elif received_masks[i] is None: await_response[i] = False
-                else:
-                    masks.append(received_masks[i])
-                    await_response[i] = False
-            logger.info('number of task knowledge received: {0}'.format(len(masks)))
-            # TODO still need to fix how mask is used.
-            agent.distil_task_knowledge(masks)
+        # Now the agent needs to send a mask to each agent in the msk_requests list
+        # Check if not empty
+        if msk_requests:
+            # Iterate through he requests
+            for req in msk_requests:
+                # Unpack the request
+                agent_id = req['requester_agent_id']
+                mask = agent.label_to_mask(req['task_label'])
+                comm.send_mask_response(agent_id, mask)
+
+        # Expecting a response from the best agent id
+        if best_agent_id:
+
+            # We want to get the mask from the best agent
+            received_mask = comm.receive_mask_response(best_agent_id)
+
+            agent.distil_task_knowledge_single(received_mask)
+
+            # Reset the best agent id for the next request
+            best_agent_id = None
 
         ####################### COMMUNICATE THE MASKS END #######################
         
@@ -740,6 +759,15 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
             shell_eval_end_time = time.time()
 
         # end of current task training. move onto next task or end training if last task.
+        # i.e., Task Change occurs here. For detect module, if the task embedding signifies a task
+        # change then that occurs here.
+        '''
+        If we want to use a Fetch All mode for ShELL then we need to add a commmunication component
+        at task change which broadcasts the mask to all other agents currently on the network.
+
+        Otherwise the current implementation is a On Demand mode where each agent requests knowledge
+        only when required.
+        '''
         if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
         task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
         if agent.total_steps >= task_steps_limit:
