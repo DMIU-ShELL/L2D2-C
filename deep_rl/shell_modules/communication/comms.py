@@ -347,7 +347,7 @@ class Communication_mp(object):
 
         # Get the mask, mask reward and embedding/tasklabel
         mask_reward = req_dict['mask_reward']
-        emb_label = req_dict['task_label']
+        emb_label = req_dict['resp_task_label']
         distance = req_dict['distance']
 
 
@@ -465,7 +465,8 @@ class Communication_mp(object):
 
             # Send out the mask request or rejection to each agent that sent metadata
             self.handle_send_recv_req = dist.isend(tensor=data, dst=agent_id)
-
+        
+    def receive_mask_requests(self, expecting):
         # Check for mask requests from other agents if expecting any requests
         ret = []
         if expecting:
@@ -491,7 +492,7 @@ class Communication_mp(object):
                     ret.append(d)
 
         # Return a list of dictionaries for each agent that wants a mask
-        return ret
+        return expecting, ret
 
     def send_mask_response(self, dst_agent_id, mask):
         buff = torch.ones_like(self.buff_send_resp[0]) * torch.inf
@@ -575,7 +576,7 @@ class CommProcess(mp.Process):
                 self.comm.barrier()
 
             elif op == self.INIT:
-                self.comm.init_proc_grp()
+                self.comm.init_dist()
 
             else:
                 raise Exception('Unknown command')
@@ -603,5 +604,5 @@ class ParallelizedComm:
     def barrier(self):
         self.pipe.send([CommProcess.BARRIER, None])
 
-    def init_proc_grp(self):
+    def init_dist(self):
         self.pipe.send([CommProcess.INIT, None])

@@ -31,7 +31,7 @@ def global_config(config, name):
     random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
-    config.num_workers = 1
+    config.num_workers = 4
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
@@ -46,7 +46,7 @@ def global_config(config, name):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 1e3
+    config.max_steps = 512
     config.evaluation_episodes = 10
     config.cl_requires_task_label = True
     config.task_fn = None
@@ -166,7 +166,7 @@ def shell_dist_minigrid(name, args, shell_config):
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * num_tasks
     task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
-    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
     eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
     config.eval_task_fn = eval_task_fn
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
@@ -313,7 +313,7 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * num_tasks
     task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
-    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
     eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
     config.eval_task_fn = eval_task_fn
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
@@ -327,9 +327,12 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
-    # start training
-    shell_dist_train_mp(agent, args.agent_id, args.num_agents, agent.task_label_dim, \
+    # set up communication (transfer module)
+    comm = ParallelizedComm(args.agent_id, args.num_agents, agent.task_label_dim, \
         agent.model_mask_dim, logger, init_address, init_port)
+
+    # start training
+    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
 
 
 

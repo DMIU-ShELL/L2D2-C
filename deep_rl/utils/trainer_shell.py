@@ -510,18 +510,17 @@ added in the future.
 '''
 import multiprocess as mp
 
-def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_dim, logger, init_address, init_port):
+def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     logger = agent.config.logger
 
-    # set up communication (transfer module)
-    comm = ParallelizedComm(agent_id, num_agents, task_label_dim, \
-        model_mask_dim, logger, init_address, init_port)
+    # Initialise the process group
     comm.init_dist()
 
-
+    # DETECT MODULE CONSTANTS
     # Threshold for embedding/tasklabel distance (similarity)
     THRESHOLD = 0
 
+    print()
     logger.info('*****start shell training')
 
     shell_done = False
@@ -529,9 +528,6 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
     shell_tasks = agent.config.cl_tasks_info # tasks for agent
     shell_task_ids = agent.config.task_ids
     shell_task_counter = 0
-
-    # Initialize dictionary to store the most up-to-date rewards for an agent.
-    mask_rewards_dict = dict()
 
     shell_eval_tracker = False
     shell_eval_data = []
@@ -559,34 +555,34 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
     print()
     del states_
 
-    #parent, child = mp.Pipe()
-
 
     # Msg can be embedding or task label.
     msg = None
+    # Store the best agent id for quick reference
     best_agent_id = None
-    # Store list of agent IDs that this agent has sent meta data to
+    # Store list of agent IDs that this agent has sent metadata to
     expecting = list()
+    # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
+    mask_rewards_dict = dict()
 
     while True:
-        start = time.time()
-        # There will only be requests if there is a task change.
-        # Most of the time the msg will be None
-        # so nothing will happen
+        ####################### COMMUNICATION STEP ONE #######################
+        # Send and receive a query for knowledge for a newly encountered tasklabel/embedding
+        # most of the time this will do nothing. Only does something if there is a new task
         other_agents_request = comm.send_receive_request(msg)
-        print('SEND RECEIVE REQUEST: ', time.time() - start)
         msg = None # reset message
 
 
-        ####################### SEND THE META DATA TO OTHER AGENT REQUESTS #######################
-        # Send response with the mask reward, mask=None, and embedding/tasklabel
+        ####################### COMMUNICATION STEP TWO #######################
+        # Respond to received queries with metadata.
+        # Meta data contains the reward for the similar task, distance and the similar 
+        # tasklabel/embedding.
 
         # Go through each request from the network of agents
-        requests = []
+        responses = []
         for req in other_agents_request:
+            # If the req is none, which it usually will be, just skip.
             if req is None: continue
-            # Compute embedding distances between requested label and stored labels
-            # i.e., subtract the requested embedding/tasklabel with the ones stored in the agent
 
             # If this agent has not learned anything yet, then respond with nothing
             if not mask_rewards_dict:
@@ -594,54 +590,50 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
                 req['dist'] = None
                 continue
 
-            # If the agent has learned something (however useless it might be), check if the data is of
-            # use to the requester.
+            # Otherwise send what it knows if appropriate
 
-            # For each embedding/tasklabel (i.e., task) learned by the agent
-            # check if the embedding/tasklabel is similar enough (using THRESHOLD) to justify
-            # sending back to requester.
+            # For each embedding/tasklabel reward pair, calculate the distance to the
+            # requested embedding/tasklabel.
+            # If the distance is below the THRESHOLD then send it back
+            # otherwise send nothing back.
             for key, val in enumerate(mask_rewards_dict.items()):
+                # Compute the embedding distance. Maybe there is a better way to achieve this
                 dist = abs(np.sum(np.subtract(req['task_label'], np.array(key))))
-                
-                # If similarity is good enough send the task reward and embedding/tasklabel distance.
-                # i.e., SEND META DATA TO REQUESTER
 
+                # If the distance of the knowledge is below THRESHOLD then the embedding/tasklabels
+                # are similar enough to send.
                 if dist <= THRESHOLD:
+                    # Send the reward, distance and the embedding/tasklabel from this agent
+                    # note this will likely be different to the requested embedding/tasklabel
+                    # We send this agents embedding/tasklabel so that the requester can send
+                    # a mask request if required.
                     req['mask_reward'] = val
                     req['dist'] = dist
+                    req['resp_task_label'] = np.asarray(key)
 
                     # Append the requester agent id. We use this to listen for a mask request
                     # or to get rejected.
                     expecting.append(req['sender_agent_id'])
 
-                # Otherwise send nothing
+                # Otherwise send nothing and do nothing
                 else:
                     req['mask_reward'] = None
                     req['dist'] = None
 
-            # Set mask to none and send the mask reward
-            #req['mask'] = None
-            #req['mask_reward'] = mask_rewards_dict[tuple(req['task_label'])]
-            # Task label/Embedding is in req['task_label']
-            requests.append(req)
+            # Append the response to the requests to the 
+            responses.append(req)
 
-        # Do a check and send out the responses to request
-        if len(requests) > 0:
-            comm.send_meta_response(requests)
-        ####################### SEND THE META DATA TO OTHER AGENT REQUESTS #######################
+        # Do a check and send out the responses to requests for knowledge
+        if len(responses) > 0:
+            # Send out the metadata for the embedding/tasklabel query
+            comm.send_meta_response(responses)
 
 
-
-
-
-
-
-        ####################### RECEIVE THE META DATA FOR THIS AGENTS REQUESTS #######################
-        # receive meta data response from other agents for a embedding/tasklabel request from 
+        ####################### COMMUNICATION STEP THREE #######################
+        # Receive metadata response from other agents for a embedding/tasklabel request from 
         # this agent.
 
         send_msk_request = dict()
-        selected = False
 
         # Listen for any responses from other agents (containing the metadata)
         # if the agent earlier sent a request, check whether response has been sent.
@@ -653,8 +645,10 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
             # using full bidirectional multikey sorting (fancy words for such a simple concept)
             results = sorted(results, key=lambda d: (d['dist'], -d['mask_reward']))
 
+
             # Iterate through the await_response list. Upon task change this is an array
             # [True,] * num_agents
+            selected = False
             for idx in range(len(await_response)):
                 # Do some checks to remove to useless results
                 if await_response[idx] is False: continue
@@ -662,68 +656,78 @@ def shell_dist_train_mp(agent, agent_id, num_agents, task_label_dim, model_mask_
                 elif results[idx] is None: await_response[idx] = False
 
                 # Otherwise unpack the metadata
-                # At this stage we want to make a mapping between the requested embedding/tasklabel
-                # and the received embeddings from metadata. This will make it easier to 
                 else:
                     recv_agent_id = results[idx]['agent_id']
                     recv_msk_rw = results[idx]['mask_reward']
                     recv_label = results[idx]['emb_label']
                     recv_dist = results[idx]['dist']
+
+                    # If the received distance is below the THRESHOLD and the agent
+                    # hasn't selected a best agent yet then select this response
                     if recv_dist <= THRESHOLD and selected == False:
+                        # Add the agent id and embedding/tasklabel from the agent
+                        # to a dictionary to send requests/rejections out to.
                         send_msk_request[recv_agent_id] = recv_label
+
                         # Make a note of the best agent id in memory of this agent
                         # We will use this later to check the response from the best agent
                         best_agent_id = recv_agent_id
+
+                        # Make the selected flag true so we don't pick anymore to send
                         selected = True
 
+                    # If best selected or doesn't meet criteria, then send rejection
+                    # i.e., None
                     else:
                         send_msk_request[recv_agent_id] = None
 
+                    # We have checked the response so set it to False until the next task change
+                    # and request loop begins
                     await_response[idx] = False
 
             # Need to fix this logging message
             logger.info('meta data received from other agents')
 
-        ####################### RECEIVE THE META DATA FOR THIS AGENTS REQUESTS #######################
-
-
-
-        ####################### SEND A REQUEST FOR THE MASKS #######################
+        ####################### COMMUNICATION STEP FOUR #######################
         # Send a response back to each agent that sent this agent metadata. Tell them to either
         # send mask or move on.
 
+        msk_requests = None
+        if send_msk_request:
+            comm.send_mask_request(send_msk_request)
+
         # Also receive the same response from other agents. If other agents want a mask from this
         # agent, then msk_requests will be populated with a dictionary for each request.
-        if send_msk_request:
-            msk_requests = comm.send_receive_mask_request(send_msk_request, expecting)
+        if expecting:
+            expecting, msk_requests = comm.receive_mask_requests(expecting)
 
         # Now the agent needs to send a mask to each agent in the msk_requests list
-        # Check if not empty
+        # if it is not empty.
         if msk_requests:
-            # Iterate through he requests
+            # Iterate through the requests
             for req in msk_requests:
-                # Unpack the request
+                # Send a mask to the requesting agent
                 agent_id = req['requester_agent_id']
                 mask = agent.label_to_mask(req['task_label'])
                 comm.send_mask_response(agent_id, mask)
 
         # Expecting a response from the best agent id
         if best_agent_id:
-
             # We want to get the mask from the best agent
             received_mask = comm.receive_mask_response(best_agent_id)
 
+            # Take the singular best mask and apply it to the agent network
+            # A modified version of the original code. Found in deep_rl/shell_modules/mmn/ssmask_utils.py
             agent.distil_task_knowledge_single(received_mask)
 
             # Reset the best agent id for the next request
             best_agent_id = None
 
-        ####################### COMMUNICATE THE MASKS END #######################
+        ####################### MAIN COMMUNICATION LOOP ENDS UNTIL NEXT TASK CHANGE #######################
         
 
 
 
-                    
         # agent iteration (training step): collect on policy data and optimise agent
         dict_logs = agent.iteration()
         shell_iterations += 1
