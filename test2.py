@@ -1,46 +1,20 @@
-import dis
-from pathos.multiprocessing import ProcessingPool
-import multiprocessing as mp
+import socket, sys               # Import socket module
 
-x = 5
+s = socket.socket()         # Create a socket object
+host = socket.gethostname() # Get local machine name
+port = 12345                # Reserve a port for your service.
+s.bind((host, port))        # Bind to the port
 
-class Config(object):
-    def __init__(self):
-        self.task_fn = None
-        self.num_workers = 4
-        self.log_dir = None
-
-
-class Wrapper(object):
-    def __init__(self, log_dir=None):
-        self.state_dim = 3
-        self.log_dir = log_dir   
-        
-
-class ParallelizedTasks(object):
-    def __init__(self, task_fn, num_workers, log_dir=None):
-        self.tasks = [task_fn(log_dir) for _ in range(num_workers)]
-
-
-class Agent(object):
-    def __init__(self, config):
-        self.config = config
-        self.task = config.task_fn()
-
-
-def main():
-    mp.set_start_method('spawn', force=True)
-    config = Config()
-    config.log_dir = '/directory/'
-    task_fn = lambda log_dir: Wrapper(log_dir)
-    config.task_fn = lambda: ParallelizedTasks(task_fn, config.num_workers, log_dir = config.log_dir)
-
-    dis.dis(config.task_fn)
-    print(type(config.task_fn))
-
-    def work(foo):
-        foo.work()
-
-        
+connect = True
+if connect == True:
+    host = sys.argv[2]
+    s.connect((host, port))
+    s.close 
     
-main()
+else:
+    s.listen(5)                 # Now wait for client connection.
+    while True:
+       c, addr = s.accept()     # Establish connection with client.
+       print('Got connection from', addr)
+       c.send('Thank you for connecting')
+       c.close()

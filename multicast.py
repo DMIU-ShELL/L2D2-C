@@ -217,66 +217,71 @@ if __name__ == '__main__':
 
     comm = Communication(args.agent_id, args.num_agents, args.server, '127.0.0.1')
 
-
-
-    # If agent initialises the network then create the listening server
-    if server == 1:
-        ServerSideSocket = socket.socket()
-        host = '127.0.0.1'
-        port = 5000
-        ThreadCount = 0
-
-        try:
-            ServerSideSocket.bind((host, port))
-
-        except socket.error as e:
-            print(str(e))
-
-        print('Socket is listening...')
-        ServerSideSocket.listen(5)
-
-        def multi_threaded_client(connection):
-            connection.send(str.encode('Server is working:'))
-            while True:
-                data = connection.recv(2048)
-                print(data.decode('utf-8'))
-                response = 'Server message: ' + data.decode('utf-8')
-                if not data:
-                    break
-                connection.sendall(str.encode(response))
-            connection.close()
-
-        print("Initial world size: ", num_agents)
-        while True:
-            Client, address = ServerSideSocket.accept()
-            print('Client @ ' + address[0] + ':' + str(address[1]), ' joined the network')
-            start_new_thread(multi_threaded_client, (Client, ))
-            ThreadCount += 1
-            print('Thread Number: ' + str(ThreadCount))
-            
-            # When a conenction is made, then update the worldsize parameters
-            num_agents += 1
-            print("New world size: ", num_agents)
-
-        ServerSideSocket.close()
-
-    # If the agent acts as a client to the server then run the client code
+    # If agent added to network then act as client
     if server == 0:
-        ClientMultiSocket = socket.socket()
-        host = '127.0.0.1'
-        port = 5000
-        print('Waiting for connection response')
+        MCAST_GRP = '224.1.1.1'
+        MCAST_PORT = 5007
+        ClientSideSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        ClientSideSocket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 32)
+        ClientSideSocket.sendto(str.encode('Hello World!'), (MCAST_GRP, MCAST_PORT))
+
+
+    # Then send become a server
+    ServerSideSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    MCAST_GRP = '224.1.1.1'
+    MCAST_PORT = 5007
+    ThreadCount = 0
+
+    try:
+        ServerSideSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    except AttributeError:
+        pass
+    ServerSideSocket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 32) 
+    ServerSideSocket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
+
+    try:
+        ServerSideSocket.bind((MCAST_GRP, MCAST_PORT))
+        host = socket.gethostbyname(socket.gethostname())
+        ServerSideSocket.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_IF, socket.inet_aton(host))
+        ServerSideSocket.setsockopt(socket.SOL_IP, socket.IP_ADD_MEMBERSHIP, 
+                        socket.inet_aton(MCAST_GRP) + socket.inet_aton(host))
+
+    except socket.error as e:
+        print(str(e))
+
+    def multi_threaded_client(connection):
+        connection.send(str.encode('Server is working:'))
+        while True:
+            data = connection.recv(2048)
+            print(data.decode('utf-8'))
+            response = 'Server message: ' + data.decode('utf-8')
+            if not data:
+                break
+            connection.sendall(str.encode(response))
+        connection.close()
+    '''
+    print("Initial world size: ", num_agents)
+    while True:
+        Client, address = ServerSideSocket.accept()
+        print('Client @ ' + address[0] + ':' + str(address[1]), ' joined the network')
+        start_new_thread(multi_threaded_client, (Client, ))
+        ThreadCount += 1
+        print('Thread Number: ' + str(ThreadCount))
+        
+        # When a conenction is made, then update the worldsize parameters
+        num_agents += 1
+        print("New world size: ", num_agents)
+
+    ServerSideSocket.close()
+    '''
+    while True:
         try:
-            ClientMultiSocket.connect((host, port))
+            data, addr = ServerSideSocket.recv(1024)
+        except socket.error:
+            print('Exception')
 
-        except socket.error as e:
-            print(str(e))
-
-        res = ClientMultiSocket.recv(1024)
-        ClientMultiSocket.send(str.encode("Hello!"))
-        res = ClientMultiSocket.recv(1024)
-        print(res.decode('utf-8'))
-        ClientMultiSocket.close()
+        else:
+            print(data.decode)
 
 
     
