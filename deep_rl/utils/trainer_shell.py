@@ -613,7 +613,6 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
             print('TRACK TASKS: ', track_tasks)
 
-
             responses = list()
             sync_agents = list()
             for key, value in track_tasks.items():
@@ -626,7 +625,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
             if sync_agents:
                 sync_agents.append(agent_id)
-                responses = comm.sync_gather_meta(key)
+                responses = comm.sync_gather_meta(sync_agents)
 
 
             print('RESPONSES: ', responses)
@@ -813,8 +812,6 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
                 # Reset the best agent id for the next request
                 best_agent_id = None
-                print('STEP FOUR ', time.time() - start_time)
-                exit()
 
             print('STEP FOUR ', time.time() - start_time)
 
@@ -941,7 +938,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
         if shell_done:
             break
-        #comm.barrier()
+        comm.barrier()
     # end of while True
 
     eval_data_fh.close()

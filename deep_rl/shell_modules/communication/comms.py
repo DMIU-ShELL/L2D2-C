@@ -413,9 +413,9 @@ class Communication_mp(object):
             if self.handle_recv_resp[idx] is None:
                 self.logger.info('recv_resp: set up handle to receive response from agent {0}'.format(idx))
                 self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_resp[idx], src=idx)
-                self.handle_recv_resp[idx].wait()
+                #self.handle_recv_resp[idx].wait()
 
-        #time.sleep(Communication_mp.SLEEP_DURATION)
+        time.sleep(Communication_mp.SLEEP_DURATION)
 
         # check whether message has been received
         results = list()
@@ -564,7 +564,7 @@ class Communication_mp(object):
         '''
 
     def sync_gather_meta(self, agents):
-        print(agents)
+        print('Agents: ', agents)
         new_group = dist.new_group(ranks=agents, backend='gloo')
 
         data = torch.ones_like(self.buff_send_recv_meta[0]) * torch.inf
@@ -607,6 +607,26 @@ class Communication_mp(object):
                 ret.append(d)
         return ret
 
+    def broadcast_mask(self, src, agents):
+        new_group = dist.new_group(ranks=agents, backend='gloo')
+        buff = torch.ones_like(self.buff_send_resp[0]) * torch.inf
+
+        buff[Communication_mp.META_INF_IDX_PROC_ID] = self.agent_id
+        buff[Communication_mp.META_INF_IDX_MSG_TYPE] = Communication_mp.MSG_TYPE_SEND_RESP
+
+        if mask is None:
+            buff[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_NULL
+            buff[Communication_mp.META_INF_SZ : ] = torch.inf
+
+        else:
+            buff[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_MSK
+            buff[Communication_mp.META_INF_SZ : ] = mask # NOTE deepcopy?
+
+        # Send the mask to the destination agent id
+        req = dist.broadcast(tensor=buff, src=src, group=new_group, async_op=True)
+        req.wait()
+
+        return buff
 
 '''
 Communication Module for the revised communication algortihm with added communication methods
