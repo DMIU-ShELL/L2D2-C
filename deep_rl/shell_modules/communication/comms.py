@@ -250,6 +250,9 @@ class Communication_mp(object):
         self.buff_send_recv_req = [torch.ones(Communication_mp.META_INF_IDX_TASK_SZ + emb_label_sz, ) \
             * torch.inf for _ in range(num_agents)]
 
+        self.buff_send_recv_meta = [torch.ones(Communication_mp.META_INF_IDX_TASK_SZ_ + emb_label_sz, ) \
+            * torch.inf for _ in range(num_agents)]
+
         self.buff_recv_resp_task = [torch.ones(Communication_mp.META_INF_IDX_TASK_SZ_ + emb_label_sz, ) * torch.inf \
             for _ in range(num_agents)]
         self.buff_send_resp_task = [torch.ones(Communication_mp.META_INF_IDX_TASK_SZ_ + emb_label_sz, ) * torch.inf \
@@ -407,7 +410,7 @@ class Communication_mp(object):
         for idx in range(self.num_agents):
             if idx == self.agent_id:
                 continue
-            if self.handle_recv_resp_task[idx] is None:
+            if self.handle_recv_resp[idx] is None:
                 self.logger.info('recv_resp: set up handle to receive response from agent {0}'.format(idx))
                 self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_resp[idx], src=idx)
                 self.handle_recv_resp[idx].wait()
@@ -422,12 +425,12 @@ class Communication_mp(object):
                 results.append(None)
                 continue
 
-            msg = self.buff_recv_resp[idx]
+            msg = self.buff_recv_resp_task[idx]
             if self._null_message(msg):
                 results.append(None)
                 self.logger.info('recv_resp: appending {0} response'.format(None))
 
-            elif msg[Communication_mp.META_INF_IDX_MSG_DATA] == MSG_DATA_META:
+            elif msg[Communication_mp.META_INF_IDX_MSG_DATA] == Communication_mp.MSG_DATA_META:
                 ret['agent_id'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_PROC_ID])
                 ret['mask_reward'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_MSK_RW])
                 ret['dist'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_DIST])
@@ -559,6 +562,50 @@ class Communication_mp(object):
         '''
         Copy the code 
         '''
+
+    def sync_gather_meta(self, agents):
+        print(agents)
+        new_group = dist.new_group(ranks=agents, backend='gloo')
+
+        data = torch.ones_like(self.buff_send_recv_meta[0]) * torch.inf
+
+        data[Communication_mp.META_INF_IDX_PROC_ID] = self.agent_id
+        data[Communication_mp.META_INF_IDX_MSG_TYPE] = Communication_mp.MSG_TYPE_SEND_RESP
+
+        # If mask is none then send back torch.inf
+        # otherwise send mask
+        if mask_reward is None:
+            data[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_NULL
+
+        else:
+            # if the mask is none but there is a mask reward, then overwrite the buffer with
+            # the meta data. Otherwise don't do anything.
+            data[Communication_mp.META_INF_IDX_MSG_DATA] = Communication_mp.MSG_DATA_META
+            data[Communication_mp.META_INF_IDX_MSK_RW] = mask_reward
+            data[Communication_mp.META_INF_IDX_DIST] = distance
+            data[Communication_mp.META_INF_IDX_TASK_SZ_ :] = emb_label
+
+        req = dist.all_gather(tensor_list=self.buff_send_recv_meta, tensor=data, async_op=True)
+        req.wait()
+
+        # check buffer for incoming requests
+        idxs = list(range(len(self.buff_send_recv_meta)))
+        idxs.remove(self.agent_id)
+        ret = []
+        for idx in idxs :
+            buff = self.buff_send_recv_meta[idx]
+
+            if self._null_message(buff):
+                ret.append(None)
+            else:
+                self.logger.info('send_recv_req: request received from agent {0}'.format(idx))
+                d = {}
+                d['agent_id'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_PROC_ID])
+                d['mask_reward'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_MSK_RW])
+                d['dist'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_DIST])
+                d['emb_label'] = copy.deepcopy(msg[Communication_mp.META_INF_IDX_TASK_SZ_ :])
+                ret.append(d)
+        return ret
 
 
 '''
@@ -958,6 +1005,7 @@ class CommProcess(mp.Process):
     R_MASK_REQ = 6
     S_MASK_RESP = 7
     R_MASK_RESP = 8
+    SYNC_META = 9
 
     def __init__(self, pipe, agent_id, num_agents, task_label_sz, mask_sz, logger, init_address, init_port):
         mp.Process.__init__(self)
@@ -993,6 +1041,10 @@ class CommProcess(mp.Process):
 
             elif op == self.R_MASK_RESP:
                 self.pipe.send(self.comm.receive_mask_response(data))
+
+            elif op == self.SYNC_META:
+                self.pipe.send(self.comm.sync_gather_meta(data))
+                
             else:
                 raise Exception('Unknown command')
                 
@@ -1033,6 +1085,9 @@ class ParallelizedComm:
         self.pipe.send([CommProcess.R_MASK_RESP, data])
         return self.pipe.recv()
 
+    def sync_gather_meta(self, data):
+        self.pipe.send([CommProcess.SYNC_META, data])
+        return self.pipe.recv()
 
 '''
 Using communication client-server paradigm with multiprocessing. The concept is that each agent will

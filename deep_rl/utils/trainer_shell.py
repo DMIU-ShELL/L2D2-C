@@ -560,7 +560,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     # Set msg to first task. The agents will then request knowledge on the first task.
     # this will ensure that other agents are aware that this agent is now working this task
     # until a task change happens.
-    msg = torch.tensor(shell_tasks[0]['task_label'])
+    msg = shell_tasks[0]['task_label']
     # Store the best agent id for quick reference
     best_agent_id = None
     # Store list of agent IDs that this agent has sent metadata to
@@ -604,6 +604,49 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
             # This all happens every iteration. (Unsure of the communication bandwidth requirements)
 
+            # Go through the requests and take note of what agent is doing what task
+            # We will know when an agent is still doing the same task if the update is None
+            # otherwise the update will be a new task label request
+            for req in other_agents_request:
+                if req['msg_data'] is not None:
+                    track_tasks[req['sender_agent_id']] = req['task_label'].detach().cpu().numpy()
+
+            print('TRACK TASKS: ', track_tasks)
+
+
+            responses = list()
+            sync_agents = list()
+            for key, value in track_tasks.items():
+                if key == agent_id: continue
+                if key == None: continue
+
+                # Change to distance calculation later
+                if np.array_equal(value, shell_tasks[0]['task_label']):
+                    sync_agents.append(key)
+
+            if sync_agents:
+                sync_agents.append(agent_id)
+                responses = comm.sync_gather_meta(key)
+
+
+            print('RESPONSES: ', responses)
+            if responses:
+                print("SENDING MASKS")
+                # Check if responses reward is greater than this agents reward
+                sorted_responses = sorted(responses, key=lambda d: d['mask_reward'])
+
+                # If the first 
+                if sorted_responses[0]['sender_agent_id'] == agent_id:
+                    # If the best agent is this one then send mask to all other agents
+                    mask = agent.label_to_mask(shell_tasks[0]['task_label'])
+                    for i in sync_agents():
+                        if i == agent_id: continue
+                        comm.send_mask_response(i, mask)
+                else:
+                    # except a mask from the best agent
+                    best_agent = sorted_responses[0]['sender_agent_id']
+                    mask = comm.receive_mask_response(best_agent)
+                    agent.distil_task_knowledge_single(mask)
 
 
             ####################### COMMUNICATION STEP TWO #######################
