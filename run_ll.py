@@ -787,12 +787,12 @@ def ppo_ll_minigrid_mpu(name, args):
     config.eval_interval = 25
     config.task_ids = np.arange(num_tasks).tolist()
 
-    Agent = LLAgent_mpu
+    p_agent = ParallelizedAgent(LLAgent_mpu, config)
 
 
     # Start single agent lifecycle
     # Returns steps<list>, rewards<list>, and tasks
-    _, _, tasks = run_iterations_w_oracle_mpu(Agent, config)
+    _, _, tasks = run_iterations_w_oracle_mpu(p_agent, config)
     tasks = tasks[0]
     
     print(tasks)

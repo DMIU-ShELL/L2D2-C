@@ -665,9 +665,6 @@ def run_iterations_w_oracle_mp(agent, tasks_info):
     agent.close()
     return steps, rewards
 
-
-
-from ..agent.PPO_agent import ParallelizedAgent
 '''
 Has all the print statements for checking functionality. Ignore.
 def run_iterations_w_oracle_mpu(Agent, config):
@@ -881,9 +878,8 @@ def run_iterations_w_oracle_mpu(Agent, config):
     
 '''
 
-def run_iterations_w_oracle_mpu(Agent, config):
+def run_iterations_w_oracle_mpu(p_agent, config):
     # Initialise agent as a child of the parent process
-    p_agent = ParallelizedAgent(Agent, config)
     tasks_info = p_agent.get_tasks()
 
     agent_task_name = p_agent.get_task_name()

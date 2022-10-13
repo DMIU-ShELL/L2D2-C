@@ -8,6 +8,10 @@
     {
         "task_ids": [1, 2, 0],
         "max_steps": 102400
+    },
+    {
+        "task_ids": [2, 0, 1],
+        "max_steps": 102400
     }
 ],
 "env": {

@@ -4,8 +4,11 @@
 # declaration at the top                                              #
 #######################################################################
 
-from .network_utils import *
+from .network_utils import BaseNet
 from .network_bodies import *
+from ..utils.config import Config
+import torch.nn as nn
+from ..utils.torch_utils import tensor
 
 class VanillaNet(nn.Module, BaseNet):
     def __init__(self, output_dim, body):

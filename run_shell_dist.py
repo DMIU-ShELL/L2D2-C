@@ -18,8 +18,24 @@ import copy
 import shutil
 import matplotlib
 matplotlib.use("Pdf")
-from deep_rl import *
+import multiprocess as mp
+from deep_rl.utils.misc import mkdir, get_default_log_dir
+from deep_rl.utils.torch_utils import set_one_thread, random_seed, select_device
+from deep_rl.utils.config import Config
+from deep_rl.component.policy import SamplePolicy
+from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer
+from deep_rl.utils.logger import get_logger
+from deep_rl.utils.trainer_shell import shell_dist_train_mp
+from deep_rl.agent.PPO_agent import ShellAgent_DP, ShellAgent_SP
+from deep_rl.shell_modules.communication.comms import ParallelComm
+from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs
+from deep_rl.network.network_heads import CategoricalActorCriticNet_SS
+from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
+#from deep_rl import *
 import argparse
+import torch
+
+
 
 # helper function
 def global_config(config, name):
@@ -52,7 +68,7 @@ def global_config(config, name):
     config.task_fn = None
     config.eval_task_fn = None
     config.network_fn = None 
-    config.eval_interval = None#16
+    config.eval_interval = None#1
     return config
 
 '''
@@ -327,19 +343,98 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
+
+
+    mode = 'ondemand'
+    comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
+        agent.model_mask_dim, logger, init_address, init_port, mode)
+
+
+
+
+    # For full parallelisation
+    #agent = ParallelizedAgent(config, args.agent_id, args.num_agents)
+    #config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
+
     # set up communication (transfer module)
-    comm = ParallelizedComm(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port)
+    #comm = ParallelizedComm(args.agent_id, args.num_agents, agent.task_label_dim(), \
+    #    agent.model_mask_dim(), logger, init_address, init_port, queue_agent, queue_comm)
+    #comm = None
+
+
 
     # start training
     shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
 
+def shell_dist_minigrid_mp_v2(name, args, shell_config):
+    print("Running shell_dist_minigrid_mp_v2")
+    shell_config_path = args.shell_config_path
+    num_agents = args.num_agents
+
+    env_config_path = shell_config['env']['env_config_path']
+    config_seed = shell_config['seed']
+    # address and port number of the master/first agent (rank/id 0) in the pool of agents
+    init_address = shell_config['dist_only']['init_address']
+    init_port = shell_config['dist_only']['init_port']
+
+    # set up config
+    config = Config()
+    config = global_config(config, name)
+    # rescale state normaliser: suitable for grid encoding of states in minigrid
+    config.state_normalizer = RescaleNormalizer(1./10.)
+
+    # set seed
+    config.seed = config_seed
+    
+    # set up logging system
+    exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
+    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
+    log_dir = get_default_log_dir(path_name)
+    logger = get_logger(log_dir=log_dir, file_name='train-log')
+    config.logger = logger
+    config.log_dir = log_dir
+
+    # save shell config and env config
+    shutil.copy(shell_config_path, log_dir)
+    shutil.copy(env_config_path, log_dir)
+
+    # create/initialise agent
+    logger.info('*****initialising agent {0}'.format(args.agent_id))
+    # task may repeat, so get number of unique tasks.
+    num_tasks = len(set(shell_config['curriculum']['task_ids']))
+    config.cl_num_tasks = num_tasks
+    config.task_ids = shell_config['curriculum']['task_ids']
+    if isinstance(shell_config['curriculum']['max_steps'], list):
+        config.max_steps = shell_config['curriculum']['max_steps']
+    else:
+        config.max_steps = [shell_config['curriculum']['max_steps'], ] * num_tasks
+    task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
+    eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
+    config.eval_task_fn = eval_task_fn
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
+        state_dim, action_dim, label_dim,
+        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
+        hidden_units=(200, 200, 200), num_tasks=num_tasks),
+        actor_body=DummyBody_CL(200),
+        critic_body=DummyBody_CL(200),
+        num_tasks=num_tasks)
+
+    agent = ShellAgent_DP(config)
+    config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
+
+    # set up communication (transfer module)
+    comm = ParallelizedComm_v2(args.agent_id, args.num_agents, agent.task_label_dim, \
+        agent.model_mask_dim, logger, init_address, init_port)
+
+    # start training
+    shell_dist_train_mp_v2(agent, comm, args.agent_id, args.num_agents)
 
 
 if __name__ == '__main__':
     mkdir('log')
     set_one_thread()
-    select_device(0) # -1 is CPU, a positive integer is the index of GPU
+    select_device(0)
 
     mp.set_start_method('fork', force=True)
 
@@ -359,10 +454,13 @@ if __name__ == '__main__':
         del shell_config['agents'][args.agent_id]
 
     if shell_config['env']['env_name'] == 'minigrid':
-        name = Config.ENV_MINIGRID
-
-
-        shell_dist_minigrid_mp(name, args, shell_config)
+        if args.exp_id == 'v2':
+            name = Config.ENV_MINIGRID
+            shell_dist_minigrid_mp_v2(name, args, shell_config)
+        else:
+            name = Config.ENV_MINIGRID
+            shell_dist_minigrid_mp(name, args, shell_config)
+        
 
 
     elif shell_config['env']['env_name'] == 'ctgraph':
