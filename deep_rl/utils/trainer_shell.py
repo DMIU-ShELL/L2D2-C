@@ -596,14 +596,14 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
         regardless of whether the communication module gets a mask or not.
         '''
         if num_agents > 1:
-            # Check if the communication module has sent a label to be converted to a mask
+            '''# Check if the communication module has sent a label to be converted to a mask
             # convert it and send it back to the agent
             try:
                 comm_label = queue_label_send.get_nowait()              # receive label
                 queue_mask_recv.put(agent.label_to_mask(comm_label))    # convert label and send
                 del comm_label                                          # delete the stored label
             except Empty:
-                pass
+                pass'''
             
             # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
             # the communication module will do its thing.
@@ -787,6 +787,163 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
     agent.close()
     return
+
+
+
+
+def shell_dist_eval_mp(agent, comm, agent_id, num_agents=1):
+    logger = agent.config.logger
+
+    # Initialise the process group
+    comm.init_dist()
+
+    # DETECT MODULE CONSTANTS
+    # Threshold for embedding/tasklabel distance (similarity)
+    THRESHOLD = 0
+
+    print()
+    logger.info('*****start shell training')
+
+    shell_done = False
+    shell_iterations = 0
+    shell_tasks = agent.config.cl_tasks_info # tasks for agent
+    shell_task_ids = agent.config.task_ids
+    shell_task_counter = 0
+
+    shell_eval_tracker = False
+    shell_eval_data = []
+    num_eval_tasks = len(agent.evaluation_env.get_all_tasks())
+    shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
+    shell_metric_icr = [] # icr => instant cumulative reward metric. NOTE may be redundant now
+    eval_data_fh = open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_id), 'a', \
+        buffering=1) # buffering=1 means flush data to file after every line written
+    shell_eval_end_time = None
+
+    '''if agent.task.name == agent.config.ENV_METAWORLD or \
+        agent.task.name == agent.config.ENV_CONTINUALWORLD:
+        itr_log_fn = _shell_itr_log_mw
+    else:
+        itr_log_fn = _shell_itr_log'''
+
+   #await_response = [False,] * num_agents # flag
+    # set the first task each agent is meant to train on
+    '''states_ = agent.task.reset_task(shell_tasks[0])
+    agent.states = agent.config.state_normalizer(states_)
+    logger.info('*****agent {0} / setting first task (task 0)'.format(agent_id))
+    logger.info('task: {0}'.format(shell_tasks[0]['task']))
+    logger.info('task_label: {0}'.format(shell_tasks[0]['task_label']))'''
+    #agent.task_train_start(shell_tasks[0]['task_label'])
+    '''print()
+    del states_'''
+
+
+    # Msg can be embedding or task label.
+    msg = None
+    # Store the best agent id for quick reference
+    best_agent_id = None
+    # Store list of agent IDs that this agent has sent metadata to
+    expecting = list()
+    # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
+    mask_rewards_dict = dict()
+
+    while True:
+       
+        shell_iterations += 1
+
+        # tensorboard log
+        '''if shell_iterations % agent.config.iteration_log_interval == 0:
+            itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, dict_logs)
+            
+            # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
+            # logging cycle. Take average of all worker averages as the most recent reward score for a given task
+            mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.mean(agent.iteration_rewards)
+            print(mask_rewards_dict)'''
+
+
+        # evaluation block
+        if (agent.config.eval_interval is not None and \
+            shell_iterations % agent.config.eval_interval == 0):
+            logger.info('*****agent {0} / evaluation block'.format(agent_id))
+            _task_ids = shell_task_ids
+            _tasks = shell_tasks
+            _names = [eval_task_info['name'] for eval_task_info in _tasks]
+            logger.info('eval tasks: {0}'.format(', '.join(_names)))
+            for eval_task_idx, eval_task_info in zip(_task_ids, _tasks):
+                agent.task_eval_start(eval_task_info['task_label'])
+                eval_states = agent.evaluation_env.reset_task(eval_task_info)
+                agent.evaluation_states = eval_states
+                # performance (perf) can be success rate in (meta-)continualworld or
+                # rewards in other environments
+                perf, eps = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
+                agent.task_eval_end()
+                shell_eval_data[-1][eval_task_idx] = np.mean(perf)
+            shell_eval_tracker = True
+            shell_eval_end_time = time.time()
+
+        # end of current task training. move onto next task or end training if last task.
+        # i.e., Task Change occurs here. For detect module, if the task embedding signifies a task
+        # change then that occurs here.
+        '''
+        If we want to use a Fetch All mode for ShELL then we need to add a commmunication component
+        at task change which broadcasts the mask to all other agents currently on the network.
+
+        Otherwise the current implementation is a On Demand mode where each agent requests knowledge
+        only when required.
+        '''
+        
+                    
+        if shell_eval_tracker:
+            # log the last eval metrics to file
+            _record = np.concatenate([shell_eval_data[-1],np.array(shell_eval_end_time).reshape(1,)])
+            np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
+            del _record
+
+            # reset eval tracker and add new buffer to save next eval metrics
+            shell_eval_tracker = False
+            shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
+        if all(shell_eval_tracker):
+            _metrics = shell_eval_data[-1]
+            # compute icr
+            _max_reward = _metrics.max(axis=0) 
+            _agent_ids = _metrics.argmax(axis=0).tolist()
+            _agent_ids = ', '.join([str(_agent_id) for _agent_id in _agent_ids])
+            icr = _max_reward.sum()
+            shell_metric_icr.append(icr)
+            # log eval to file/screen and tensorboard
+            logger.info('*****shell evaluation:')
+            logger.info('best agent per task:'.format(_agent_ids))
+            logger.info('shell eval ICR: {0}'.format(icr))
+            logger.info('shell eval TP: {0}'.format(np.sum(shell_metric_icr)))
+            logger.scalar_summary('shell_eval/icr', icr)
+            logger.scalar_summary('shell_eval/tpot', np.sum(shell_metric_icr))
+            # reset eval tracker
+            shell_eval_tracker = [False for _ in shell_eval_tracker]
+            # initialise new eval block
+            shell_eval_data.append(np.zeros((1, num_eval_tasks), dtype=np.float32))
+
+        if shell_done:
+            break
+        comm.barrier()
+    # end of while True
+
+    eval_data_fh.close()
+    # discard last eval data entry as it was not used.
+    if np.all(shell_eval_data[-1] == 0.):
+        shell_eval_data.pop(-1)
+    # save eval metrics
+    to_save = np.stack(shell_eval_data, axis=0)
+    with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
+        np.save(f, to_save)
+        
+    agent.close()
+    return
+
+
+
+
+
+
+
 
 
 '''

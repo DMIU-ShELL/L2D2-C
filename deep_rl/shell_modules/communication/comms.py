@@ -472,7 +472,7 @@ class ParallelComm(object):
             # reset buffer and handle
             self.buff_recv_resp[idx][:] = torch.inf
             self.handle_recv_resp[idx] = None 
-        return results
+        return ret
 
     def barrier(self):
         dist.barrier()
@@ -529,10 +529,10 @@ class ParallelComm(object):
                 # If not rejected then we need to send the mask to the requester
                 else:
                     d = {}
-                    d['requester_agent_id'] = int(buff[ParallelComm.META_INF_IDX_PROC_ID])
-                    d['msg_type'] = int(buff[ParallelComm.META_INF_IDX_MSG_TYPE])
-                    d['msg_data'] = int(buff[ParallelComm.META_INF_IDX_MSG_DATA])
-                    d['task_label'] = buff[ParallelComm.META_INF_IDX_TASK_SZ : ]
+                    d['requester_agent_id'] = int(data[ParallelComm.META_INF_IDX_PROC_ID])
+                    d['msg_type'] = int(data[ParallelComm.META_INF_IDX_MSG_TYPE])
+                    d['msg_data'] = int(data[ParallelComm.META_INF_IDX_MSG_DATA])
+                    d['task_label'] = data[ParallelComm.META_INF_IDX_TASK_SZ : ]
                     ret.append(d)
                     expecting.remove(idx)
 
@@ -690,277 +690,281 @@ class ParallelComm(object):
         # initial state of input variables to loop
         
         while True:
+            self.logger.info('IN COMMUNICATION MODULE')
+            # Get the latest states of these variables
             track_tasks, mask_rewards_dict, await_response = queue_loop.get()
+            print(track_tasks, mask_rewards_dict, await_response)
             
+            # Try getting the label request, otherwise it will be NoneType
             try:
                 # Initially msg will be populated with the first task label then set to None after the 
                 # first completed communication loop. After that the msg will be None until a new query
                 # is requested from the agent.
                 msg = queue_label.get_nowait()
+                self.logger.info('Comm Module msg this iter: ', msg, flush=True)
+            except Empty:
+                print('FAILED')
+                
+            #if self.mode == 'ondemand':
+            #######################   COMMUNICATION STEP ONE    #######################
+            ####################### REQUESTS BETWEEN ALL AGENTS #######################
+            # send out broadcast request to all other agents for task label
+            other_agents_request = self.send_receive_request(msg)
+            self.logger.info('Other agent requests: ', other_agents_request)
+
+            msg = None
+
+            ### SYNCHRONISED LEARNING
+            '''
+            sync_learn = True
+            if sync_learn = True:
+                # SYCHRONISE LEARNING
+                # Iterate through the request
+                # Gather the agent ids of similar task labels
+                # create a process sub group (new_group) for the agent ids, including self id
+                # all agents all_gather on subgroup their reward for the task
+                # best agent broadcasts to the subgroup the mask that they have and other agents
+                #       will distill the mask to their network and continue training.
+
+                # This all happens every iteration. (Unsure of the communication bandwidth requirements)
+
+                # Go through the requests and take note of what agent is doing what task
+                # We will know when an agent is still doing the same task if the update is None
+                # otherwise the update will be a new task label request
+                for req in other_agents_request:
+                    if req['msg_data'] is not None:
+                        track_tasks[req['sender_agent_id']] = req['task_label'].detach().cpu().numpy()
+
+                print('TRACK TASKS: ', track_tasks)
+
+                responses = list()
+                sync_agents = list()
+                for key, value in track_tasks.items():
+                    if key == agent_id: continue
+                    if key == None: continue
+
+                    # Change to distance calculation later
+                    if np.array_equal(value, shell_tasks[0]['task_label']):
+                        sync_agents.append(key)
+
+                if sync_agents:
+                    sync_agents.append(agent_id)
+                    responses = self.sync_gather_meta(sync_agents)
+
+
+                print('RESPONSES: ', responses)
+                if responses:
+                    print("SENDING MASKS")
+                    # Check if responses reward is greater than this agents reward
+                    sorted_responses = sorted(responses, key=lambda d: d['mask_reward'])
+
+                    # If the first 
+                    if sorted_responses[0]['sender_agent_id'] == agent_id:
+                        # If the best agent is this one then send mask to all other agents
+                        mask = agent.label_to_mask(shell_tasks[0]['task_label'])
+                        for i in sync_agents():
+                            if i == agent_id: continue
+                            self.send_mask_response(i, mask)
+                    else:
+                        # except a mask from the best agent
+                        best_agent = sorted_responses[0]['sender_agent_id']
+                        mask = self.receive_mask_response(best_agent)
+                        agent.distil_task_knowledge_single(mask)
+            '''
+
+
+            #######################   COMMUNICATION STEP TWO    #######################
+            ####################### SEND AND RECV META REPONSES #######################
+            # Respond to received queries with metadata.
+            # Meta data contains the reward for the similar task, distance and the similar 
+            # tasklabel/embedding.
+
+            ### SEND META RESPONSES
+            # Go through each request from the network of agents
+            meta_responses = []
+            # if populated prepare metadata responses
+            if other_agents_request:
+                for req in other_agents_request:
+                    # If the req is none, which it usually will be, just skip.
+                    if req['msg_data'] is None: continue
+                    
+                    # If the message is None then the agent has already requested and begun
+                    # working the task. So there is no need to update this agents task tracking dictionary
+                    # If the other agents do task change then they will do a fresh request. This will make the
+                    # request not None and this agent can update their task track.
+                    track_tasks[req['sender_agent_id']] = req['task_label']
+
+                    # If this agent has not learned anything yet, then respond with nothing
+                    if not mask_rewards_dict:
+                        continue
+
+                    # Otherwise send what it knows if appropriate
+
+                    # Compute the embedding distance. Maybe there is a better way to achieve this
+                    req_label_as_np = req['task_label'].detach().cpu().numpy()
+                    print('Requested label from agent {0}: {1}'.format(req['sender_agent_id'], req_label_as_np))
+                    print('Current knowledge base for this agent: ', mask_rewards_dict)
+
+                    # For each embedding/tasklabel reward pair, calculate the distance to the
+                    # requested embedding/tasklabel.
+                    # If the distance is below the THRESHOLD then send it back
+                    # otherwise send nothing back.
+                    for key, val in mask_rewards_dict.items():
+                        print(np.asarray(key), val)
+                        dist = np.sum(abs(np.subtract(req_label_as_np, np.asarray(key))))
+                        print(dist)
+
+                        # If the distance of the knowledge is below THRESHOLD then the embedding/tasklabels
+                        # are similar enough to send.
+                        if dist <= ParallelComm.THRESHOLD:
+                            print('Distance is good. Adding to dictionary')
+                            # Send the reward, distance and the embedding/tasklabel from this agent
+                            # note this will likely be different to the requested embedding/tasklabel
+                            # We send this agents embedding/tasklabel so that the requester can send
+                            # a mask request if required.
+                            req['mask_reward'] = val
+                            req['dist'] = dist
+                            req['resp_task_label'] = np.asarray(key)
+
+                            # Append the requester agent id. We use this to listen for a mask request
+                            # or to get rejected.
+                            expecting.append(req['sender_agent_id'])
+                            
+                            # Append the response to the requests to the 
+                            meta_responses.append(req)
+
+                        # Otherwise send nothing and do nothing
+                        else:
+                            meta_responses.append(None)
+            print('Meta responses to send: ', meta_responses)
+            print('Expecting mask request or rejection from these agents: ', expecting)
+            # Do a check and send out the meta responses to requests for knowledge
+            if meta_responses:
+                # Send out the metadata for the embedding/tasklabel query
+                self.send_meta_response(meta_responses)
+
+
+            ### RECV META RESPONSES
+            # Receive metadata response from other agents for a embedding/tasklabel request from 
+            # this agent.
+            send_msk_request = dict()
+            # Listen for any responses from other agents (containing the metadata)
+            # if the agent earlier sent a request, check whether response has been sent.
+            if any(await_response):
+                self.logger.info('awaiting response: {0}'.format(await_response))
+                results = self.receive_meta_response()
+                print('Metadata responses to receive: ', results)
+
+                # Sort received meta data by smallest distance (primary) and highest reward (secondary),
+                # using full bidirectional multikey sorting (fancy words for such a simple concept)
+                results = sorted(results, key=lambda d: (d['dist'], -d['mask_reward']))
+                print('Metadata responses sorted: ', results)
+
+                # Iterate through the await_response list. Upon task change this is an array:
+                # [True,] * num_agents
+                selected = False    # flag to check if the best agent of the lot has been selected
+                for idx in range(len(await_response)):
+                    # Do some checks to remove to useless results
+                    if await_response[idx] is False: continue
+                    if results[idx] is False: continue
+                    elif results[idx] is None: await_response[idx] = False
+
+                    # Otherwise unpack the metadata
+                    else:
+                        recv_agent_id = results[idx]['agent_id']
+                        recv_msk_rw = results[idx]['mask_reward']
+                        recv_label = results[idx]['emb_label']
+                        recv_dist = results[idx]['dist']
+
+                        # If the received distance is below the THRESHOLD and the agent
+                        # hasn't selected a best agent yet then select this response
+                        if recv_dist <= ParallelComm.THRESHOLD and selected == False:
+                            # Add the agent id and embedding/tasklabel from the agent
+                            # to a dictionary to send requests/rejections out to.
+                            send_msk_request[recv_agent_id] = recv_label
+
+                            # Make a note of the best agent id in memory of this agent
+                            # We will use this later to check the response from the best agent
+                            best_agent_id = recv_agent_id
+
+                            # Make the selected flag true so we don't pick anymore to send
+                            selected = True
+
+                        # If best selected or doesn't meet criteria, then send rejection
+                        # i.e., None
+                        else:
+                            send_msk_request[recv_agent_id] = None
+
+                        # We have checked the response so set it to False until the next task change
+                        # and request loop begins
+                        await_response[idx] = False
+
+                    # Need to fix this logging message
+                    self.logger.info('Meta data received from agent {0}'.format(idx))
+            print('Mask requests to send: ', send_msk_request)
+
+
+            #######################     COMMUNICATION STEP FOUR      #######################
+            ####################### SEND MASK REQUESTS OR REJECTIONS #######################
+            ### SEND MASK REQUEST OR REJECTION
+            # Send a response back to each agent that sent this agent metadata. Tell them to either
+            # send mask or move on.
+            if send_msk_request:
+                self.send_mask_request(send_msk_request)
+
+            ### RECV MASK REQUEST OR REJECTION
+            # Also receive the same response from other agents that this agent sent metadata to. 
+            # If other agents want a mask from this agent, then msk_requests will be populated
+            # with a dictionary for each request. The expecting dictionary is reset by the
+            # receive_mask_requests() function. Expecting should be empty at the end of this
+            # code segment.
+            msk_requests = []
+            if expecting:
+                expecting, msk_requests = self.receive_mask_requests(expecting)
+
+            print('Check expecting is empty: ', expecting)
+
+            ####################### COMMUNICATION STEP FIVE #######################
+            # Now the agent needs to send a mask to each agent in the msk_requests list
+            # if it is not empty.
+            if msk_requests:
+                # Iterate through the requests
+                for req in msk_requests:
+                    # Send a mask to the requesting agent
+                    agent_id = req['requester_agent_id']
+
+                    # Send label:id to agent
+                    _temp_label = req['task_label']
+                    queue_label_send.put((_temp_label, agent_id))
+                    print('Sending mask to agents part 1')
+
+            try:
+                mask, agent_id = queue_mask_recv.get_nowait()
+                self.send_mask_response((agent_id, mask))
+                print('Sending mask to agents part 2. All complete!')
+
             except Empty:
                 pass
-                
-            if self.mode == 'ondemand':
-                #######################   COMMUNICATION STEP ONE    #######################
-                ####################### REQUESTS BETWEEN ALL AGENTS #######################
-                # send out broadcast request to all other agents for task label
-                other_agents_request = []
-                other_agents_request = self.send_receive_request(msg)
-                print('Other agent requests: ', other_agents_request)
 
-                msg = None
+            # Expecting a response from the best agent id
+            received_mask = None
+            if best_agent_id:
+                # We want to get the mask from the best agent
+                received_mask = self.receive_mask_response(best_agent_id)
+                print('Received mask length: ', len(received_mask))
 
-                ### SYNCHRONISED LEARNING
-                '''
-                sync_learn = True
-                if sync_learn = True:
-                    # SYCHRONISE LEARNING
-                    # Iterate through the request
-                    # Gather the agent ids of similar task labels
-                    # create a process sub group (new_group) for the agent ids, including self id
-                    # all agents all_gather on subgroup their reward for the task
-                    # best agent broadcasts to the subgroup the mask that they have and other agents
-                    #       will distill the mask to their network and continue training.
+                # Reset the best agent id for the next request
+                best_agent_id = None
 
-                    # This all happens every iteration. (Unsure of the communication bandwidth requirements)
-
-                    # Go through the requests and take note of what agent is doing what task
-                    # We will know when an agent is still doing the same task if the update is None
-                    # otherwise the update will be a new task label request
-                    for req in other_agents_request:
-                        if req['msg_data'] is not None:
-                            track_tasks[req['sender_agent_id']] = req['task_label'].detach().cpu().numpy()
-
-                    print('TRACK TASKS: ', track_tasks)
-
-                    responses = list()
-                    sync_agents = list()
-                    for key, value in track_tasks.items():
-                        if key == agent_id: continue
-                        if key == None: continue
-
-                        # Change to distance calculation later
-                        if np.array_equal(value, shell_tasks[0]['task_label']):
-                            sync_agents.append(key)
-
-                    if sync_agents:
-                        sync_agents.append(agent_id)
-                        responses = self.sync_gather_meta(sync_agents)
-
-
-                    print('RESPONSES: ', responses)
-                    if responses:
-                        print("SENDING MASKS")
-                        # Check if responses reward is greater than this agents reward
-                        sorted_responses = sorted(responses, key=lambda d: d['mask_reward'])
-
-                        # If the first 
-                        if sorted_responses[0]['sender_agent_id'] == agent_id:
-                            # If the best agent is this one then send mask to all other agents
-                            mask = agent.label_to_mask(shell_tasks[0]['task_label'])
-                            for i in sync_agents():
-                                if i == agent_id: continue
-                                self.send_mask_response(i, mask)
-                        else:
-                            # except a mask from the best agent
-                            best_agent = sorted_responses[0]['sender_agent_id']
-                            mask = self.receive_mask_response(best_agent)
-                            agent.distil_task_knowledge_single(mask)
-                '''
-
-
-                #######################   COMMUNICATION STEP TWO    #######################
-                ####################### SEND AND RECV META REPONSES #######################
-                # Respond to received queries with metadata.
-                # Meta data contains the reward for the similar task, distance and the similar 
-                # tasklabel/embedding.
-
-                ### SEND META RESPONSES
-                # Go through each request from the network of agents
-                meta_responses = []
-                # if populated prepare metadata responses
-                if other_agents_request:
-                    for req in other_agents_request:
-                        # If the req is none, which it usually will be, just skip.
-                        if req['msg_data'] is None: continue
-                        
-                        # If the message is None then the agent has already requested and begun
-                        # working the task. So there is no need to update this agents task tracking dictionary
-                        # If the other agents do task change then they will do a fresh request. This will make the
-                        # request not None and this agent can update their task track.
-                        track_tasks[req['sender_agent_id']] = req['task_label']
-
-                        # If this agent has not learned anything yet, then respond with nothing
-                        if not mask_rewards_dict:
-                            continue
-
-                        # Otherwise send what it knows if appropriate
-
-                        # Compute the embedding distance. Maybe there is a better way to achieve this
-                        req_label_as_np = req['task_label'].detach().cpu().numpy()
-                        print('Requested label from agent {0}: {1}'.format(req['sender_agent_id'], req_label_as_np))
-                        print('Current knowledge base for this agent: ', mask_rewards_dict)
-
-                        # For each embedding/tasklabel reward pair, calculate the distance to the
-                        # requested embedding/tasklabel.
-                        # If the distance is below the THRESHOLD then send it back
-                        # otherwise send nothing back.
-                        for key, val in mask_rewards_dict.items():
-                            print(np.asarray(key), val)
-                            dist = np.sum(abs(np.subtract(req_label_as_np, np.asarray(key))))
-                            print(dist)
-
-                            # If the distance of the knowledge is below THRESHOLD then the embedding/tasklabels
-                            # are similar enough to send.
-                            if dist <= ParallelComm.THRESHOLD:
-                                print('Distance is good. Adding to dictionary')
-                                # Send the reward, distance and the embedding/tasklabel from this agent
-                                # note this will likely be different to the requested embedding/tasklabel
-                                # We send this agents embedding/tasklabel so that the requester can send
-                                # a mask request if required.
-                                req['mask_reward'] = val
-                                req['dist'] = dist
-                                req['resp_task_label'] = np.asarray(key)
-
-                                # Append the requester agent id. We use this to listen for a mask request
-                                # or to get rejected.
-                                expecting.append(req['sender_agent_id'])
-                                
-                                # Append the response to the requests to the 
-                                meta_responses.append(req)
-
-                            # Otherwise send nothing and do nothing
-                            else:
-                                meta_responses.append(None)
-                print('Meta responses to send: ', meta_responses)
-                print('Expecting mask request or rejection from these agents: ', expecting)
-                # Do a check and send out the meta responses to requests for knowledge
-                if meta_responses:
-                    # Send out the metadata for the embedding/tasklabel query
-                    self.send_meta_response(meta_responses)
-
-
-                ### RECV META RESPONSES
-                # Receive metadata response from other agents for a embedding/tasklabel request from 
-                # this agent.
-                send_msk_request = dict()
-                # Listen for any responses from other agents (containing the metadata)
-                # if the agent earlier sent a request, check whether response has been sent.
-                if any(await_response):
-                    logger.info('awaiting response: {0}'.format(await_response))
-                    results = self.receive_meta_response()
-                    print('Metadata responses to receive: ', results)
-
-                    # Sort received meta data by smallest distance (primary) and highest reward (secondary),
-                    # using full bidirectional multikey sorting (fancy words for such a simple concept)
-                    results = sorted(results, key=lambda d: (d['dist'], -d['mask_reward']))
-                    print('Metadata responses sorted: ', results)
-
-                    # Iterate through the await_response list. Upon task change this is an array:
-                    # [True,] * num_agents
-                    selected = False    # flag to check if the best agent of the lot has been selected
-                    for idx in range(len(await_response)):
-                        # Do some checks to remove to useless results
-                        if await_response[idx] is False: continue
-                        if results[idx] is False: continue
-                        elif results[idx] is None: await_response[idx] = False
-
-                        # Otherwise unpack the metadata
-                        else:
-                            recv_agent_id = results[idx]['agent_id']
-                            recv_msk_rw = results[idx]['mask_reward']
-                            recv_label = results[idx]['emb_label']
-                            recv_dist = results[idx]['dist']
-
-                            # If the received distance is below the THRESHOLD and the agent
-                            # hasn't selected a best agent yet then select this response
-                            if recv_dist <= ParallelComm.THRESHOLD and selected == False:
-                                # Add the agent id and embedding/tasklabel from the agent
-                                # to a dictionary to send requests/rejections out to.
-                                send_msk_request[recv_agent_id] = recv_label
-
-                                # Make a note of the best agent id in memory of this agent
-                                # We will use this later to check the response from the best agent
-                                best_agent_id = recv_agent_id
-
-                                # Make the selected flag true so we don't pick anymore to send
-                                selected = True
-
-                            # If best selected or doesn't meet criteria, then send rejection
-                            # i.e., None
-                            else:
-                                send_msk_request[recv_agent_id] = None
-
-                            # We have checked the response so set it to False until the next task change
-                            # and request loop begins
-                            await_response[idx] = False
-
-                        # Need to fix this logging message
-                        logger.info('Meta data received from agent {0}'.format(idx))
-                print('Mask requests to send: ', send_msk_request)
-
-
-                #######################     COMMUNICATION STEP FOUR      #######################
-                ####################### SEND MASK REQUESTS OR REJECTIONS #######################
-                ### SEND MASK REQUEST OR REJECTION
-                # Send a response back to each agent that sent this agent metadata. Tell them to either
-                # send mask or move on.
-                if send_msk_request:
-                    self.send_mask_request(send_msk_request)
-
-                ### RECV MASK REQUEST OR REJECTION
-                # Also receive the same response from other agents that this agent sent metadata to. 
-                # If other agents want a mask from this agent, then msk_requests will be populated
-                # with a dictionary for each request. The expecting dictionary is reset by the
-                # receive_mask_requests() function. Expecting should be empty at the end of this
-                # code segment.
-                msk_requests = []
-                if expecting:
-                    expecting, msk_requests = self.receive_mask_requests(expecting)
-
-                print('Check expecting is empty: ', expecting)
-
-                ####################### COMMUNICATION STEP FIVE #######################
-                # Now the agent needs to send a mask to each agent in the msk_requests list
-                # if it is not empty.
-                if msk_requests:
-                    # Iterate through the requests
-                    for req in msk_requests:
-                        # Send a mask to the requesting agent
-                        agent_id = req['requester_agent_id']
-
-                        # Send label:id to agent
-                        _temp_label = req['task_label']
-                        queue_label_send.put((_temp_label, agent_id))
-                        print('Sending mask to agents part 1')
-
-                try:
-                    mask, agent_id = queue_mask_recv.get_nowait()
-                    self.send_mask_response((agent_id, mask))
-                    print('Sending mask to agents part 2. All complete!')
-
-                except Empty:
-                    pass
-
-                # Expecting a response from the best agent id
-                received_mask = None
-                if best_agent_id:
-                    # We want to get the mask from the best agent
-                    received_mask = self.receive_mask_response(best_agent_id)
-                    print('Received mask length: ', len(received_mask))
-
-                    # Reset the best agent id for the next request
-                    best_agent_id = None
-
-                # Send the mask to the agent (mask or NoneType) as well as the other variables 
-                # used in the rest of the agent iteration. The communication loop will get
-                # these variables back in the next cycle after being updated by the agent.
-                queue_mask.put((receive_mask, track_tasks, mask_rewards_dict, await_response))
+            # Send the mask to the agent (mask or NoneType) as well as the other variables 
+            # used in the rest of the agent iteration. The communication loop will get
+            # these variables back in the next cycle after being updated by the agent.
+            queue_mask.put((received_mask, track_tasks, mask_rewards_dict, await_response))
             
-            elif self.mode == 'fetchall':
-                raise ValueError('{0} communication mode has not been implemented!'.format(mode))
-            else:
-                raise ValueError('{0} communication mode has not been implemented!'.format(mode))
+            #elif self.mode == 'fetchall':
+            #    raise ValueError('{0} communication mode has not been implemented!'.format(mode))
+            #else:
+            #    raise ValueError('{0} communication mode has not been implemented!'.format(mode))
 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
         p = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop))
