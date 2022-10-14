@@ -286,6 +286,7 @@ ShELL distributed system with multiprocessing.
 Currently only communication. Data collection and model optimisation to be added
 in the future.
 '''
+
 ##### Minigrid environment
 def shell_dist_minigrid_mp(name, args, shell_config):
     shell_config_path = args.shell_config_path

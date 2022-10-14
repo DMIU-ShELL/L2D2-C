@@ -540,7 +540,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     else:
         itr_log_fn = _shell_itr_log
 
-    await_response = [False,] * num_agents # flag
+    await_response = [True,] * num_agents # flag
     # set the first task each agent is meant to train on
     states_ = agent.task.reset_task(shell_tasks[0])
     agent.states = agent.config.state_normalizer(states_)
@@ -559,10 +559,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     # this will ensure that other agents are aware that this agent is now working this task
     # until a task change happens.
     msg = shell_tasks[0]['task_label']
-    # Store the best agent id for quick reference
-    best_agent_id = None
-    # Store list of agent IDs that this agent has sent metadata to
-    expecting = list()
+    
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
     mask_rewards_dict = dict()
 
@@ -572,18 +569,25 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     track_tasks = {agent_id: msg}
 
 
-
+    # Agent-Communication interaction queues
     manager = mp.Manager()
-    queue_agent = manager.Queue()
-    queue_comm = manager.Queue()
+    queue_mask = manager.Queue()
+    queue_label = manager.Queue()
+    queue_label_send = manager.Queue()  # Used to send label from comm to agent to convert to mask
+    queue_mask_recv = manager.Queue()   # Used to send mask from agent to comm after conversion from label
+    queue_loop = manager.Queue()
+
+    # Put in the initial data into the loop queue so that the comm module is not blocking the agent
+    # from running.
+    queue_loop.put((track_tasks, mask_rewards_dict, await_response))
 
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
     # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    comm.parallel(msg, track_tasks, mask_rewards_dict, expecting, best_agent_id, await_response, queue_comm, queue_agent)
-    msg = None
+    pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
     
     while True:
+        print('Msg in this iteration: ', msg)
         # If world size is 1 then act as an individual agent.
         ######################## COMMUNICATION MODULE HANDLING ########################
         '''
@@ -592,35 +596,38 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
         regardless of whether the communication module gets a mask or not.
         '''
         if num_agents > 1:
-            # Check if the communication module has anything it needs the agent to do but don't
-            # wait on it. If there is get it done otherwise move on to the priority stuff
-            # The only thing the communication module might potentially need the agent to do is
-            # convert a label to a mask and return it
+            # Check if the communication module has sent a label to be converted to a mask
+            # convert it and send it back to the agent
             try:
-                comm_label = queue_agent.get_nowait()
-                queue_agent.put(agent.label_to_mask(comm_label))
-                del comm_label
+                comm_label = queue_label_send.get_nowait()              # receive label
+                queue_mask_recv.put(agent.label_to_mask(comm_label))    # convert label and send
+                del comm_label                                          # delete the stored label
             except Empty:
                 pass
             
-            # If the msg is a task label and not None then send the task label to the communication
-            # module, which is patiently waiting for a msg to be sent. Once a request is sent to the
-            # communication module to get worthy masks, reset the msg
-            if msg is not None:
-                queue_comm.put(msg)
+            # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
+            # the communication module will do its thing.
+            print("Agent requesting mask for label: ", msg)
+            print()
+            queue_label.put(msg)
 
             # Get the mask when it is available but don't wait on the communication module. Continue
             # with the iteration regardless of mask being available. Once the mask is available in
             # an iteration cycle, then distil the knowledge to the network which should dramatically
             # improve performance.
             try:
-                mask = queue_comm.get_nowait()
-                print(mask)
-                agent.distil_task_knowledge_single(mask)
+                mask = queue_label.get_nowait()
+                print("Agent received a mask from comm: ", mask)
+                print()
+                if torch.is_tensor(mask):
+                    agent.distil_task_knowledge_single(mask)
                 del mask
 
             except Empty:
                 pass # continue with the iteration
+
+            
+            
 
             msg = None # reset message
 
@@ -733,7 +740,10 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # receive/send request cycle.
                 logger.info('*****agent {0} / query other agents using current task label'\
                     .format(agent_id))
+
+                # Update the msg, track_tasks dict for this agent and reset await_responses for new task
                 msg = shell_tasks[task_counter_]['task_label']
+                track_tasks[agent_id] = msg
                 await_response = [True,] * num_agents
                 del states_
                 print()
