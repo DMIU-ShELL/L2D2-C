@@ -725,7 +725,7 @@ class ParallelComm(object):
             other_agents_request = self.send_receive_request(msg)
             print('Other agent requests: ', other_agents_request)
 
-            msg = None
+            #msg = None
 
             ### SYNCHRONISED LEARNING
             '''

@@ -604,6 +604,37 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 pass'''
 
             print('START OF ITERATION: ', track_tasks, mask_rewards_dict, await_response)
+
+            # Get the mask when it is available but don't wait on the communication module. Continue
+            # with the iteration regardless of mask being available. Once the mask is available in
+            # an iteration cycle, then distil the knowledge to the network which should dramatically
+            # improve performance.
+            try:
+                print('HERE')
+                mask, track_tasks_temp, await_response = queue_mask.get_nowait()
+                if torch.is_tensor(mask):
+                    agent.distil_task_knowledge_single(mask)
+                    del mask
+
+                if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
+                    track_tasks = track_tasks_temp
+                    del track_tasks_temp
+
+                else:
+                    temp_self_task = track_tasks[agent_id]
+                    track_tasks = track_tasks_temp
+                    track_tasks[agent_id] = temp_self_task
+                    del track_tasks_temp, temp_self_task
+                    
+                print('Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
+                print()
+
+            except Empty:
+                pass # continue with the iteration
+
+
+            # Update the communication module with the latest information from this iteration
+            queue_loop.put((track_tasks, mask_rewards_dict, await_response))
             
             # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
             # the communication module will do its thing.
@@ -612,9 +643,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             print()
 
             
-            
-
-            msg = None # reset message
+            #msg = None # reset message
 
         ######################## AGENT ITERATION AND LOGGING ########################
         '''
@@ -752,36 +781,6 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             # reset eval tracker and add new buffer to save next eval metrics
             shell_eval_tracker = False
             shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
-
-
-
-        # Get the mask when it is available but don't wait on the communication module. Continue
-        # with the iteration regardless of mask being available. Once the mask is available in
-        # an iteration cycle, then distil the knowledge to the network which should dramatically
-        # improve performance.
-        try:
-            print('HERE')
-            mask, track_tasks_temp, await_response = queue_mask.get_nowait()
-            print('Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
-            print()
-            if torch.is_tensor(mask):
-                agent.distil_task_knowledge_single(mask)
-            del mask
-
-            if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
-                track_tasks = track_tasks_temp
-                del track_tasks_temp
-
-            else:
-                temp_self_task = track_tasks[agent_id]
-                track_tasks = track_tasks_temp
-                track_tasks[agent_id] = temp_self_task
-                del track_tasks_temp, temp_self_task
-
-        except Empty:
-            pass # continue with the iteration
-
-        queue_loop.put((track_tasks, mask_rewards_dict, await_response))
 
 
         # If ShELL is finished running all tasks then stop the program
