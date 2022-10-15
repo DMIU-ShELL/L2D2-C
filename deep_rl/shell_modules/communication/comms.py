@@ -280,7 +280,7 @@ class ParallelComm(object):
         '''
         self.logger.info('*****agent {0} / initialising transfer (communication) module'.format(self.agent_id))
         dist.init_process_group(backend='gloo', init_method=self.comm_init_str, rank=self.agent_id, \
-            world_size=self.num_agents, timeout=datetime.timedelta(seconds=30))
+            world_size=self.num_agents)
 
     def _null_message(self, msg):
         # check whether message sent denotes or is none.
@@ -326,11 +326,15 @@ class ParallelComm(object):
             data[ParallelComm.META_INF_IDX_TASK_SZ : ] = emb_label # NOTE deepcopy?
 
 
+        self.logger.info('actual send, recv')
         # actual send/receive
         self.handle_send_recv_req = dist.all_gather(tensor_list=self.buff_send_recv_req, \
             tensor=data, async_op=True)
 
+
+        #time.sleep(ParallelComm.SLEEP_DURATION)
         self.handle_send_recv_req.wait()
+        print(self.buff_send_recv_req)
 
 
         # briefly wait to see if other agents will send their request
@@ -681,6 +685,11 @@ class ParallelComm(object):
 
     '''
     def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
+
+        # Initialise the process group for torch distributed
+        self.init_dist()
+
+
         msg = None
         # Store the best agent id for quick reference
         best_agent_id = None
@@ -688,11 +697,12 @@ class ParallelComm(object):
         expecting = list()
 
         # initial state of input variables to loop
-        
+        comm_iter = 0
         while True:
-            self.logger.info('IN COMMUNICATION MODULE')
+            comm_iter += 1
             # Get the latest states of these variables
             track_tasks, mask_rewards_dict, await_response = queue_loop.get()
+            print('COMMUNICATION ITERATION: ', comm_iter)
             print(track_tasks, mask_rewards_dict, await_response)
             
             # Try getting the label request, otherwise it will be NoneType
@@ -701,16 +711,19 @@ class ParallelComm(object):
                 # first completed communication loop. After that the msg will be None until a new query
                 # is requested from the agent.
                 msg = queue_label.get_nowait()
-                self.logger.info('Comm Module msg this iter: ', msg, flush=True)
+                print('Comm Module msg this iter: ', msg)
             except Empty:
                 print('FAILED')
-                
+            
+            
             #if self.mode == 'ondemand':
             #######################   COMMUNICATION STEP ONE    #######################
             ####################### REQUESTS BETWEEN ALL AGENTS #######################
             # send out broadcast request to all other agents for task label
+            print(msg)
+            print('Doing request')
             other_agents_request = self.send_receive_request(msg)
-            self.logger.info('Other agent requests: ', other_agents_request)
+            print('Other agent requests: ', other_agents_request)
 
             msg = None
 
@@ -795,47 +808,46 @@ class ParallelComm(object):
                     track_tasks[req['sender_agent_id']] = req['task_label']
 
                     # If this agent has not learned anything yet, then respond with nothing
-                    if not mask_rewards_dict:
-                        continue
+                    if mask_rewards_dict:
+                        # Otherwise send what it knows if appropriate
+                        # Compute the embedding distance. Maybe there is a better way to achieve this
+                        req_label_as_np = req['task_label'].detach().cpu().numpy()
+                        print('Requested label from agent {0}: {1}'.format(req['sender_agent_id'], req_label_as_np))
+                        print('Current knowledge base for this agent: ', mask_rewards_dict)
 
-                    # Otherwise send what it knows if appropriate
+                        # For each embedding/tasklabel reward pair, calculate the distance to the
+                        # requested embedding/tasklabel.
+                        # If the distance is below the THRESHOLD then send it back
+                        # otherwise send nothing back.
+                        for key, val in mask_rewards_dict.items():
+                            print(np.asarray(key), val)
+                            dist = np.sum(abs(np.subtract(req_label_as_np, np.asarray(key))))
+                            print(dist)
 
-                    # Compute the embedding distance. Maybe there is a better way to achieve this
-                    req_label_as_np = req['task_label'].detach().cpu().numpy()
-                    print('Requested label from agent {0}: {1}'.format(req['sender_agent_id'], req_label_as_np))
-                    print('Current knowledge base for this agent: ', mask_rewards_dict)
+                            # If the distance of the knowledge is below THRESHOLD then the embedding/tasklabels
+                            # are similar enough to send.
+                            if dist <= ParallelComm.THRESHOLD:
+                                print('Distance is good. Adding to dictionary')
+                                # Send the reward, distance and the embedding/tasklabel from this agent
+                                # note this will likely be different to the requested embedding/tasklabel
+                                # We send this agents embedding/tasklabel so that the requester can send
+                                # a mask request if required.
+                                req['mask_reward'] = val
+                                req['dist'] = dist
+                                req['resp_task_label'] = np.asarray(key)
 
-                    # For each embedding/tasklabel reward pair, calculate the distance to the
-                    # requested embedding/tasklabel.
-                    # If the distance is below the THRESHOLD then send it back
-                    # otherwise send nothing back.
-                    for key, val in mask_rewards_dict.items():
-                        print(np.asarray(key), val)
-                        dist = np.sum(abs(np.subtract(req_label_as_np, np.asarray(key))))
-                        print(dist)
+                                # Append the requester agent id. We use this to listen for a mask request
+                                # or to get rejected.
+                                expecting.append(req['sender_agent_id'])
+                                
+                                # Append the response to the requests to the 
+                                meta_responses.append(req)
 
-                        # If the distance of the knowledge is below THRESHOLD then the embedding/tasklabels
-                        # are similar enough to send.
-                        if dist <= ParallelComm.THRESHOLD:
-                            print('Distance is good. Adding to dictionary')
-                            # Send the reward, distance and the embedding/tasklabel from this agent
-                            # note this will likely be different to the requested embedding/tasklabel
-                            # We send this agents embedding/tasklabel so that the requester can send
-                            # a mask request if required.
-                            req['mask_reward'] = val
-                            req['dist'] = dist
-                            req['resp_task_label'] = np.asarray(key)
+                            # Otherwise send nothing and do nothing
+                            else:
+                                meta_responses.append(None)
 
-                            # Append the requester agent id. We use this to listen for a mask request
-                            # or to get rejected.
-                            expecting.append(req['sender_agent_id'])
-                            
-                            # Append the response to the requests to the 
-                            meta_responses.append(req)
 
-                        # Otherwise send nothing and do nothing
-                        else:
-                            meta_responses.append(None)
             print('Meta responses to send: ', meta_responses)
             print('Expecting mask request or rejection from these agents: ', expecting)
             # Do a check and send out the meta responses to requests for knowledge
@@ -848,6 +860,8 @@ class ParallelComm(object):
             # Receive metadata response from other agents for a embedding/tasklabel request from 
             # this agent.
             send_msk_request = dict()
+
+            print('Awaiting Responses? ', await_response)
             # Listen for any responses from other agents (containing the metadata)
             # if the agent earlier sent a request, check whether response has been sent.
             if any(await_response):
@@ -948,6 +962,8 @@ class ParallelComm(object):
 
             # Expecting a response from the best agent id
             received_mask = None
+
+            print('Best Agent: ', best_agent_id)
             if best_agent_id:
                 # We want to get the mask from the best agent
                 received_mask = self.receive_mask_response(best_agent_id)
@@ -956,10 +972,14 @@ class ParallelComm(object):
                 # Reset the best agent id for the next request
                 best_agent_id = None
 
+
+
+            print('Returning to agent')
             # Send the mask to the agent (mask or NoneType) as well as the other variables 
             # used in the rest of the agent iteration. The communication loop will get
             # these variables back in the next cycle after being updated by the agent.
-            queue_mask.put((received_mask, track_tasks, mask_rewards_dict, await_response))
+            queue_mask.put((received_mask, track_tasks, await_response))
+            print('Return completed')
             
             #elif self.mode == 'fetchall':
             #    raise ValueError('{0} communication mode has not been implemented!'.format(mode))

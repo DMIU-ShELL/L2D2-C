@@ -50,6 +50,18 @@ class Agent(object):
 class Communication(object):
     def __init__(self):
         self.mask = [0, 0, 1]
+        self.init_address = '127.0.0.1'
+        self.comm_init_str = 'env://'
+        self.init_port = 25001
+        self.
+
+    def init_dist(self):
+        '''
+        Initialise the process group for torch.
+        '''
+        self.logger.info('*****agent {0} / initialising transfer (communication) module'.format(self.agent_id))
+        dist.init_process_group(backend='gloo', init_method=self.comm_init_str, rank=self.agent_id, \
+            world_size=self.num_agents)
 
     # replace with actual communication code
     def get_mask_from_network(self):
@@ -58,7 +70,7 @@ class Communication(object):
 
     def do_something(self, queue_c, queue_a):
         while True:
-            time.sleep(1)
+            time.sleep(3)
             try:
                 msg = queue_c.get_nowait()
                 print('Received task: ', msg)
@@ -87,31 +99,39 @@ if __name__ == '__main__':
 
 
     agent = Agent(0)
-    agent_p = agent.run_iteration_loop(queue_a, queue_c)
+    #agent_p = agent.run_iteration_loop(queue_a, queue_c)
 
     comm = Communication()
     comm_p = comm.run_comm_loop(queue_c, queue_a)
 
-    comm_p.join()
-    agent_p.join()
+
+    msg = 'Get Mask!'
+
+    #comm_p.join()
+    #agent_p.join()
+    while True:
+        time.sleep(3)
 
 
+        # if the task label has changed tell comm to get mask
+        #if msg is not None:
+        queue_c.put(msg)
 
-    """
-    queue = multiprocessing.Queue()
+        # then check if comm has sent a mask in this cycle. otherwise get it in a later cycle
+        try:
+            mask = queue_a.get_nowait()
+            print('Received mask: ', mask, '. Distilling knowledge to network!')
+        except Empty:
+            print('No mask from network. Continue learning from scratch')
+            
 
-    size = 2
-    processes = []
+        msg = None
 
-    for rank in size:
-        p = multiprocessing.Process(target=worker, args=(queue,))
-        p.start()
-        processes.append(p)
-    
-    queue.put(MyFancyClass('Fancy Dan'))
-    
-    # Wait for the worker to finish
-    queue.close()
-    queue.join_thread()
-    p.join()
-    """
+        print(mp.current_process().name, 'Iteration: ', agent.iteration)
+        agent.iteration += 1
+
+        # task change
+        if agent.iteration == 5:
+            agent.iteration = 0
+            print('Task changing. Do Query')
+            msg = 'Get Mask!'
