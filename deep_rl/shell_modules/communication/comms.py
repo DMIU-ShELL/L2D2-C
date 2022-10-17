@@ -7,8 +7,6 @@ _________                                           .__                  __   ._
  \______  / \____/ |__|_|  /|__|_|  /|____/ |___|  /|__| \___  >(____  /|__|  |__| \____/ |___|  /
         \/               \/       \/             \/          \/      \/                        \/ 
 
-                                        TOOL Lateralus: Schism
-
 '''
 import os
 import copy
@@ -257,23 +255,23 @@ class ParallelComm(object):
         self.handle_recv_resp = [None, ] * num_agents
         self.handle_send_resp = [None, ] * num_agents
 
-        self.buff_send_recv_req = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ + emb_label_sz, ) \
+        self.buff_send_recv_req = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ + emb_label_sz, dtype=torch.float32) \
             * torch.inf for _ in range(num_agents)]
 
-        self.buff_send_recv_meta = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, ) \
+        self.buff_send_recv_meta = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) \
             * torch.inf for _ in range(num_agents)]
 
-        self.buff_recv_resp_task = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, ) * torch.inf \
+        self.buff_recv_resp_task = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
             for _ in range(num_agents)]
-        self.buff_send_resp_task = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, ) * torch.inf \
-            for _ in range(num_agents)]
-
-        self.buff_recv_resp = [torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, ) * torch.inf \
-            for _ in range(num_agents)]
-        self.buff_send_resp = [torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, ) * torch.inf \
+        self.buff_send_resp_task = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
             for _ in range(num_agents)]
 
-        self.buff_send_recv_msk_req = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ + emb_label_sz, ) * torch.inf
+        self.buff_recv_resp = [torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf \
+            for _ in range(num_agents)]
+        self.buff_send_resp = [torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf \
+            for _ in range(num_agents)]
+
+        self.buff_send_recv_msk_req = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ + emb_label_sz, dtype=torch.float32) * torch.inf
 
     def init_dist(self):
         '''
@@ -282,6 +280,8 @@ class ParallelComm(object):
         self.logger.info('*****agent {0} / initialising transfer (communication) module'.format(self.agent_id))
         dist.init_process_group(backend='gloo', init_method=self.comm_init_str, rank=self.agent_id, \
             world_size=self.num_agents)
+
+        return dist.is_initialized()
 
     def _null_message(self, msg):
         # check whether message sent denotes or is none.
@@ -415,7 +415,7 @@ class ParallelComm(object):
             buff[ParallelComm.META_INF_IDX_DIST] = distance
             buff[ParallelComm.META_INF_IDX_TASK_SZ_ :] = emb_label
 
-        self.logger.info('Sending metadata to agent {0}: {1}'.format(dst_agent_id, buff))
+        self.logger.info('Sending metadata to agent {0}: {1}'.format(dst_agent_id, buff, buff.dtype))
         # actual send
         self.handle_send_resp[dst_agent_id] = dist.isend(tensor=buff, dst=dst_agent_id)
         #self.handle_send_resp[dst_agent_id].wait()
@@ -434,6 +434,8 @@ class ParallelComm(object):
                     self.logger.info('recv_resp: set up handle to receive response from agent {0}'.format(idx))
                     self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_resp_task[idx], src=idx)
                     self.handle_recv_resp[idx].wait()
+
+            print('COMPLETED RECEPTION')
 
             #time.sleep(ParallelComm.SLEEP_DURATION)
 
@@ -486,6 +488,7 @@ class ParallelComm(object):
         pool2 = mp.pool.ThreadPool(processes=1)
 
         _result = pool1.apply_async(self.send_meta_response, (requesters,))
+        time.sleep(0.2)
         result = pool2.apply_async(self.receive_meta_response, (await_response,))
 
         return result.get()
@@ -819,8 +822,6 @@ class ParallelComm(object):
         '''
         pass
 
-
-
     ### Core functions
     '''
     Takes:
@@ -833,7 +834,9 @@ class ParallelComm(object):
     def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
 
         # Initialise the process group for torch distributed
-        self.init_dist()
+        proc_check = self.init_dist()
+
+        #queue_mask.put(proc_check)
 
 
         msg = None
