@@ -509,6 +509,7 @@ ShELL distributed trainer using multiprocessing communication. Multiprocessing a
 added in the future.
 '''
 import multiprocess as mp
+from colorama import Fore, Back, Style
 
 def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     logger = agent.config.logger
@@ -585,7 +586,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
 
     while True:
-        print('Msg in this iteration: ', msg)
+        print(Fore.BLUE + 'Msg in this iteration: ', msg)
         # If world size is 1 then act as an individual agent.
         ######################## COMMUNICATION MODULE HANDLING ########################
         '''
@@ -603,16 +604,18 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             except Empty:
                 pass'''
 
-            print('START OF ITERATION: ', track_tasks, mask_rewards_dict, await_response)
+            print(Fore.BLUE + 'START OF ITERATION: ', track_tasks, mask_rewards_dict, await_response)
 
             # Get the mask when it is available but don't wait on the communication module. Continue
             # with the iteration regardless of mask being available. Once the mask is available in
             # an iteration cycle, then distil the knowledge to the network which should dramatically
             # improve performance.
             try:
-                print('HERE')
+                print(Fore.BLUE + 'HERE')
                 mask, track_tasks_temp, await_response = queue_mask.get_nowait()
+                print(mask)
                 if torch.is_tensor(mask):
+                    print('KNOWLEDGE DISTILLED TO NETWORK')
                     agent.distil_task_knowledge_single(mask)
                     del mask
 
@@ -626,20 +629,21 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                     track_tasks[agent_id] = temp_self_task
                     del track_tasks_temp, temp_self_task
                     
-                print('Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
+                print(Fore.BLUE + 'Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
                 print()
 
             except Empty:
                 pass # continue with the iteration
 
-
+            
+            await_response = [True,] * num_agents
             # Update the communication module with the latest information from this iteration
             queue_loop.put((track_tasks, mask_rewards_dict, await_response))
             
             # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
             # the communication module will do its thing.
             queue_label.put(msg)
-            print("Agent requesting mask for label: ", msg)
+            print(Fore.BLUE + "Agent requesting mask for label: ", msg)
             print()
 
             
@@ -758,7 +762,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # Update the msg, track_tasks dict for this agent and reset await_responses for new task
                 msg = shell_tasks[task_counter_]['task_label']
                 track_tasks[agent_id] = torch.from_numpy(msg)
-                await_response = [True,] * num_agents
+                #await_response = [True,] * num_agents
                 del states_
                 print()
             else:

@@ -435,7 +435,7 @@ def shell_dist_minigrid_mp_v2(name, args, shell_config):
 if __name__ == '__main__':
     mkdir('log')
     set_one_thread()
-    select_device(0)
+    select_device(1)
 
     mp.set_start_method('fork', force=True)
 
