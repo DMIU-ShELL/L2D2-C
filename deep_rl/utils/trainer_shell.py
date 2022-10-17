@@ -574,7 +574,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
     # Put in the initial data into the loop queue so that the comm module is not blocking the agent
     # from running.
-    queue_loop.put((track_tasks, mask_rewards_dict, await_response))
+    queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response))
 
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
@@ -582,8 +582,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
 
 
-    #check = queue_mask.get()
-    check = True
+    check = queue_mask.get()
+    #check = True
     if check:
         while True:
             print(Fore.BLUE + 'Msg in this iteration: ', msg)
@@ -638,11 +638,11 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 
                 await_response = [True,] * num_agents
                 # Update the communication module with the latest information from this iteration
-                queue_loop.put((track_tasks, mask_rewards_dict, await_response))
+                queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response))
                 
                 # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
                 # the communication module will do its thing.
-                queue_label.put(msg)
+                queue_label.put_nowait(msg)
                 print(Fore.BLUE + "Agent requesting mask for label: ", msg)
                 print()
 
