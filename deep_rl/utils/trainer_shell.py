@@ -582,8 +582,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
 
 
-    check = queue_mask.get()
-    #check = True
+    #check = queue_mask.get()
+    check = True
     if check:
         while True:
             print(Fore.BLUE + 'Msg in this iteration: ', msg)
@@ -595,14 +595,20 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             regardless of whether the communication module gets a mask or not.
             '''
             if num_agents > 1:
-                '''# Check if the communication module has sent a label to be converted to a mask
+                # Check if the communication module has sent a label to be converted to a mask
                 # convert it and send it back to the agent
                 try:
-                    comm_label = queue_label_send.get_nowait()              # receive label
-                    queue_mask_recv.put(agent.label_to_mask(comm_label))    # convert label and send
+                    print('Agent checking for any label conversion req')
+                    comm_label, dst_agent_id = queue_label_send.get_nowait()              # receive label
+                    print(comm_label, type)
+                    comm_label = comm_label.detach().cpu().numpy()
+                    print('Requested label:', comm_label)
+                    queue_mask_recv.put((agent.label_to_mask(comm_label), dst_agent_id))    # convert label and send
+                    print('Mask sent to comm!')
                     del comm_label                                          # delete the stored label
                 except Empty:
-                    pass'''
+                    print('No label to convert to mask')
+                    pass
 
                 print(Fore.BLUE + 'START OF ITERATION: ', track_tasks, mask_rewards_dict, await_response)
 

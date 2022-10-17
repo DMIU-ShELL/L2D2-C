@@ -431,6 +431,10 @@ def shell_dist_minigrid_mp_v2(name, args, shell_config):
     # start training
     shell_dist_train_mp_v2(agent, comm, args.agent_id, args.num_agents)
 
+def shell_dist_minigrid_eval():
+    pass
+
+
 
 if __name__ == '__main__':
     mkdir('log')
@@ -445,6 +449,7 @@ if __name__ == '__main__':
     parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
+    parser.add_argument('--eval', help='indicate evaluation agent', type=int, default=0)
     args = parser.parse_args()
 
     print(args)
@@ -455,9 +460,9 @@ if __name__ == '__main__':
         del shell_config['agents'][args.agent_id]
 
     if shell_config['env']['env_name'] == 'minigrid':
-        if args.exp_id == 'v2':
+        if args.eval == 1:
             name = Config.ENV_MINIGRID
-            shell_dist_minigrid_mp_v2(name, args, shell_config)
+            shell_dist_minigrid_eval(name, args, shell_config)
         else:
             name = Config.ENV_MINIGRID
             shell_dist_minigrid_mp(name, args, shell_config)
