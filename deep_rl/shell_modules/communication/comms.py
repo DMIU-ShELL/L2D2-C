@@ -671,7 +671,7 @@ class ParallelComm(object):
 
             else:
                 buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_MSK
-                buff[ParallelComm.META_INF_SZ : ] = mask # NOTE deepcopy?
+                buff[ParallelComm.META_INF_IDX_MASK_SZ : ] = mask # NOTE deepcopy?
 
             print('send_mask(): sending buffer', buff, flush=True)
 
@@ -689,7 +689,7 @@ class ParallelComm(object):
         print(Fore.GREEN + 'Send Mask Best Agent ID: ', best_agent_id, flush=True)
         if best_agent_id:
             # We want to get the mask from the best agent
-            buff = torch.ones_like(self.buff_recv_mask[best_agent_id]) * torch.inf
+            buff = torch.ones_like(self.buff_recv_mask[self.agent_id]) * torch.inf
             print(buff, len(buff))
             # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
             print('Mask recv start')
@@ -697,7 +697,7 @@ class ParallelComm(object):
             req.wait()
             print('Mask recv end')
             #time.sleep(ParallelComm.SLEEP_DURATION)
-
+            print('Mask after recv:', buff)
             # If the buffer was a null response (which it shouldn't be)
             # *meep*
             if self._null_message(buff):
@@ -707,7 +707,8 @@ class ParallelComm(object):
             # otherwise return the mask
             elif buff[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_MSK:
                 if buff[ParallelComm.META_INF_IDX_PROC_ID] == best_agent_id:
-                    return buff[ParallelComm.META_INF_IDX_MASK_SZ : ]
+                    received_mask = copy.deepcopy(buff[ParallelComm.META_INF_IDX_MASK_SZ :])
+                    #return buff[ParallelComm.META_INF_IDX_MASK_SZ : ]
 
 
             #received_mask = self.receive_mask_response(best_agent_id)
@@ -858,12 +859,13 @@ class ParallelComm(object):
         # Store the best agent id for quick reference
         best_agent_id = None
         # Store list of agent IDs that this agent has sent metadata to
-        expecting = list()
+        #expecting = list()
 
         # initial state of input variables to loop
         comm_iter = 0
         while True:
             comm_iter += 1
+            expecting = list()
             # Get the latest states of these variables
             track_tasks, mask_rewards_dict, await_response = queue_loop.get()
             print(Fore.GREEN + 'COMMUNICATION ITERATION: ', comm_iter)
@@ -1024,9 +1026,10 @@ class ParallelComm(object):
                                 meta_responses.append(d)
 
 '''
-            
+
             if other_agents_request:
                 for req in other_agents_request:
+                    print(req)
                     # If the req is none, which it usually will be, just skip.
                     if req['msg_data'] is None: continue
                     
@@ -1073,6 +1076,7 @@ class ParallelComm(object):
                                 
                                 # Append the response to the requests to the 
                                 meta_responses.append(d)
+                                break
 
                             # Otherwise send nothing and do nothing
                             else:
@@ -1249,11 +1253,11 @@ class ParallelComm(object):
 
             received_mask = None
 
+            masks_list = []
             if msk_requests:
                 print('Agent has entered send_mask()')
                 # Iterate through the requests
                 # Send the label to be converted, to the agent
-                masks_list = []
                 for req in msk_requests:
                     d = {}
                     print('Mask Requests: ', req, flush=True)
@@ -1275,7 +1279,8 @@ class ParallelComm(object):
                     d['dst_agent_id'] = dst_agent_id
                     masks_list.append(d)
                     
-                received_mask, best_agent_id = self.send_recv_mask(masks_list, best_agent_id)
+            print('Checking before send_recv_mask():', masks_list, best_agent_id)
+            received_mask, best_agent_id = self.send_recv_mask(masks_list, best_agent_id)
 
 
             print(Fore.GREEN + 'Returning to agent', received_mask, best_agent_id, flush=True)

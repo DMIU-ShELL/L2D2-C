@@ -639,7 +639,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                         track_tasks[agent_id] = temp_self_task
                         del track_tasks_temp, temp_self_task
                         
-                    print(Fore.BLUE + 'Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
+                    #print(Fore.BLUE + 'Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
                     print()
 
                 except Empty:
