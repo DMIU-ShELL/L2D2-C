@@ -623,9 +623,9 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 try:
                     print(Fore.BLUE + 'HERE')
                     mask, track_tasks_temp, await_response = queue_mask.get_nowait()
-                    print(mask)
-                    if torch.is_tensor(mask):
-                        print('KNOWLEDGE DISTILLED TO NETWORK')
+                    print('Agent received mask from comm for query:', type(mask), mask, flush=True)
+                    if mask is not None:
+                        print('KNOWLEDGE DISTILLED TO NETWORK', flush=True)
                         agent.distil_task_knowledge_single(mask)
                         del mask
 

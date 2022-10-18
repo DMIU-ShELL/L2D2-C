@@ -396,6 +396,7 @@ class ParallelComm(object):
             emb_label = torch.tensor(emb_label, dtype=torch.float32)
 
 
+        # Consider changing to local buffer
         buff = self.buff_send_task[dst_agent_id]
         buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
         buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
@@ -475,7 +476,7 @@ class ParallelComm(object):
                         d = {}
                         d['agent_id'] = int(_buff[0])
                         d['mask_reward'] = float(_buff[3])
-                        d['dist'] = int(_buff[4])
+                        d['dist'] = float(_buff[4])
                         d['emb_label'] = _buff[5:].detach().cpu().numpy()
                         ret.append(d)
                         
@@ -653,7 +654,9 @@ class ParallelComm(object):
 
     # Multi-threaded handling of mask send recv
     def send_mask(self, masks_list):
+        print('Agent entered send_mask() actual')
         for item in masks_list:
+            print(item)
             mask = item['mask']
             dst_agent_id = item['dst_agent_id']
 
@@ -665,24 +668,28 @@ class ParallelComm(object):
 
             if mask is None:
                 buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
-                buff[ParallelComm.META_INF_SZ : ] = torch.inf
 
             else:
                 buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_MSK
                 buff[ParallelComm.META_INF_SZ : ] = mask # NOTE deepcopy?
 
-            print('Buffer to be sent with mask: ', buff, flush=True)
+            print('send_mask(): sending buffer', buff, flush=True)
+
+            #print('Buffer to be sent with mask: ', buff, flush=True)
             # Send the mask to the destination agent id
+            print('Starting send data')
             req = dist.isend(tensor=buff, dst=dst_agent_id)
             req.wait()
-            print('Sending mask to agents part 2. All complete!')
+            print('send_mask() completed. Returning')
+            #print('Sending mask to agents part 2. All complete!')
         return
     def receive_mask(self, best_agent_id):
         received_mask = None
-        print(Fore.GREEN + 'Best Agent: ', best_agent_id)
+        print('Agent entered receive_mask()')
+        print(Fore.GREEN + 'Send Mask Best Agent ID: ', best_agent_id, flush=True)
         if best_agent_id:
             # We want to get the mask from the best agent
-            buff = torch.ones_like(self.buff_recv_mask[0]) * torch.inf
+            buff = torch.ones_like(self.buff_recv_mask[best_agent_id]) * torch.inf
             print(buff, len(buff))
             # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
             print('Mask recv start')
@@ -692,7 +699,7 @@ class ParallelComm(object):
             #time.sleep(ParallelComm.SLEEP_DURATION)
 
             # If the buffer was a null response (which it shouldn't be)
-            # meep
+            # *meep*
             if self._null_message(buff):
                 # Shouldn't reach this hopefully :^)
                 return None
@@ -716,10 +723,20 @@ class ParallelComm(object):
         pool1 = mp.pool.ThreadPool(processes=1)
         pool2 = mp.pool.ThreadPool(processes=1)
 
-        _ = pool1.apply_async(self.send_mask, (masks_list,))
-        result = pool2.apply_async(self.receive_mask, (best_agent_id,))
+        if masks_list:
+            print('send_mask():', masks_list)
+            _ = pool1.apply_async(self.send_mask, (masks_list,))
 
-        return result.get()
+        if best_agent_id:
+            print('recv_mask():', best_agent_id)
+            result = pool2.apply_async(self.receive_mask, (best_agent_id,))
+            mask, best_agent_id = result.get()
+            # Return the mask and best_agent_id
+            return mask, best_agent_id
+
+        # If the recv was not run then return NoneType for mask and whatever was passed for
+        # best_agent_id (probably []).
+        return None, best_agent_id
 
 
     # Defunct methods (Will likely delete in the future)
@@ -1261,12 +1278,12 @@ class ParallelComm(object):
                 received_mask, best_agent_id = self.send_recv_mask(masks_list, best_agent_id)
 
 
-            print(Fore.GREEN + 'Returning to agent')
+            print(Fore.GREEN + 'Returning to agent', received_mask, best_agent_id, flush=True)
             # Send the mask to the agent (mask or NoneType) as well as the other variables 
             # used in the rest of the agent iteration. The communication loop will get
             # these variables back in the next cycle after being updated by the agent.
             queue_mask.put_nowait((received_mask, track_tasks, await_response))
-            print(Fore.GREEN + 'Return completed')
+            print(Fore.GREEN + 'Return completed', flush=True)
             
             #elif self.mode == 'fetchall':
             #    raise ValueError('{0} communication mode has not been implemented!'.format(mode))
@@ -1280,8 +1297,8 @@ class ParallelComm(object):
 
 
 '''
-from deep_rl.utils.logger import Logger, get_logger
-from deep_rl.utils.misc import get_default_log_dir
+from ..deep_rl.utils.logger import Logger, get_logger
+from ..deep_rl.utils.misc import get_default_log_dir
 
 if __name__ == '__main__':
     agent_id = 0
@@ -1303,5 +1320,4 @@ if __name__ == '__main__':
     
     agent_id = 1
     comm2 = ParallelComm(agent_id, num_agents, emb_label_sz, mask_sz, logger, init_address, init_port, mode)
-    
 '''
