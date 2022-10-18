@@ -349,6 +349,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
 
     msg = None
     while True:
+        print(await_response)
         # listen for and send info (task label or NULL message) to other agents
         other_agents_request = comm.send_receive_request(msg)
         print(other_agents_request)
@@ -483,19 +484,22 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
         #    # initialise new eval block
         #    shell_eval_data.append(np.zeros((1, num_eval_tasks), dtype=np.float32))
 
+
+        print(await_response)
+
         if shell_done:
             break
         comm.barrier()
     # end of while True
 
-    eval_data_fh.close()
+    #eval_data_fh.close()
     # discard last eval data entry as it was not used.
-    if np.all(shell_eval_data[-1] == 0.):
-        shell_eval_data.pop(-1)
+    #if np.all(shell_eval_data[-1] == 0.):
+    #    shell_eval_data.pop(-1)
     # save eval metrics
-    to_save = np.stack(shell_eval_data, axis=0)
-    with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
-        np.save(f, to_save)
+    #to_save = np.stack(shell_eval_data, axis=0)
+    #with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
+    #    np.save(f, to_save)
 
     agent.close()
     return
@@ -768,7 +772,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                     # Update the msg, track_tasks dict for this agent and reset await_responses for new task
                     msg = shell_tasks[task_counter_]['task_label']
                     track_tasks[agent_id] = torch.from_numpy(msg)
-                    #await_response = [True,] * num_agents
+                    await_response = [True,] * num_agents
                     del states_
                     print()
                 else:
@@ -800,14 +804,14 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 break
         # end of while True
 
-        eval_data_fh.close()
+        #eval_data_fh.close()
         # discard last eval data entry as it was not used.
-        if np.all(shell_eval_data[-1] == 0.):
-            shell_eval_data.pop(-1)
+        #if np.all(shell_eval_data[-1] == 0.):
+        #    shell_eval_data.pop(-1)
         # save eval metrics
-        to_save = np.stack(shell_eval_data, axis=0)
-        with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
-            np.save(f, to_save)
+        #to_save = np.stack(shell_eval_data, axis=0)
+        #with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
+        #    np.save(f, to_save)
 
         agent.close()
         return

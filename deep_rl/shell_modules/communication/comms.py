@@ -64,9 +64,9 @@ class Communication(object):
 
         self.buff_send_recv_req = [torch.ones(Communication.META_INF_SZ + task_label_sz, ) \
             * torch.inf for _ in range(num_agents)]
-        self.buff_recv_resp = [torch.ones(Communication.META_INF_SZ + mask_sz, ) * torch.inf \
+        self.buff_recv_mask = [torch.ones(Communication.META_INF_SZ + mask_sz, ) * torch.inf \
             for _ in range(num_agents)]
-        self.buff_send_resp = [torch.ones(Communication.META_INF_SZ + mask_sz, ) * torch.inf \
+        self.buff_send_mask = [torch.ones(Communication.META_INF_SZ + mask_sz, ) * torch.inf \
             for _ in range(num_agents)]
 
         logger.info('*****agent {0} / initialising transfer (communication) module'.format(agent_id))
@@ -131,7 +131,7 @@ class Communication(object):
     def _send_response(self, req_dict):
         requester_agent_id = req_dict['sender_agent_id']
         mask = req_dict['mask']
-        buff = self.buff_send_resp[requester_agent_id]
+        buff = self.buff_send_mask[requester_agent_id]
         buff[Communication.META_INF_IDX_PROC_ID] = self.agent_id
         buff[Communication.META_INF_IDX_MSG_TYPE] = Communication.MSG_TYPE_SEND_RESP
 
@@ -156,7 +156,7 @@ class Communication(object):
                 continue
             if self.handle_recv_resp[idx] is None:
                 self.logger.info('recv_resp: set up handle to receive response from agent {0}'.format(idx))
-                self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_resp[idx], src=idx)
+                self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_mask[idx], src=idx)
 
         time.sleep(Communication.SLEEP_DURATION)
 
@@ -167,7 +167,7 @@ class Communication(object):
                 ret.append(None)
                 continue
 
-            msg = self.buff_recv_resp[idx]
+            msg = self.buff_recv_mask[idx]
             if self._null_message(msg):
                 ret.append(None)
                 self.logger.info('recv_resp: appending {0} response'.format(None))
@@ -180,7 +180,7 @@ class Communication(object):
                 self.logger.info('recv_resp: appending {0} response'.format(mask))
 
             # reset buffer and handle
-            self.buff_recv_resp[idx][:] = torch.inf
+            self.buff_recv_mask[idx][:] = torch.inf
             self.handle_recv_resp[idx] = None 
         return ret
 
@@ -213,7 +213,7 @@ class ParallelComm(object):
     META_INF_IDX_TASK_SZ = 3 # only for the send_recv_request buffer
 
     META_INF_IDX_DIST = 4
-    META_INF_IDX_TASK_SZ_ = 5
+    META_INF_IDX_TASK_SZ_ = 5 # for the meta send recv buffer
     
 
     META_INF_IDX_MASK_SZ = 6
@@ -245,7 +245,7 @@ class ParallelComm(object):
 
         print('MASK SIZE IS: ', self.mask_sz)
         
-
+        # Setup init string for process group
         if init_address in ['127.0.0.1', 'localhost']:
             os.environ['MASTER_ADDR'] = init_address
             os.environ['MASTER_PORT'] = init_port
@@ -253,31 +253,34 @@ class ParallelComm(object):
         else:
             self.comm_init_str = 'tcp://{0}:{1}'.format(init_address, init_port)
 
+        # Setup async communication handlers
         self.handle_send_recv_req = None
         self.handle_recv_resp = [None, ] * num_agents
         self.handle_send_resp = [None, ] * num_agents
 
+        # Setup communication buffers
         self.buff_send_recv_req = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ + emb_label_sz, dtype=torch.float32) \
             * torch.inf for _ in range(num_agents)]
 
+        self.buff_recv_task = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
+            for _ in range(num_agents)]
+        self.buff_send_task = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
+            for _ in range(num_agents)]
+
+        self.buff_recv_mask = [torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf \
+            for _ in range(num_agents)]
+        self.buff_send_mask = [torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf \
+            for _ in range(num_agents)]
+
+
+        # Delete these buffers later (sync_gather_meta)
         self.buff_send_recv_meta = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) \
             * torch.inf for _ in range(num_agents)]
-
-        self.buff_recv_resp_task = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
-            for _ in range(num_agents)]
-        self.buff_send_resp_task = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
-            for _ in range(num_agents)]
-
-        self.buff_recv_resp = [torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf \
-            for _ in range(num_agents)]
-        self.buff_send_resp = [torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf \
-            for _ in range(num_agents)]
-
         self.buff_send_recv_msk_req = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ + emb_label_sz, dtype=torch.float32) * torch.inf
 
     def init_dist(self):
         '''
-        Initialise the process group for torch.
+        Initialise the process group for torch. Return boolean of is processes group initialised.
         '''
         self.logger.info('*****agent {0} / initialising transfer (communication) module'.format(self.agent_id))
         dist.init_process_group(backend='gloo', init_method=self.comm_init_str, rank=self.agent_id, \
@@ -292,6 +295,7 @@ class ParallelComm(object):
         else:
             return False
 
+    # Original send and recv request of a tasklabel
     def send_receive_request(self, emb_label):
         '''
         Setup up the communication buffer with the necessary flags and data.
@@ -392,7 +396,7 @@ class ParallelComm(object):
             emb_label = torch.tensor(emb_label, dtype=torch.float32)
 
 
-        buff = self.buff_send_resp_task[dst_agent_id]
+        buff = self.buff_send_task[dst_agent_id]
         buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
         buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
 
@@ -434,7 +438,7 @@ class ParallelComm(object):
                     continue
                 if self.handle_recv_resp[idx] is None:
                     self.logger.info('recv_resp: set up handle to receive response from agent {0}'.format(idx))
-                    self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_resp_task[idx], src=idx)
+                    self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_task[idx], src=idx)
                     self.handle_recv_resp[idx].wait()
 
             print('COMPLETED RECEPTION', flush=True)
@@ -443,7 +447,7 @@ class ParallelComm(object):
 
             # check whether message has been received
             for idx in range(self.num_agents):
-                _buff = self.buff_recv_resp_task[idx]
+                _buff = self.buff_recv_task[idx]
 
                 if idx == self.agent_id:
                     d = {}
@@ -470,7 +474,7 @@ class ParallelComm(object):
                     elif _buff[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_META:
                         d = {}
                         d['agent_id'] = int(_buff[0])
-                        d['mask_reward'] = int(_buff[3])
+                        d['mask_reward'] = float(_buff[3])
                         d['dist'] = int(_buff[4])
                         d['emb_label'] = _buff[5:].detach().cpu().numpy()
                         ret.append(d)
@@ -479,7 +483,7 @@ class ParallelComm(object):
                         self.logger.info('recv_resp: appending metadata response from agent {0}'. format(d['agent_id']))
 
                 # reset buffer and handle
-                self.buff_recv_resp[idx][:] = torch.inf
+                self.buff_recv_mask[idx][:] = torch.inf
                 self.handle_recv_resp[idx] = None
         
         print(Fore.GREEN + 'Metadata responses to receive: ', ret, flush=True)
@@ -654,7 +658,7 @@ class ParallelComm(object):
             dst_agent_id = item['dst_agent_id']
 
 
-            buff = torch.ones_like(self.buff_send_resp[dst_agent_id]) * torch.inf
+            buff = torch.ones_like(self.buff_send_mask[dst_agent_id]) * torch.inf
 
             buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
             buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
@@ -678,7 +682,7 @@ class ParallelComm(object):
         print(Fore.GREEN + 'Best Agent: ', best_agent_id)
         if best_agent_id:
             # We want to get the mask from the best agent
-            buff = torch.ones_like(self.buff_send_resp[0]) * torch.inf
+            buff = torch.ones_like(self.buff_recv_mask[0]) * torch.inf
             print(buff, len(buff))
             # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
             print('Mask recv start')
@@ -765,7 +769,7 @@ class ParallelComm(object):
 
     def broadcast_mask(self, src, agents):
         new_group = dist.new_group(ranks=agents, backend='gloo')
-        buff = torch.ones_like(self.buff_send_resp[0]) * torch.inf
+        buff = torch.ones_like(self.buff_send_mask[0]) * torch.inf
 
         buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
         buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP

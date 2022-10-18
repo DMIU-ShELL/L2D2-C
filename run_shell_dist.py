@@ -25,9 +25,9 @@ from deep_rl.utils.config import Config
 from deep_rl.component.policy import SamplePolicy
 from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer
 from deep_rl.utils.logger import get_logger
-from deep_rl.utils.trainer_shell import shell_dist_train_mp
+from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_train, shell_dist_eval_mp
 from deep_rl.agent.PPO_agent import ShellAgent_DP, ShellAgent_SP
-from deep_rl.shell_modules.communication.comms import ParallelComm
+from deep_rl.shell_modules.communication.comms import Communication, ParallelComm
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
@@ -449,7 +449,7 @@ if __name__ == '__main__':
     parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
-    parser.add_argument('--eval', help='indicate evaluation agent', type=int, default=0)
+    parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)
     args = parser.parse_args()
 
     print(args)
@@ -460,12 +460,15 @@ if __name__ == '__main__':
         del shell_config['agents'][args.agent_id]
 
     if shell_config['env']['env_name'] == 'minigrid':
-        if args.eval == 1:
+        if args.mode == 1:
             name = Config.ENV_MINIGRID
             shell_dist_minigrid_eval(name, args, shell_config)
-        else:
+        elif args.mode == 2:
             name = Config.ENV_MINIGRID
             shell_dist_minigrid_mp(name, args, shell_config)
+        else:
+            name = Config.ENV_MINIGRID
+            shell_dist_minigrid(name, args, shell_config)
         
 
 

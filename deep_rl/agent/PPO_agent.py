@@ -25,7 +25,7 @@ from ..network import network_heads as nethead
 #from ..network import *
 #from ..component import *
 #from .BaseAgent import *
-from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask
+from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask
 
 from .BaseAgent import BaseAgent, BaseContinualLearnerAgent
 from ..network.network_bodies import FCBody_SS, DummyBody_CL
