@@ -27,7 +27,7 @@ from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer
 from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_train, shell_dist_eval_mp
 from deep_rl.agent.PPO_agent import ShellAgent_DP, ShellAgent_SP
-from deep_rl.shell_modules.communication.comms import Communication, ParallelComm
+from deep_rl.shell_modules.communication.comms import ParallelComm
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL

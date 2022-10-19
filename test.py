@@ -1,69 +1,49 @@
-    # Multi-threaded handling of mask send recv
-    def send_mask(self, masks_list):
-        for item in masks_list:
-            mask = item['mask']
-            dst_agent_id = item['dst_agent_id']
+import numpy as np
+import torch
+
+mask_rewards_dict = {(1.0, 0.0, 0.0): 0.99, (0.0, 1.0, 0.0): 0.98, (0.0, 0.0, 1.0): 0.97}
+#mask_rewards_dict = {(1.0, 0.0, 0.0): 0.99, (0.0, 1.0, 0.0): 0.0, (0.0, 0.0, 1.0): 0.0}
+#mask_rewards_dict = {(1.0, 0.0, 0.0): 0.0}
+#mask_rewards_dict = {}
+#print(mask_rewards_dict)
 
 
-            buff = torch.ones_like(self.buff_send_mask[dst_agent_id]) * torch.inf
-
-            buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
-            buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
-
-            if mask is None:
-                buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
-                buff[ParallelComm.META_INF_SZ : ] = torch.inf
-
-            else:
-                buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_MSK
-                buff[ParallelComm.META_INF_SZ : ] = mask # NOTE deepcopy?
-
-            print('Buffer to be sent with mask: ', buff, flush=True)
-            # Send the mask to the destination agent id
-            req = dist.isend(tensor=buff, dst=dst_agent_id)
-            req.wait()
-            print('Sending mask to agents part 2. All complete!')
-        return
-    def receive_mask(self, best_agent_id):
-        received_mask = None
-        print(Fore.GREEN + 'Best Agent: ', best_agent_id)
-        if best_agent_id:
-            # We want to get the mask from the best agent
-            buff = torch.ones_like(self.buff_recv_mask[0]) * torch.inf
-            print(buff, len(buff))
-            # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
-            print('Mask recv start')
-            req = dist.irecv(tensor=buff, src=best_agent_id)
-            req.wait()
-            print('Mask recv end')
-            #time.sleep(ParallelComm.SLEEP_DURATION)
-
-            # If the buffer was a null response (which it shouldn't be)
-            # meep
-            if self._null_message(buff):
-                # Shouldn't reach this hopefully :^)
-                return None
-
-            # otherwise return the mask
-            elif buff[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_MSK:
-                if buff[ParallelComm.META_INF_IDX_PROC_ID] == best_agent_id:
-                    return buff[ParallelComm.META_INF_IDX_MASK_SZ : ]
+req_label_as_np1 = torch.tensor([0., 1., 0.]).detach().cpu().numpy()
+req_label_as_np2 = torch.tensor([0., 0., 1.]).detach().cpu().numpy()
+a = [req_label_as_np1, req_label_as_np2]
+b = [1, 2]
 
 
-            #received_mask = self.receive_mask_response(best_agent_id)
-            print(Fore.GREEN + 'Received mask length: ', len(received_mask))
+meta_responses = []
+expecting = []
+if a:
+    for idx, val in enumerate(a):
+        req_label_as_np = a[idx]
+        req_id = b[idx]
+        print(req_id, req_label_as_np)
 
-            # Reset the best agent id for the next request
-            best_agent_id = None
 
-        return received_mask, best_agent_id
+        d = {}
+        print('Knowledge base', mask_rewards_dict)
+        for tlabel, treward in mask_rewards_dict.items():
+            if treward != 0.0:
+                print(np.asarray(tlabel), treward)
+                dist = np.sum(abs(np.subtract(req_label_as_np, np.asarray(tlabel))))
+                if dist <= 0.0:
+                    d['dst_agent_id'] = req_id
+                    d['mask_reward'] = treward
+                    d['dist'] = dist
+                    d['resp_task_label'] = torch.tensor(tlabel)
+                    expecting.append(d['dst_agent_id'])
+                    meta_responses.append(d)
+                    
+        if not d:
+            d['dst_agent_id'] = req_id
+            d['mask_reward'] = torch.inf
+            d['dist'] = torch.inf
+            d['resp_task_label'] = torch.tensor([torch.inf] * 3)
 
-    def send_recv_mask(self, masks_list, best_agent_id):
-        #print('Send Recv Mask Function', len(mask), dst_agent_id, best_agent_id)
-        pool1 = mp.pool.ThreadPool(processes=1)
-        pool2 = mp.pool.ThreadPool(processes=1)
+            #expecting.append(d['dst_agent_id'])
+            meta_responses.append(d)
 
-        _ = pool1.apply_async(self.send_mask, (masks_list,))
-        result = pool2.apply_async(self.receive_mask, (best_agent_id,))
-
-        return result.get()
+print(meta_responses)

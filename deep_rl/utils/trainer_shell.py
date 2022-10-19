@@ -172,7 +172,7 @@ def shell_train(agents, logger):
     else:
         itr_log_fn = _shell_itr_log
 
-    print()
+    #print()
     logger.info('*****start shell training')
 
     # set the first task each agent is meant to train on
@@ -183,7 +183,7 @@ def shell_train(agents, logger):
         logger.info('task: {0}'.format(shell_tasks[agent_idx][0]['task']))
         logger.info('task_label: {0}'.format(shell_tasks[agent_idx][0]['task_label']))
         agent.task_train_start(shell_tasks[agent_idx][0]['task_label'])
-        print()
+        #print()
     del states_
 
     while True:
@@ -227,7 +227,7 @@ def shell_train(agents, logger):
             task_steps_limit = agent.config.max_steps[shell_task_counter[agent_idx]] * \
                 (shell_task_counter[agent_idx] + 1)
             if agent.total_steps >= task_steps_limit:
-                print()
+                #print()
                 task_counter_ = shell_task_counter[agent_idx]
                 logger.info('*****agent {0} / end of training on task {1}'.format(agent_idx, \
                     task_counter_))
@@ -256,7 +256,7 @@ def shell_train(agents, logger):
                     else:
                         logger.info('could not find any agent with knowledge about task')
                     del states_
-                    print()
+                    #print()
                 else:
                     shell_done[agent_idx] = True # training done for all task for agent
                     logger.info('*****agent {0} / end of all training'.format(agent_idx))
@@ -308,7 +308,7 @@ knows when task changes.
 '''
 def shell_dist_train(agent, comm, agent_id, num_agents):
     logger = agent.config.logger
-    print()
+    #print()
     logger.info('*****start shell training')
 
     shell_done = False
@@ -344,20 +344,20 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
     logger.info('task: {0}'.format(shell_tasks[0]['task']))
     logger.info('task_label: {0}'.format(shell_tasks[0]['task_label']))
     agent.task_train_start(shell_tasks[0]['task_label'])
-    print()
+    #print()
     del states_
 
     msg = None
     while True:
-        print(await_response)
+        #print(await_response)
         # listen for and send info (task label or NULL message) to other agents
         other_agents_request = comm.send_receive_request(msg)
-        print(other_agents_request)
+        #print(other_agents_request)
         msg = None # reset message
 
         requests = []
         for req in other_agents_request:
-            print(req)
+            #print(req)
             if req is None: continue
             req['mask'] = agent.label_to_mask(req['task_label'])
             requests.append(req)
@@ -392,7 +392,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
             # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
             # logging cycle. Take average of all worker averages as the most recent reward score for a given task
             mask_rewards_dict[np.array2string(shell_tasks[shell_task_counter]['task_label'], precision=2, separator=', ', suppress_small=True)] = np.mean(agent.iteration_rewards)
-            print(mask_rewards_dict)
+            #print(mask_rewards_dict)
 
 
         # evaluation block
@@ -419,7 +419,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
         if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
         task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
         if agent.total_steps >= task_steps_limit:
-            print()
+            #print()
             task_counter_ = shell_task_counter
             logger.info('*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
             agent.task_train_end()
@@ -449,7 +449,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
 
                 await_response = [True,] * num_agents
                 del states_
-                print()
+                #print()
             else:
                 shell_done = True # training done for all task for agent
                 logger.info('*****agent {0} / end of all training'.format(agent_id))
@@ -485,7 +485,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
         #    shell_eval_data.append(np.zeros((1, num_eval_tasks), dtype=np.float32))
 
 
-        print(await_response)
+        #print(await_response)
 
         if shell_done:
             break
@@ -514,7 +514,7 @@ from colorama import Fore, Back, Style
 
 def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     logger = agent.config.logger
-    print()
+    #print()
 
     logger.info('*****start shell training')
 
@@ -539,7 +539,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     else:
         itr_log_fn = _shell_itr_log
 
-    await_response = [False,] * num_agents # flag
+    await_response = [True,] * num_agents # flag
     # set the first task each agent is meant to train on
     states_ = agent.task.reset_task(shell_tasks[0])
     agent.states = agent.config.state_normalizer(states_)
@@ -547,7 +547,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     logger.info('task: {0}'.format(shell_tasks[0]['task']))
     logger.info('task_label: {0}'.format(shell_tasks[0]['task_label']))
     agent.task_train_start(shell_tasks[0]['task_label'])
-    print()
+    #print()
     del states_
 
 
@@ -590,7 +590,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     check = True
     if check:
         while True:
-            print(Fore.BLUE + 'Msg in this iteration: ', msg)
+            #print(Fore.BLUE + 'Msg in this iteration: ', msg)
             # If world size is 1 then act as an individual agent.
             ######################## COMMUNICATION MODULE HANDLING ########################
             '''
@@ -602,30 +602,30 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # Check if the communication module has sent a label to be converted to a mask
                 # convert it and send it back to the agent
                 try:
-                    print('Agent checking for any label conversion req')
+                    #print(Fore.BLUE + 'Agent checking for any label conversion req')
                     comm_label, dst_agent_id = queue_label_send.get_nowait()              # receive label
-                    print(comm_label, type)
+                    #print(comm_label, type)
                     comm_label = comm_label.detach().cpu().numpy()
-                    print('Requested label:', comm_label)
+                    #print(Fore.BLUE + 'Requested label:', comm_label)
                     queue_mask_recv.put((agent.label_to_mask(comm_label), dst_agent_id))    # convert label and send
-                    print('Mask sent to comm!')
+                    #print(Fore.BLUE + 'Mask sent to comm!')
                     del comm_label                                          # delete the stored label
                 except Empty:
-                    print('No label to convert to mask')
+                    #print(Fore.BLUE + 'No label to convert to mask')
                     pass
 
-                print(Fore.BLUE + 'START OF ITERATION: ', track_tasks, mask_rewards_dict, await_response)
+                #print(Fore.BLUE + 'START OF ITERATION: ', track_tasks, mask_rewards_dict, await_response)
 
                 # Get the mask when it is available but don't wait on the communication module. Continue
                 # with the iteration regardless of mask being available. Once the mask is available in
                 # an iteration cycle, then distil the knowledge to the network which should dramatically
                 # improve performance.
                 try:
-                    print(Fore.BLUE + 'HERE')
+                    #print(Fore.BLUE + 'HERE')
                     mask, track_tasks_temp, await_response = queue_mask.get_nowait()
-                    print('Agent received mask from comm for query:', type(mask), mask, flush=True)
+                    #print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
                     if mask is not None:
-                        print('KNOWLEDGE DISTILLED TO NETWORK', flush=True)
+                        #print(Fore.BLUE + 'KNOWLEDGE DISTILLED TO NETWORK', flush=True)
                         agent.distil_task_knowledge_single(mask)
                         del mask
 
@@ -639,8 +639,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                         track_tasks[agent_id] = temp_self_task
                         del track_tasks_temp, temp_self_task
                         
-                    #print(Fore.BLUE + 'Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
-                    print()
+                    ##print(Fore.BLUE + 'Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
+                    #print()
 
                 except Empty:
                     pass # continue with the iteration
@@ -653,8 +653,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
                 # the communication module will do its thing.
                 queue_label.put_nowait(msg)
-                print(Fore.BLUE + "Agent requesting mask for label: ", msg)
-                print()
+                #print(Fore.BLUE + "Agent requesting mask for label: ", msg)
+                #print()
 
                 
                 #msg = None # reset message
@@ -697,8 +697,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
                 # logging cycle. Take average of all worker averages as the most recent reward score for a given task
                 mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.mean(agent.iteration_rewards)
-                print(mask_rewards_dict)
-                print(track_tasks)
+                #print(mask_rewards_dict)
+                #print(track_tasks)
 
 
             ### EVALUATION BLOCK
@@ -747,7 +747,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
             task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
             if agent.total_steps >= task_steps_limit:
-                print()
+                #print()
                 task_counter_ = shell_task_counter
                 logger.info('*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
                 agent.task_train_end()
@@ -774,7 +774,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                     track_tasks[agent_id] = torch.from_numpy(msg)
                     await_response = [True,] * num_agents
                     del states_
-                    print()
+                    #print()
                 else:
                     shell_done = True # training done for all task for agent
                     logger.info('*****agent {0} / end of all training'.format(agent_id))
@@ -829,7 +829,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents=1):
     # Threshold for embedding/tasklabel distance (similarity)
     THRESHOLD = 0
 
-    print()
+    #print()
     logger.info('*****start shell training')
 
     shell_done = False
@@ -861,7 +861,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents=1):
     logger.info('task: {0}'.format(shell_tasks[0]['task']))
     logger.info('task_label: {0}'.format(shell_tasks[0]['task_label']))'''
     #agent.task_train_start(shell_tasks[0]['task_label'])
-    '''print()
+    '''#print()
     del states_'''
 
 
@@ -885,7 +885,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents=1):
             # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
             # logging cycle. Take average of all worker averages as the most recent reward score for a given task
             mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.mean(agent.iteration_rewards)
-            print(mask_rewards_dict)'''
+            #print(mask_rewards_dict)'''
 
 
         # evaluation block
@@ -990,7 +990,7 @@ def shell_dist_train_mp_v2(agent, comm, agent_id, num_agents):
     # Threshold for embedding/tasklabel distance (similarity)
     THRESHOLD = 0
 
-    print()
+    #print()
     logger.info('*****start shell training')
 
     shell_done = False
@@ -1022,7 +1022,7 @@ def shell_dist_train_mp_v2(agent, comm, agent_id, num_agents):
     logger.info('task: {0}'.format(shell_tasks[0]['task']))
     logger.info('task_label: {0}'.format(shell_tasks[0]['task_label']))
     agent.task_train_start(shell_tasks[0]['task_label'])
-    print()
+    #print()
     del states_
 
 
@@ -1059,7 +1059,7 @@ def shell_dist_train_mp_v2(agent, comm, agent_id, num_agents):
             # most of the time this will do nothing. Only does something if there is a new task
             start_time = time.time()
             other_agents_request = comm.send_receive_labels(msg)
-            print('STEP ONE ', time.time() - start_time)
+            #print('STEP ONE ', time.time() - start_time)
 
 
             ####################### COMMUNICATION STEP TWO #######################
@@ -1077,7 +1077,7 @@ def shell_dist_train_mp_v2(agent, comm, agent_id, num_agents):
 
             curr_task = None
             for key, val in track_tasks.items():
-                print(key, agent_id)
+                #print(key, agent_id)
                 if key == agent_id:
                     curr_task = val
 
@@ -1113,8 +1113,8 @@ def shell_dist_train_mp_v2(agent, comm, agent_id, num_agents):
             # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
             # logging cycle. Take average of all worker averages as the most recent reward score for a given task
             mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.mean(agent.iteration_rewards)
-            print(mask_rewards_dict)
-            print(track_tasks)
+            #print(mask_rewards_dict)
+            #print(track_tasks)
 
 
         ### EVALUATION BLOCK
@@ -1148,7 +1148,7 @@ def shell_dist_train_mp_v2(agent, comm, agent_id, num_agents):
                 shell_eval_data[-1][eval_task_idx] = np.mean(perf)
             shell_eval_tracker = True
             shell_eval_end_time = time.time()
-            print('EVAL BLOCK: ', shell_eval_end_time - start_time)
+            #print('EVAL BLOCK: ', shell_eval_end_time - start_time)
 
 
         ### TASK CHANGE
@@ -1165,7 +1165,7 @@ def shell_dist_train_mp_v2(agent, comm, agent_id, num_agents):
         if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
         task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
         if agent.total_steps >= task_steps_limit:
-            print()
+            #print()
             task_counter_ = shell_task_counter
             logger.info('*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
             agent.task_train_end()
@@ -1189,7 +1189,7 @@ def shell_dist_train_mp_v2(agent, comm, agent_id, num_agents):
                 msg = shell_tasks[task_counter_]['task_label']
                 await_response = [True,] * num_agents
                 del states_
-                print()
+                #print()
             else:
                 shell_done = True # training done for all task for agent
                 logger.info('*****agent {0} / end of all training'.format(agent_id))
@@ -1251,17 +1251,17 @@ def shell_dist_train_mp_v2(agent, comm, agent_id, num_agents):
 
 def shell_dist_train_mp_v3(agent, comm, agent_id, num_agents):
 
-    print("INITIALISING PROCESS GROUP")
+    #print("INITIALISING PROCESS GROUP")
     # Initialise the process group for torch distributed
     #comm.init_dist()
-    print("Torch is initialised! ", torch.cuda.is_initialized())
-    print("STARTING THE AGENT ITERATION PROCESS")
+    #print("Torch is initialised! ", torch.cuda.is_initialized())
+    #print("STARTING THE AGENT ITERATION PROCESS")
     # Start the training loop
     # This will perform the iteration and perform a communication loop with comm module if needed
     agent.iteration_loop()
-    print("Torch is initialised! ", torch.cuda.is_initialized())
+    #print("Torch is initialised! ", torch.cuda.is_initialized())
 
-    print("STARTING THE COMMUNICATION LOOP")
+    #print("STARTING THE COMMUNICATION LOOP")
     # Start the communication loop
     # This will do nothing until a msg is provided by the agent via the queue
     #comm.comm_loop()

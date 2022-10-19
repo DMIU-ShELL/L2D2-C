@@ -8,6 +8,7 @@ _________                                           .__                  __   ._
         \/               \/       \/             \/          \/      \/                        \/ 
 
 '''
+from logging import BufferingFormatter
 import os
 import copy
 import time
@@ -18,6 +19,174 @@ import torch.distributed as dist
 import multiprocess as mp
 from queue import Empty
 
+
+######## COMMUNICATION CLASSES
+'''
+Original communication class. Contains the original implementation of the communication module
+fast but at the expense of bandwidth.
+'''
+class Communication(object):
+    META_INF_SZ = 3
+    META_INF_IDX_PROC_ID = 0
+    META_INF_IDX_MSG_TYPE = 1
+    META_INF_IDX_MSG_DATA = 2
+    
+    # message type (META_INF_IDX_MSG_TYPE) values
+    MSG_TYPE_SEND_REQ = 0
+    MSG_TYPE_RECV_RESP = 1
+    MSG_TYPE_RECV_REQ = 2
+    MSG_TYPE_SEND_RESP = 3
+
+    # message data (META_INF_IDX_MSG_DATA) values
+    MSG_DATA_NULL = 0 # an empty message
+    MSG_DATA_SET = 1
+
+    # number of seconds to sleep/wait
+    SLEEP_DURATION = 1
+
+    def __init__(self, agent_id, num_agents, task_label_sz, mask_sz, logger, init_address, init_port):
+        super(Communication, self).__init__()
+        self.agent_id = agent_id
+        self.num_agents = num_agents
+        self.task_label_sz = task_label_sz
+        self.mask_sz = mask_sz
+        self.logger = logger
+
+        if init_address in ['127.0.0.1', 'localhost']:
+            os.environ['MASTER_ADDR'] = init_address
+            os.environ['MASTER_PORT'] = init_port
+            comm_init_str = 'env://'
+        else:
+            comm_init_str = 'tcp://{0}:{1}'.format(init_address, init_port)
+
+        self.handle_send_recv_req = None
+        self.handle_recv_resp = [None, ] * num_agents
+        self.handle_send_resp = [None, ] * num_agents
+
+        self.buff_send_recv_req = [torch.ones(Communication.META_INF_SZ + task_label_sz, ) \
+            * torch.inf for _ in range(num_agents)]
+        self.buff_recv_mask = [torch.ones(Communication.META_INF_SZ + mask_sz, ) * torch.inf \
+            for _ in range(num_agents)]
+        self.buff_send_mask = [torch.ones(Communication.META_INF_SZ + mask_sz, ) * torch.inf \
+            for _ in range(num_agents)]
+
+        logger.info('*****agent {0} / initialising transfer (communication) module'.format(agent_id))
+        dist.init_process_group(backend='gloo', init_method=comm_init_str, rank=agent_id, \
+            world_size=num_agents, timeout=datetime.timedelta(seconds=30))
+
+    def _null_message(self, msg):
+        # check whether message sent denotes or is none.
+        if bool(msg[Communication.META_INF_IDX_MSG_DATA] == Communication.MSG_DATA_NULL):
+            return True
+        else:
+            return False
+
+    '''
+    method to receive request from other agents (query whether current agent possess knowledge
+    about queried task), as well as query (send request to) other agents.
+    '''
+    def send_receive_request(self, task_label):
+        if isinstance(task_label, np.ndarray):
+            task_label = torch.tensor(task_label, dtype=torch.float32)
+        self.logger.info('send_recv_req, req data: {0}'.format(task_label))
+        # from message to send from agent (current node), can be NULL message or a valid
+        # request based on given task label
+        data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
+        data[Communication.META_INF_IDX_PROC_ID] = self.agent_id
+        data[Communication.META_INF_IDX_MSG_TYPE] = Communication.MSG_TYPE_SEND_REQ
+        if task_label is None:
+            data[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_NULL
+        else:
+            data[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_SET
+            data[Communication.META_INF_SZ : ] = task_label # NOTE deepcopy?
+
+        # actual send/receive
+        self.handle_send_recv_req = dist.all_gather(tensor_list=self.buff_send_recv_req, \
+            tensor=data, async_op=True)
+        # briefly wait to see if other agents will send their request
+        time.sleep(Communication.SLEEP_DURATION)
+        
+        # check buffer for incoming requests
+        idxs = list(range(len(self.buff_send_recv_req)))
+        idxs.remove(self.agent_id)
+        ret = []
+        for idx in idxs :
+            buff = self.buff_send_recv_req[idx]
+            if self._null_message(buff):
+                ret.append(None)
+            else:
+                self.logger.info('send_recv_req: request received from agent {0}'.format(idx))
+                d = {}
+                d['sender_agent_id'] = int(buff[Communication.META_INF_IDX_PROC_ID])
+                d['msg_type'] = int(buff[Communication.META_INF_IDX_MSG_TYPE])
+                d['msg_data'] = int(buff[Communication.META_INF_IDX_MSG_DATA])
+                d['task_label'] = buff[Communication.META_INF_SZ : ]
+                ret.append(d)
+        return ret
+
+    def send_response(self, requesters):
+        self.logger.info('send_resp:')
+        for requester in requesters:
+            self._send_response(requester)
+
+    def _send_response(self, req_dict):
+        requester_agent_id = req_dict['sender_agent_id']
+        mask = req_dict['mask']
+        buff = self.buff_send_mask[requester_agent_id]
+        buff[Communication.META_INF_IDX_PROC_ID] = self.agent_id
+        buff[Communication.META_INF_IDX_MSG_TYPE] = Communication.MSG_TYPE_SEND_RESP
+
+        self.logger.info('send_resp: responding to agent {0} query'.format(requester_agent_id))
+        self.logger.info('send_resp: mask (response) data type: {0}'.format(type(mask)))
+
+        if mask is None:
+            buff[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_NULL
+            buff[Communication.META_INF_SZ : ] = torch.inf
+        else:
+            buff[Communication.META_INF_IDX_MSG_DATA] = Communication.MSG_DATA_SET
+            buff[Communication.META_INF_SZ : ] = mask # NOTE deepcopy? 
+
+        # actual send
+        self.handle_send_resp[requester_agent_id] = dist.isend(tensor=buff, dst=requester_agent_id)
+        return
+
+    def receive_response(self):
+        self.logger.info('recv_resp:')
+        for idx in range(self.num_agents):
+            if idx == self.agent_id:
+                continue
+            if self.handle_recv_resp[idx] is None:
+                self.logger.info('recv_resp: set up handle to receive response from agent {0}'.format(idx))
+                self.handle_recv_resp[idx] = dist.irecv(tensor=self.buff_recv_mask[idx], src=idx)
+
+        time.sleep(Communication.SLEEP_DURATION)
+
+        # check whether message has been received
+        ret = []
+        for idx in range(self.num_agents):
+            if idx == self.agent_id:
+                ret.append(None)
+                continue
+
+            msg = self.buff_recv_mask[idx]
+            if self._null_message(msg):
+                ret.append(None)
+                self.logger.info('recv_resp: appending {0} response'.format(None))
+            elif msg[Communication.META_INF_IDX_MSG_DATA] == torch.inf:
+                ret.append(False)
+                self.logger.info('recv_resp: appending False response')
+            else:
+                mask = copy.deepcopy(msg[Communication.META_INF_SZ : ])
+                ret.append(mask)
+                self.logger.info('recv_resp: appending {0} response'.format(mask))
+
+            # reset buffer and handle
+            self.buff_recv_mask[idx][:] = torch.inf
+            self.handle_recv_resp[idx] = None 
+        return ret
+
+    def barrier(self):
+        dist.barrier()
 
 '''
 Revise communication class. Contains the new implementation of the communication module
@@ -94,16 +263,22 @@ class ParallelComm(object):
         self.buff_send_recv_req = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ + emb_label_sz, dtype=torch.float32) \
             * torch.inf for _ in range(num_agents)]
 
-        self.buff_recv_meta = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
+        self.buff_recv_task = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
             for _ in range(num_agents)]
-        self.buff_send_meta = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
+        self.buff_send_task = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
             for _ in range(num_agents)]
 
         self.buff_recv_mask = [torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf \
             for _ in range(num_agents)]
         self.buff_send_mask = [torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf \
             for _ in range(num_agents)]
-            
+
+
+        # Delete these buffers later (sync_gather_meta)
+        self.buff_send_recv_meta = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) \
+            * torch.inf for _ in range(num_agents)]
+        self.buff_send_recv_msk_req = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ + emb_label_sz, dtype=torch.float32) * torch.inf
+
     def init_dist(self):
         '''
         Initialise the process group for torch. Return boolean of is processes group initialised.
@@ -116,7 +291,7 @@ class ParallelComm(object):
 
     def _null_message(self, msg):
         # check whether message sent denotes or is none.
-        if bool(msg[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_NULL):
+        if bool(msg[Communication.META_INF_IDX_MSG_DATA] == Communication.MSG_DATA_NULL):
             return True
         else:
             return False
@@ -167,7 +342,7 @@ class ParallelComm(object):
 
         #time.sleep(ParallelComm.SLEEP_DURATION)
         self.handle_send_recv_req.wait()
-        print(self.buff_send_recv_req, flush=True)
+        #print(self.buff_send_recv_req, flush=True)
 
 
         # briefly wait to see if other agents will send their request
@@ -196,98 +371,97 @@ class ParallelComm(object):
         return ret
 
     # Multi-threaded handling of metadata send recv.
-    def send_meta_response(self, requesters):
+    def send_meta_response(self, meta_responses):
         '''
         Send response for each requester agent.
         '''
-        if requesters:
-            #self.logger.info('send_resp:')
-            for requester in requesters:
-                self._send_meta_response(requester)
+        if meta_responses:
+            self.logger.info('send_meta_resp:')
+            for meta_response in meta_responses:
+                self._send_meta_response(meta_response)
     def _send_meta_response(self, req_dict):
         '''
         Sends either the mask or meta data to another agent.
         '''
-        try:
-            self.logger.info('send_resp {0}'.format(req_dict))
+        self.logger.info('send_meta_resp {0}'.format(req_dict))
+        dst_agent_id = req_dict['dst_agent_id']
+
+        # Get the mask, mask reward and embedding/tasklabel
+        mask_reward = req_dict['mask_reward']
+        distance = req_dict['dist']
+        emb_label = req_dict['resp_task_label']
+
+
+        if isinstance(emb_label, np.ndarray):
+            emb_label = torch.tensor(emb_label, dtype=torch.float32)
+
+        buff_list = [self.agent_id, ParallelComm.MSG_TYPE_SEND_RESP]
+        # Consider changing to local buffer
+        #buff = torch.ones_like(self.buff_send_task[dst_agent_id]) * torch.inf
+        #buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
+        #buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
+
+        # If mask is none then send back torch.inf
+        if mask_reward is None:
+            buff_list.append(ParallelComm.MSG_DATA_NULL)
+            buff_list.append(torch.inf)
+            buff_list.append(torch.inf)
+            buff_list.append(torch.inf)
+            buff_list.append(torch.inf)
+            buff_list.append(torch.inf)
             
-            dst_agent_id = req_dict['dst_agent_id']
-            mask_reward = req_dict['mask_reward']
-            distance = req_dict['dist']
-            emb_label = req_dict['resp_task_label']
+            #print('Mask reward is None', flush=True)
+            #buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
+            #print('Sending metadata buffer', buff, flush=True)
+        # otherwise send mask
+        else:
+            buff_list.append(ParallelComm.MSG_DATA_META)
+            buff_list.append(mask_reward)
+            buff_list.append(distance)
+            buff_list.append(emb_label)
+            print(buff_list)
+            #print('Mask reward is not None', flush=True)
+            #buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_META
+            #print(buff, flush=True)
+            #buff[ParallelComm.META_INF_IDX_MSK_RW] = mask_reward
+            #print(buff, flush=True)
+            #print(distance, type(distance))
+            #buff[ParallelComm.META_INF_IDX_DIST] = distance
+            #print(buff, flush=True)
+            #buff[ParallelComm.META_INF_IDX_TASK_SZ_ :] = emb_label
+            #print('Sending metadata buffer', buff, flush=True)
 
-            #print(dst_agent_id, mask_reward, emb_label, flush=True)
-            #print(type(dst_agent_id), type(mask_reward), type(emb_label), flush=True)
+        buff = torch.tensor(buff_list)
+        print('Buffer to send', buff)
 
-            #if isinstance(emb_label, np.ndarray):
-            #    emb_label = torch.tensor(emb_label, dtype=torch.float32)
-
-            # Consider changing to local buffer
-            buff = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + self.emb_label_sz, dtype=torch.float32) * torch.inf
-            buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
-            buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
-
-            #self.logger.info('send_resp: responding to agent {0} query'.format(dst_agent_id))
-            #self.logger.info('send_resp: mask (response) data type: {0}'.format(type(mask)))
-
-            # If mask is none then send back torch.inf
-            # otherwise send mask
-            if mask_reward is torch.inf:
-                #print('Mask reward is None -> True', flush=True)
-                buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
-
-            else:
-                #print('Mask reward is None -> False', flush=True)
-                #print(mask_reward, emb_label, distance, flush=True)
-                #print(type(mask_reward), type(emb_label), type(distance), flush=True)
-                # if the mask is none but there is a mask reward, then overwrite the buffer with
-                # the meta data. Otherwise don't do anything.
-                buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_META
-                buff[ParallelComm.META_INF_IDX_MSK_RW] = mask_reward
-                buff[ParallelComm.META_INF_IDX_DIST] = distance
-                buff[ParallelComm.META_INF_IDX_TASK_SZ_ :] = emb_label
-
-            #self.logger.info('Sending metadata to agent {0}: {1}'.format(dst_agent_id, buff, buff.dtype))
-            # actual send
-            print(buff)
-            print('STARTING SEND')
-            req_send = dist.isend(tensor=buff, dst=dst_agent_id)
-            req_send.wait()
-            print('COMPLETED SEND', flush=True)
-            return
-        except:
-            exit()
-
+        #self.logger.info('Sending metadata to agent {0}: {1}'.format(dst_agent_id, buff, buff.dtype))
+        # actual send
+        req_send = dist.isend(tensor=buff, dst=dst_agent_id)
+        req_send.wait()
+        #self.handle_send_resp[dst_agent_id].wait()
+        return
     def receive_meta_response(self, await_response):
         '''
         Receives the response from all in the network agents.
         '''
-        print(await_response)
-        ret = []
-        _buff_list = []
+        ret = list()
         if any(await_response):
-            self.logger.info('recv_resp:')
             for idx in range(self.num_agents):
-                print(idx)
-                _buff_recv = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + self.emb_label_sz, dtype=torch.float32) * torch.inf
                 if idx == self.agent_id:
-                    _buff_list.append(_buff_recv)
-
-                else:
-                    req_recv = dist.irecv(tensor=_buff_recv, src=idx)
+                    continue
+                if self.handle_recv_resp[idx] is None:
+                    self.logger.info('recv_meta_resp: set up handle to receive response from agent {0}'.format(idx))
+                    req_recv = dist.irecv(tensor=self.buff_recv_task[idx], src=idx)
                     req_recv.wait()
-                    _buff_list.append(_buff_recv)
-                    print('COMPLETED RECEPTION from agent {0}'.format(idx), flush=True)
+                #self.handle_recv_resp[idx].wait()
 
             #time.sleep(ParallelComm.SLEEP_DURATION)
-
-            print(_buff_list)
+            print('Received buffer', self.buff_recv_task)
             # check whether message has been received
             for idx in range(self.num_agents):
-                _buff = _buff_list[idx]
+                _buff = self.buff_recv_task[idx]
 
                 if idx == self.agent_id:
-                    print('recv buff self agent id')
                     d = {}
                     d['agent_id'] = self.agent_id
                     d['mask_reward'] = torch.inf
@@ -297,69 +471,60 @@ class ParallelComm(object):
 
                 else:
                     if self._null_message(_buff):
-                        print('recv buff is null')
                         d = {}
                         d['agent_id'] = int(_buff[0])
                         d['mask_reward'] = torch.inf
                         d['dist'] = torch.inf
                         d['emb_label'] = _buff[5:].detach().cpu().numpy()
                         ret.append(d)
-                        #self.logger.info('recv_resp: appending {0} response'.format(None))
+                        self.logger.info('recv_resp: appending {0} response'.format(None))
                     
-                    elif _buff[ParallelComm.META_INF_IDX_MSG_DATA] == torch.inf:
-                        print('recv buff failed')
+                    elif _buff[Communication.META_INF_IDX_MSG_DATA] == torch.inf:
                         ret.append(False)
-                        #self.logger.info('recv_resp: appending False response. All hope is lost')
+                        self.logger.info('recv_resp: appending False response. All hope is lost')
 
                     elif _buff[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_META:
-                        print('recv buff success')
                         d = {}
                         d['agent_id'] = int(_buff[0])
                         d['mask_reward'] = float(_buff[3])
                         d['dist'] = float(_buff[4])
                         d['emb_label'] = _buff[5:].detach().cpu().numpy()
                         ret.append(d)
+                        # Change this at some point to take the original data and not string
+                        self.logger.info('recv_resp: appending metadata response from agent {0}'. format(d['agent_id']))
+
+                # reset buffer and handle
+                self.buff_recv_mask[idx][:] = torch.inf
+                self.handle_recv_resp[idx] = None
         return ret
 
-    def send_recv_meta(self, requesters, await_response):
+    def send_recv_meta(self, meta_responses, await_response):
         pool1 = mp.pool.ThreadPool(processes=1)
         pool2 = mp.pool.ThreadPool(processes=1)
 
-        #self.logger.info('send_recv_meta():')
+        print('send_recv_meta()')
 
-        _ = pool1.apply_async(self.send_meta_response, (requesters,))
-        #self.send_meta_response(requesters)
+        _ = pool1.apply_async(self.send_meta_response, (meta_responses,))
         time.sleep(0.2)
         result = pool2.apply_async(self.receive_meta_response, (await_response,))
-        #result = self.receive_meta_response(await_response)
-        #return result
+
         return result.get()
 
 
     # Multi-threaded handling of mask request send recv
     def send_mask_request(self, send_msk_requests):
-        # TODO: Merge this function with the other send_receive_mask function.
-        '''
-        Sends a request to the top three agents for masks using the their embeddings.
-        Checks for similar requests.
-        '''
-        print('SEND_MSK_REQ: ', send_msk_requests, flush=True)
 
         if send_msk_requests:
             for agent_id, emb_label in send_msk_requests.items():
-                print(agent_id, emb_label, flush=True)
                 if agent_id == self.agent_id:
-                    print('continue')
                     continue
 
-                print('sending', flush=True)
                 # Convert embedding label to tensor
                 if isinstance(emb_label, np.ndarray):
                     emb_label = torch.tensor(emb_label, dtype=torch.float32)
 
                 # Initialise a buffer for one agent embedding/tasklabel
                 data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
-
                 # Populate the tensor with necessary data
                 data[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
                 data[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_REQ
@@ -376,8 +541,6 @@ class ParallelComm(object):
                 # Send out the mask request or rejection to each agent that sent metadata
                 req = dist.isend(tensor=data, dst=agent_id)
                 req.wait()
-                print('SENDING: ', data, agent_id, '\n', flush=True)
-                return
     def receive_mask_requests(self, expecting):
         # Check for mask requests from other agents if expecting any requests
         ret = []
@@ -421,6 +584,71 @@ class ParallelComm(object):
 
         return result.get()
 
+        '''
+        thread1 = threading.Thread(target=self.send_mask_request, args=(send_msk_requests,))
+        thread2 = threading.Thread(target=self.receive_mask_requests, args=(expecting,))
+
+        if send_msk_requests:
+            for agent_id, emb_label in send_msk_requests.items():
+                new_group = dist.new_group([self.agent_id, agent_id], backend='gloo')
+                print(agent_id, emb_label)
+                
+                # Convert embedding label to tensor
+                if isinstance(emb_label, np.ndarray):
+                    emb_label = torch.tensor(emb_label, dtype=torch.float32)
+
+                # Initialise a buffer for one agent embedding/tasklabel
+                data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
+
+                # Populate the tensor with necessary data
+                data[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
+                data[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_REQ
+                
+                if emb_label is None:
+                    # If emb_label is none it means we reject the agent
+                    data[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
+                        
+                else:
+                    # Otherwise we want the agent's mask
+                    data[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_TSK
+                    data[ParallelComm.META_INF_IDX_TASK_SZ : ] = emb_label # NOTE deepcopy?
+
+                print('SENDING: ', data, agent_id)
+                # Send out the mask request or rejection to each agent that sent metadata
+                req = dist.broadcast(tensor=data, src=self.agent_id, group=new_group, async_op=True)
+                #req.wait()
+
+
+        ret = []
+        if expecting:
+            for idx in expecting:
+                new_group = dist.new_group([self.agent_id, idx], backend='gloo')
+                print('IDX in EXPECTING: ', idx)
+                data = torch.ones_like(self.buff_send_recv_req[idx]) * torch.inf
+                req = dist.broadcast(tensor=data, src=idx, group=new_group, async_op=True)
+                req.wait()
+                print('RECEIVING: ', data, idx)
+
+                # If response was null message then this agent has been rejected.
+                # If so, remove the idx from expecting and check the next id.
+                # if no more idxs then return the list of dictionaries. (can be empty)
+                if self._null_message(data):
+                    expecting.remove(idx)
+
+                # If not rejected then we need to send the mask to the requester
+                else:
+                    d = {}
+                    d['requester_agent_id'] = int(data[ParallelComm.META_INF_IDX_PROC_ID])
+                    d['msg_type'] = int(data[ParallelComm.META_INF_IDX_MSG_TYPE])
+                    d['msg_data'] = int(data[ParallelComm.META_INF_IDX_MSG_DATA])
+                    d['task_label'] = data[ParallelComm.META_INF_IDX_TASK_SZ : ]
+                    ret.append(d)
+                    expecting.remove(idx)
+
+        # Return a list of dictionaries for each agent that wants a mask
+        return expecting, ret
+        '''
+
 
     # Multi-threaded handling of mask send recv
     def send_mask(self, masks_list):
@@ -459,7 +687,7 @@ class ParallelComm(object):
         print(Fore.GREEN + 'Send Mask Best Agent ID: ', best_agent_id, flush=True)
         if best_agent_id:
             # We want to get the mask from the best agent
-            buff = torch.ones_like(self.buff_recv_mask[best_agent_id]) * torch.inf
+            buff = torch.ones_like(self.buff_recv_mask[self.agent_id]) * torch.inf
             print(buff, len(buff))
             # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
             print('Mask recv start')
@@ -467,7 +695,7 @@ class ParallelComm(object):
             req.wait()
             print('Mask recv end')
             #time.sleep(ParallelComm.SLEEP_DURATION)
-
+            print('Mask after recv:', buff)
             # If the buffer was a null response (which it shouldn't be)
             # *meep*
             if self._null_message(buff):
@@ -477,7 +705,8 @@ class ParallelComm(object):
             # otherwise return the mask
             elif buff[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_MSK:
                 if buff[ParallelComm.META_INF_IDX_PROC_ID] == best_agent_id:
-                    return buff[ParallelComm.META_INF_IDX_MASK_SZ : ]
+                    received_mask = copy.deepcopy(buff[ParallelComm.META_INF_IDX_MASK_SZ :])
+                    #return buff[ParallelComm.META_INF_IDX_MASK_SZ : ]
 
 
             #received_mask = self.receive_mask_response(best_agent_id)
@@ -508,15 +737,105 @@ class ParallelComm(object):
         # best_agent_id (probably []).
         return None, best_agent_id
 
-    ### Core functions
     '''
-    Takes:
-        track_tasks
-        mask_rewards_dict
-        expecting
-        best_agent_id
+    # Defunct methods (Will likely delete in the future)
+    def sync_gather_meta(self, agents):
+        print('Agents: ', agents)
+        new_group = dist.new_group(ranks=agents, backend='gloo')
 
+        data = torch.ones_like(self.buff_send_recv_meta[0]) * torch.inf
+
+        data[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
+        data[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
+
+        # If mask is none then send back torch.inf
+        # otherwise send mask
+        if mask_reward is None:
+            data[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
+
+        else:
+            # if the mask is none but there is a mask reward, then overwrite the buffer with
+            # the meta data. Otherwise don't do anything.
+            data[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_META
+            data[ParallelComm.META_INF_IDX_MSK_RW] = mask_reward
+            data[ParallelComm.META_INF_IDX_DIST] = distance
+            data[ParallelComm.META_INF_IDX_TASK_SZ_ :] = emb_label
+
+        req = dist.all_gather(tensor_list=self.buff_send_recv_meta, tensor=data, async_op=True)
+        req.wait()
+
+        # check buffer for incoming requests
+        idxs = list(range(len(self.buff_send_recv_meta)))
+        idxs.remove(self.agent_id)
+        ret = []
+        for idx in idxs :
+            buff = self.buff_send_recv_meta[idx]
+
+            if self._null_message(buff):
+                ret.append(None)
+            else:
+                self.logger.info('send_recv_req: request received from agent {0}'.format(idx))
+                d = {}
+                d['agent_id'] = copy.deepcopy(msg[ParallelComm.META_INF_IDX_PROC_ID])
+                d['mask_reward'] = copy.deepcopy(msg[ParallelComm.META_INF_IDX_MSK_RW])
+                d['dist'] = copy.deepcopy(msg[ParallelComm.META_INF_IDX_DIST])
+                d['emb_label'] = copy.deepcopy(msg[ParallelComm.META_INF_IDX_TASK_SZ_ :])
+                ret.append(d)
+        return ret
+
+    def broadcast_mask(self, src, agents):
+        new_group = dist.new_group(ranks=agents, backend='gloo')
+        buff = torch.ones_like(self.buff_send_mask[0]) * torch.inf
+
+        buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
+        buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
+
+        if mask is None:
+            buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
+            buff[ParallelComm.META_INF_SZ : ] = torch.inf
+
+        else:
+            buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_MSK
+            buff[ParallelComm.META_INF_SZ : ] = mask # NOTE deepcopy?
+
+        # Send the mask to the destination agent id
+        req = dist.broadcast(tensor=buff, src=src, group=new_group, async_op=True)
+        req.wait()
+
+        return buff
+
+    def broadcast_label(self, label):
+        #req = dist.broadcast(tensor=label, src=0, )
+
+        #return label
+        pass
+
+    def gather_masks(self, mask):
+        #gather_list = [torch.ones(2 + mask_sz, ) * torch.inf for _ in range(num_agents)]
+
+        #print(gather_list)
+        #tensor = gather_list[0]
+        #print(tensor)
+
+        #req = dist.gather(tensor=tensor, gather_list=gather_list, dst=0, group=None, async_op=True)
+        #req.wait()
+
+        #if self.agent_id == 0:
+        #    ret = []
+        #    for idx in len(gather_list):
+        #        gather_list[idx]
+        #    return gather_list
+        pass
+
+    def barrier(self):
+        dist.barrier()
+
+    def fetch_all(self):
+        pass
     '''
+   
+   
+    ### Core functions for communication module. Main loop and parallelisation.
     def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
 
         # Initialise the process group for torch distributed
@@ -529,13 +848,12 @@ class ParallelComm(object):
         # Store the best agent id for quick reference
         best_agent_id = None
         # Store list of agent IDs that this agent has sent metadata to
-        expecting = list()
+        #expecting = list()
 
         # initial state of input variables to loop
         comm_iter = 0
         while True:
-            expecting = list() # Come back to once all components are checked. Might cause issues
-
+            expecting = []
             # Get the latest states of these variables
             track_tasks, mask_rewards_dict, await_response = queue_loop.get()
             print()
@@ -551,7 +869,7 @@ class ParallelComm(object):
                 msg = queue_label.get_nowait()
                 print(Fore.GREEN + 'Comm Module msg this iter: ', msg)
             except Empty:
-                print(Fore.GREEN + 'FAILED')
+                print(Fore.GREEN + 'FAILED TO GET LABEL FROM AGENT')
                 continue
             
             
@@ -559,36 +877,26 @@ class ParallelComm(object):
             #######################   COMMUNICATION STEP ONE    #######################
             ####################### REQUESTS BETWEEN ALL AGENTS #######################
             # send out broadcast request to all other agents for task label
-            print(Fore.GREEN + 'Doing request')
+            #print(Fore.GREEN + 'Doing request')
             other_agents_request = self.send_receive_request(msg)
+            print()
             print(Fore.GREEN + 'Other agent requests: ', other_agents_request)
+            print()
 
-            
+
+
             #######################   COMMUNICATION STEP TWO    #######################
-            ####################### SEND AND RECV META REPONSES #######################
+            ####################### SEND AND RECV METADATA #######################
             # Respond to received queries with metadata.
             # Meta data contains the reward for the similar task, distance and the similar 
             # tasklabel/embedding.
-
-            ### SEND META RESPONSES
-            # Go through each request from the network of agents
             meta_responses = []
-            # if populated prepare metadata responses
-            
             if other_agents_request:
                 for req in other_agents_request:
-                    # If the req is none, which it usually will be, just skip.
                     if req['msg_data'] is None: continue
-                    
-                    # If the message is None then the agent has already requested and begun
-                    # working the task. So there is no need to update this agents task tracking dictionary
-                    # If the other agents do task change then they will do a fresh request. This will make the
-                    # request not None and this agent can update their task track.
+                    # Update the track tasks with the latest information
                     track_tasks[req['sender_agent_id']] = req['task_label']
 
-                    # If this agent has not learned anything yet, then respond with nothing
-                    #if mask_rewards_dict:
-                    # Otherwise send what it knows if appropriate
                     # Compute the embedding distance. Maybe there is a better way to achieve this
                     req_label_as_np = req['task_label'].detach().cpu().numpy()
                     print(Fore.GREEN + 'Requested label from agent {0}: {1}'.format(req['sender_agent_id'], req_label_as_np))
@@ -600,134 +908,189 @@ class ParallelComm(object):
                     # otherwise send nothing back.
 
                     # Iterate through the knowledge base and compute the distances
-                    d = {}
-                    print('Knowledge base', mask_rewards_dict)
+                    dist_list = []
+                    _d= {}
                     for tlabel, treward in mask_rewards_dict.items():
                         if treward != 0.0:
                             print(np.asarray(tlabel), treward)
                             dist = np.sum(abs(np.subtract(req_label_as_np, np.asarray(tlabel))))
-                            if dist <= 0.0:
-                                d['dst_agent_id'] = req['sender_agent_id']
-                                d['mask_reward'] = treward
-                                d['dist'] = dist
-                                d['resp_task_label'] = torch.tensor(tlabel)
-                                expecting.append(d['dst_agent_id'])
-                                meta_responses.append(d)
-                                
-                    if not d:
-                        d['dst_agent_id'] = req['sender_agent_id']
-                        d['mask_reward'] = torch.inf
-                        d['dist'] = torch.inf
-                        d['resp_task_label'] = torch.tensor([torch.inf] * 3)
+                            _dist = {}
+                            _dist['label'] = tlabel
+                            _dist['dist'] = dist
+                            dist_list.append(_dist)
 
-                        #expecting.append(d['dst_agent_id'])
-                        meta_responses.append(d)
-            
-            print(Fore.GREEN + 'Meta responses to send:', meta_responses)
+                    print(dist_list)
+
+                    if dist_list:
+                        # sort the dictionary by distance from lowest to highest
+                        dist_list = sorted(dist_list, key=lambda d: (d['dist']))
+                        print(dist_list)
+
+                        # iterate through the knowledge
+                        for kdict in dist_list:
+                            tlabel = kdict['label'] # tuple
+                            tdist = kdict['dist']   # float
+                            treward = mask_rewards_dict[tlabel] # float
+
+                            print(tlabel, tdist, treward)
+
+                            if tdist <= ParallelComm.THRESHOLD:
+                                _d['dst_agent_id'] = req['sender_agent_id']
+                                _d['mask_reward'] = treward
+                                _d['dist'] = tdist
+                                _d['resp_task_label'] = np.asarray(tlabel)
+
+                                meta_responses.append(_d)
+                                expecting.append(_d['dst_agent_id'])
+
+                    if not _d:
+                        _d['dst_agent_id'] = req['sender_agent_id']
+                        _d['mask_reward'] = None
+                        _d['dist'] = None
+                        _d['resp_task_label'] = None
+
+                        meta_responses.append(_d)
+                        expecting.append(_d['dst_agent_id'])
+
+            print()
+            print('Meta responses to send to other agents:', meta_responses, len(meta_responses))
             print(Fore.GREEN + 'Expecting mask request from these agents:', expecting)
-
-
-            ### RECV META RESPONSES
-            # Receive metadata response from other agents for a embedding/tasklabel request from 
-            # this agent.
-            send_msk_request = dict()
             print(Fore.GREEN + 'Awaiting Responses? ', await_response)
-            # Listen for any responses from other agents (containing the metadata)
-            # if the agent earlier sent a request, check whether response has been sent.
-            #if any(await_response):
-            #    self.logger.info('awaiting response: {0}'.format(await_response))
-            #    results = self.receive_meta_response()
-            #    print(Fore.GREEN + 'Metadata responses to receive: ', results)
-
-            results = []
+            print()
+            
             results = self.send_recv_meta(meta_responses, await_response)
-            print('Results of send_recv_meta(): ', results)
+            print('Metadata from all agents: ', results)
+            print()
 
             """
+            send_msk_request = dict()
             # if not results something bad has happened
             if results:
                 # Sort received meta data by smallest distance (primary) and highest reward (secondary),
                 # using full bidirectional multikey sorting (fancy words for such a simple concept)
                 results = sorted(results, key=lambda d: (d['dist'], -d['mask_reward']))
-                print(Fore.GREEN + 'Metadata responses sorted: ', results)
+                print(Fore.GREEN + 'Metadata sorted: ', results)
+                print()
 
-                # Iterate through the await_response list. Upon task change this is an array:
-                # [True,] * num_agents
-                selected = False    # flag to check if the best agent of the lot has been selected
+                # Select the best agent
+                selected = False
                 for idx in range(len(await_response)):
                     # Do some checks to remove to useless results
-                    if idx == self.agent_id: await_response[idx] = False
+                    #if idx == self.agent_id: continue
                     if await_response[idx] is False: continue
                     if results[idx] is False: continue
-                    elif results[idx]['mask_reward'] == torch.inf: await_response[idx] = False
+                    elif results[idx] is None: await_response[idx] = False
 
                     # Otherwise unpack the metadata
                     else:
                         recv_agent_id = results[idx]['agent_id']
+                        if recv_agent_id == self.agent_id:
+                            await_response[idx] = False
+                            continue
                         recv_msk_rw = results[idx]['mask_reward']
-                        recv_dist = results[idx]['dist']
                         recv_label = results[idx]['emb_label']
+                        recv_dist = results[idx]['dist']
 
                         # If the received distance is below the THRESHOLD and the agent
                         # hasn't selected a best agent yet then select this response
-                        if recv_dist <= ParallelComm.THRESHOLD and selected == False:
+                        if recv_dist <= ParallelComm.THRESHOLD and recv_dist != torch.inf and selected == False:
                             # Add the agent id and embedding/tasklabel from the agent
                             # to a dictionary to send requests/rejections out to.
+                            '''if recv_agent_id == self.agent_id:
+                                _temp_send_msk_request = dict()
+                                _temp_send_msk_request[self.agent_id] = recv_label
+                                _temp_send_msk_request.update(send_msk_request)
+                                send_msk_request = _temp_send_msk_request
+
+                                del _temp_send_msk_request
+
+                            else:
+                                send_msk_request[recv_agent_id] = recv_label'''
                             send_msk_request[recv_agent_id] = recv_label
+
                             # Make a note of the best agent id in memory of this agent
                             # We will use this later to check the response from the best agent
                             best_agent_id = recv_agent_id
+
                             # Make the selected flag true so we don't pick anymore to send
                             selected = True
 
                         # If best selected or doesn't meet criteria, then send rejection
                         # i.e., None
                         else:
+                            '''if recv_agent_id == self.agent_id:
+                                _temp_send_msk_request = dict()
+                                _temp_send_msk_request[self.agent_id] = None
+                                _temp_send_msk_request.update(send_msk_request)
+                                send_msk_request = _temp_send_msk_request
+
+                                del _temp_send_msk_request
+
+                            else:
+                                send_msk_request[recv_agent_id] = None''' 
                             send_msk_request[recv_agent_id] = None
 
                         # We have checked the response so set it to False until the next task change
                         # and request loop begins
                         await_response[idx] = False
 
+                    # Need to fix this logging message
+                    self.logger.info('Meta data received from agent {0}'.format(idx))
             print(Fore.GREEN + 'Mask requests to send: ', send_msk_request)
+            print(await_response)
 
             
             #######################     COMMUNICATION STEP FOUR      #######################
             ####################### SEND MASK REQUESTS OR REJECTIONS #######################
-            ### SEND MASK REQUEST OR REJECTION
-            # Send a response back to each agent that sent this agent metadata. Tell them to either
-            # send mask or move on.
-            #if send_msk_request:
-            #    self.send_mask_request(send_msk_request)
-
-            ### RECV MASK REQUEST OR REJECTION
-            # Also receive the same response from other agents that this agent sent metadata to. 
-            # If other agents want a mask from this agent, then msk_requests will be populated
-            # with a dictionary for each request. The expecting dictionary is reset by the
-            # receive_mask_requests() function. Expecting should be empty at the end of this
-            # code segment.
             msk_requests = []
-            #print(Fore.GREEN + 'Check expecting is empty: ', expecting)
-            #if expecting:
-            #    expecting, msk_requests = self.receive_mask_requests(expecting)
+            msk_requests = self.send_recv_mask_req(send_msk_request, expecting)
+            print(Fore.GREEN + 'After receiving mask req: ', msk_requests)
+
+
 
             
-            print(send_msk_request, expecting)
-            expecting, msk_requests = self.send_recv_mask_req(send_msk_request, expecting)
-
-            
-            print(Fore.GREEN + 'After receiving mask req: ', expecting, msk_requests)
             ####################### COMMUNICATION STEP FIVE #######################
             # Now the agent needs to send a mask to each agent in the msk_requests list
             # if it is not empty.
+            '''if msk_requests:
+                # Iterate through the requests
+                for req in msk_requests:
+                    # Send a mask to the requesting agent
+                    agent_id = req['requester_agent_id']
+
+                    # Send label:id to agent
+                    _temp_label = req['task_label']
+                    queue_label_send.put((_temp_label, agent_id))
+                    print('Sending mask to agents part 1')
+
+            try:
+                mask, agent_id = queue_mask_recv.get_nowait()
+                self.send_mask_response((agent_id, mask))
+                print('Sending mask to agents part 2. All complete!')
+
+            except Empty:
+                pass
+
+            # Expecting a response from the best agent id
+            received_mask = None
+
+            print(Fore.GREEN + 'Best Agent: ', best_agent_id)
+            if best_agent_id:
+                # We want to get the mask from the best agent
+                received_mask = self.receive_mask_response(best_agent_id)
+                print(Fore.GREEN + 'Received mask length: ', len(received_mask))
+
+                # Reset the best agent id for the next request
+                best_agent_id = None'''
+
 
             received_mask = None
 
+            masks_list = []
             if msk_requests:
                 print('Agent has entered send_mask()')
                 # Iterate through the requests
                 # Send the label to be converted, to the agent
-                masks_list = []
                 for req in msk_requests:
                     d = {}
                     print('Mask Requests: ', req, flush=True)
@@ -749,7 +1112,8 @@ class ParallelComm(object):
                     d['dst_agent_id'] = dst_agent_id
                     masks_list.append(d)
                     
-                received_mask, best_agent_id = self.send_recv_mask(masks_list, best_agent_id)
+            print('Checking before send_recv_mask():', masks_list, best_agent_id)
+            received_mask, best_agent_id = self.send_recv_mask(masks_list, best_agent_id)
 
 
             print(Fore.GREEN + 'Returning to agent', received_mask, best_agent_id, flush=True)
