@@ -212,9 +212,14 @@ class ParallelComm(object):
             self.logger.info('send_resp {0}'.format(req_dict))
             
             dst_agent_id = req_dict['dst_agent_id']
-            mask_reward = req_dict['mask_reward']
+            mask_reward =req_dict['mask_reward']
+            if mask_reward != torch.inf:
+                mask_reward = np.float32(mask_reward)
             distance = req_dict['dist']
             emb_label = req_dict['resp_task_label']
+
+            print(dst_agent_id, mask_reward, distance, emb_label)
+            print(type(dst_agent_id), type(mask_reward), type(distance), type(emb_label))
 
             #print(dst_agent_id, mask_reward, emb_label, flush=True)
             #print(type(dst_agent_id), type(mask_reward), type(emb_label), flush=True)
@@ -250,6 +255,10 @@ class ParallelComm(object):
             #self.logger.info('Sending metadata to agent {0}: {1}'.format(dst_agent_id, buff, buff.dtype))
             # actual send
             print(buff)
+            for idx, val in enumerate(buff):
+                print(type(val), val)
+            #print(type(buff))
+            #print(type(buff[0]), type(buff[1]), type(buff[2]), type(buff[3]), type(buff[4]), type(buff[5]))
             print('STARTING SEND')
             req_send = dist.isend(tensor=buff, dst=dst_agent_id)
             req_send.wait()
@@ -643,7 +652,7 @@ class ParallelComm(object):
             results = self.send_recv_meta(meta_responses, await_response)
             print('Results of send_recv_meta(): ', results)
 
-            """
+            
             # if not results something bad has happened
             if results:
                 # Sort received meta data by smallest distance (primary) and highest reward (secondary),
@@ -763,7 +772,7 @@ class ParallelComm(object):
             #    raise ValueError('{0} communication mode has not been implemented!'.format(mode))
             #else:
             #    raise ValueError('{0} communication mode has not been implemented!'.format(mode))
-            """
+            
             comm_iter += 1
 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):

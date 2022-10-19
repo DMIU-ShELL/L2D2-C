@@ -2,11 +2,9 @@ import torch
 import torch.distributed as dist
 import numpy as np
 import multiprocess as mp
-import os
-import argparse
 
 meta_responses = [{'dst_agent_id': 0, 'mask_reward': 0.9485069444444445, 'dist': 0.0, 'resp_task_label': torch.tensor([0., 1., 0.])}]
-meta_responses = [{'dst_agent_id': 0, 'mask_reward': torch.inf, 'dist': torch.inf, 'resp_task_label': torch.tensor([torch.inf]*3)}]
+
 
 # DETECT MODULE CONSTANTS
 # Threshold for embedding/tasklabel distance (similarity)
@@ -41,16 +39,11 @@ MSG_DATA_META = 3
 # number of seconds to sleep/wait
 SLEEP_DURATION = 1
 
+buff_send_meta = [torch.ones(META_INF_IDX_TASK_SZ_ + 3, dtype=torch.float32) * torch.inf \
+            for _ in range(2)]
+
 
 agent_id = 1
-
-
-def _null_message(msg):
-    # check whether message sent denotes or is none.
-    if bool(msg[META_INF_IDX_MSG_DATA] == MSG_DATA_NULL):
-        return True
-    else:
-        return False
 
 def _send_meta_response(req_dict):
     dst_agent_id = req_dict['dst_agent_id']
@@ -65,7 +58,7 @@ def _send_meta_response(req_dict):
         emb_label = torch.tensor(emb_label, dtype=torch.float32)
 
     # Consider changing to local buffer
-    buff = torch.ones(META_INF_IDX_TASK_SZ_ + 3, dtype=torch.float32) * torch.inf
+    buff = buff_send_meta[dst_agent_id]
     buff[META_INF_IDX_PROC_ID] = agent_id
     buff[META_INF_IDX_MSG_TYPE] = MSG_TYPE_SEND_RESP
 
@@ -110,93 +103,4 @@ def send_meta_response(requesters):
 
 
 
-def receive_meta_response(await_response):
-    '''
-    Receives the response from all in the network agents.
-    '''
-    _buff_recv = torch.ones_like(torch.tensor([torch.inf]*5)) * torch.inf
-    req_recv = dist.irecv(tensor=_buff_recv, src=1)
-    req_recv.wait()
-    
-    print(_buff_recv[1])
-    
-    '''ret = list()
-    _buff_recv = [torch.ones_like(torch.tensor([torch.inf]*5)) * torch.inf for _ in range(2)]
-    print(_buff_recv)
-    if any(await_response):
-        for idx in range(2):
-            print(idx)
-            print(_buff_recv[idx])
-            if idx == agent_id:
-                continue
-            #if self.handle_recv_resp[idx] is None:
-                #self.logger.info('recv_resp: set up handle to receive response from agent {0}'.format(idx))
-            req_recv = dist.irecv(tensor=_buff_recv[idx], src=idx)
-            req_recv.wait()
-            #print('COMPLETED RECEPTION from agent {0}'.format(idx), flush=True)
-
-        #time.sleep(ParallelComm.SLEEP_DURATION)
-        #meta_responses = [{'dst_agent_id': 0, 'mask_reward': 0.9485069444444445, 'dist': 0.0, 'resp_task_label': torch.tensor([0., 1., 0.])}]
-        #_buff_recv = torch.tensor([0, 1, 3, 0.9485069444444445, 0.0, torch.tensor([0., 1., 0.])])
-        print(_buff_recv)
-        # check whether message has been received
-        for idx in range(2):
-            _buff = _buff_recv[idx]
-
-            if idx == agent_id:
-                d = {}
-                d['agent_id'] = agent_id
-                d['mask_reward'] = torch.inf
-                d['dist'] = torch.inf
-                d['emb_label'] = _buff[5:].detach().cpu().numpy()
-                ret.append(d)
-
-            else:
-                if _null_message(_buff):
-                    d = {}
-                    d['agent_id'] = int(_buff[0])
-                    d['mask_reward'] = torch.inf
-                    d['dist'] = torch.inf
-                    d['emb_label'] = _buff[5:].detach().cpu().numpy()
-                    ret.append(d)
-                    #self.logger.info('recv_resp: appending {0} response'.format(None))
-                
-                elif _buff[META_INF_IDX_MSG_DATA] == torch.inf:
-                    ret.append(False)
-                    #self.logger.info('recv_resp: appending False response. All hope is lost')
-
-                elif _buff[META_INF_IDX_MSG_DATA] == MSG_DATA_META:
-                    d = {}
-                    d['agent_id'] = int(_buff[0])
-                    d['mask_reward'] = float(_buff[3])
-                    d['dist'] = float(_buff[4])
-                    d['emb_label'] = _buff[5:].detach().cpu().numpy()
-                    ret.append(d)'''
-    return ret
-
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('rank', type=int)
-    args = parser.parse_args()
-    rank = args.rank
-
-    init_address = '127.0.0.1'
-    init_port = '25006'
-
-    if init_address in ['127.0.0.1', 'localhost']:
-        os.environ['MASTER_ADDR'] = init_address
-        os.environ['MASTER_PORT'] = init_port
-        comm_init_str = 'env://'
-    else:
-        comm_init_str = 'tcp://{0}:{1}'.format(init_address, init_port)
-
-    dist.init_process_group(backend='gloo', init_method=comm_init_str, rank=rank, world_size=2)
-
-    if rank == 1:
-        send_meta_response(meta_responses)
-
-    elif rank == 0:
-        await_response = [True, True]
-        result = receive_meta_response(await_response)
+send_meta_response()
