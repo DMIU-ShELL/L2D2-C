@@ -606,12 +606,12 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                     comm_label, dst_agent_id = queue_label_send.get_nowait()              # receive label
                     #print(comm_label, type)
                     comm_label = comm_label.detach().cpu().numpy()
-                    #print(Fore.BLUE + 'Requested label:', comm_label)
+                    print(Fore.BLUE + 'Requested label:', comm_label)
                     queue_mask_recv.put((agent.label_to_mask(comm_label), dst_agent_id))    # convert label and send
                     #print(Fore.BLUE + 'Mask sent to comm!')
-                    del comm_label                                          # delete the stored label
+                    del comm_label, dst_agent_id                                       # delete the stored label
                 except Empty:
-                    #print(Fore.BLUE + 'No label to convert to mask')
+                    print(Fore.BLUE + 'No label to convert to mask')
                     pass
 
                 #print(Fore.BLUE + 'START OF ITERATION: ', track_tasks, mask_rewards_dict, await_response)
@@ -621,12 +621,11 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # an iteration cycle, then distil the knowledge to the network which should dramatically
                 # improve performance.
                 try:
-                    #print(Fore.BLUE + 'HERE')
                     mask, track_tasks_temp, await_response = queue_mask.get_nowait()
-                    #print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
+                    print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
                     if mask is not None:
-                        #print(Fore.BLUE + 'KNOWLEDGE DISTILLED TO NETWORK', flush=True)
                         agent.distil_task_knowledge_single(mask)
+                        print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
                         del mask
 
                     if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
@@ -643,6 +642,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                     #print()
 
                 except Empty:
+                    print('Get mask failed')
                     pass # continue with the iteration
 
                 
@@ -697,7 +697,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
                 # logging cycle. Take average of all worker averages as the most recent reward score for a given task
                 mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.mean(agent.iteration_rewards)
-                #print(mask_rewards_dict)
+                print(Fore.BLUE + '', mask_rewards_dict, flush=True)
                 #print(track_tasks)
 
 
@@ -771,7 +771,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
                     # Update the msg, track_tasks dict for this agent and reset await_responses for new task
                     msg = shell_tasks[task_counter_]['task_label']
-                    track_tasks[agent_id] = torch.from_numpy(msg)
+                    track_tasks[agent_id] = torch.from_numpy(msg)       # remove later
                     await_response = [True,] * num_agents
                     del states_
                     #print()
