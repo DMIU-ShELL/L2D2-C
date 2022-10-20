@@ -19,6 +19,10 @@ import multiprocess as mp
 from queue import Empty
 
 
+
+# Add back the old comm as well
+
+
 '''
 Revise communication class. Contains the new implementation of the communication module
 Improves on the bandwidth efficiency by some margin by reducing the amount of masks
@@ -217,8 +221,8 @@ class ParallelComm(object):
             distance = np.float64(distance)
             emb_label = req_dict['resp_task_label']
 
-            print(dst_agent_id, mask_reward, distance, emb_label)
-            print(type(dst_agent_id), type(mask_reward), type(distance), type(emb_label))
+            #print(dst_agent_id, mask_reward, distance, emb_label)
+            #print(type(dst_agent_id), type(mask_reward), type(distance), type(emb_label))
 
             #print(dst_agent_id, mask_reward, emb_label, flush=True)
             #print(type(dst_agent_id), type(mask_reward), type(emb_label), flush=True)
@@ -253,30 +257,29 @@ class ParallelComm(object):
 
             #self.logger.info('Sending metadata to agent {0}: {1}'.format(dst_agent_id, buff, buff.dtype))
             # actual send
-            print(buff)
-            for idx, val in enumerate(buff):
-                print(type(val), val)
+            #print(buff)
+            #for idx, val in enumerate(buff):
+                #print(type(val), val)
             #print(type(buff))
             #print(type(buff[0]), type(buff[1]), type(buff[2]), type(buff[3]), type(buff[4]), type(buff[5]))
-            print('STARTING SEND')
+            #print('STARTING SEND')
             req_send = dist.isend(tensor=buff, dst=dst_agent_id)
             req_send.wait()
-            print('COMPLETED SEND', flush=True)
+            #print('COMPLETED SEND', flush=True)
             return
         except:
             exit()
-
     def receive_meta_response(self, await_response):
         '''
         Receives the response from all in the network agents.
         '''
-        print(await_response)
+        #print(await_response)
         ret = []
         _buff_list = []
         if any(await_response):
-            self.logger.info('recv_resp:')
+            #self.logger.info('recv_resp:')
             for idx in range(self.num_agents):
-                print(idx)
+                #print(idx)
                 _buff_recv = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + self.emb_label_sz, dtype=torch.float32) * torch.inf
                 if idx == self.agent_id:
                     _buff_list.append(_buff_recv)
@@ -285,17 +288,17 @@ class ParallelComm(object):
                     req_recv = dist.irecv(tensor=_buff_recv, src=idx)
                     req_recv.wait()
                     _buff_list.append(_buff_recv)
-                    print('COMPLETED RECEPTION from agent {0}'.format(idx), flush=True)
+                    #print('COMPLETED RECEPTION from agent {0}'.format(idx), flush=True)
 
             #time.sleep(ParallelComm.SLEEP_DURATION)
 
-            print(_buff_list)
+            #print(_buff_list)
             # check whether message has been received
             for idx in range(self.num_agents):
                 _buff = _buff_list[idx]
 
                 if idx == self.agent_id:
-                    print('recv buff self agent id')
+                    #print('recv buff self agent id')
                     d = {}
                     d['agent_id'] = self.agent_id
                     d['mask_reward'] = torch.inf
@@ -305,7 +308,7 @@ class ParallelComm(object):
 
                 else:
                     if self._null_message(_buff):
-                        print('recv buff is null')
+                        #print('recv buff is null')
                         d = {}
                         d['agent_id'] = int(_buff[0])
                         d['mask_reward'] = torch.inf
@@ -315,12 +318,12 @@ class ParallelComm(object):
                         #self.logger.info('recv_resp: appending {0} response'.format(None))
                     
                     elif _buff[ParallelComm.META_INF_IDX_MSG_DATA] == torch.inf:
-                        print('recv buff failed')
+                        #print('recv buff failed')
                         ret.append(False)
                         #self.logger.info('recv_resp: appending False response. All hope is lost')
 
                     elif _buff[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_META:
-                        print('recv buff success')
+                        #print('recv buff success')
                         d = {}
                         d['agent_id'] = int(_buff[0])
                         d['mask_reward'] = float(_buff[3])
@@ -489,7 +492,7 @@ class ParallelComm(object):
 
 
             #received_mask = self.receive_mask_response(best_agent_id)
-            print(Fore.GREEN + 'Received mask length: ', len(received_mask))
+            #print(Fore.GREEN + 'Received mask length: ', len(received_mask))
 
             # Reset the best agent id for the next request
             best_agent_id = None
@@ -517,20 +520,12 @@ class ParallelComm(object):
         return None, best_agent_id
 
     ### Core functions
-    '''
-    Takes:
-        track_tasks
-        mask_rewards_dict
-        expecting
-        best_agent_id
-
-    '''
     def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
 
         # Initialise the process group for torch distributed
         proc_check = self.init_dist()
 
-        #queue_mask.put(proc_check)
+        queue_mask.put(proc_check)
 
 
         msg = None
@@ -546,6 +541,7 @@ class ParallelComm(object):
 
             # Get the latest states of these variables
             track_tasks, mask_rewards_dict, await_response = queue_loop.get()
+            print()
             print()
             print()
             print(Fore.GREEN + 'COMMUNICATION ITERATION: ', comm_iter)
@@ -567,8 +563,9 @@ class ParallelComm(object):
             #######################   COMMUNICATION STEP ONE    #######################
             ####################### REQUESTS BETWEEN ALL AGENTS #######################
             # send out broadcast request to all other agents for task label
-            print(Fore.GREEN + 'Doing request')
+            #print(Fore.GREEN + 'Doing request')
             other_agents_request = self.send_receive_request(msg)
+            print()
             print(Fore.GREEN + 'Other agent requests: ', other_agents_request)
 
             
@@ -630,7 +627,7 @@ class ParallelComm(object):
 
                         #expecting.append(d['dst_agent_id'])
                         meta_responses.append(d)
-            
+            print()
             print(Fore.GREEN + 'Meta responses to send:', meta_responses)
             print(Fore.GREEN + 'Expecting mask request from these agents:', expecting)
 
@@ -638,10 +635,11 @@ class ParallelComm(object):
             ### SEND RECV META RESPONSES
             # Receive metadata response from other agents for a embedding/tasklabel request from 
             # this agent.
-            print(Fore.GREEN + 'Awaiting Responses? ', await_response)
+            #print(Fore.GREEN + 'Awaiting Responses? ', await_response)
 
             results = []
             results = self.send_recv_meta(meta_responses, await_response)
+            print()
             print('Results of send_recv_meta(): ', results)
 
 
@@ -653,31 +651,66 @@ class ParallelComm(object):
                 # Sort received meta data by smallest distance (primary) and highest reward (secondary),
                 # using full bidirectional multikey sorting (fancy words for such a simple concept)
                 results = sorted(results, key=lambda d: (d['dist'], -d['mask_reward']))
-                print(Fore.GREEN + 'Metadata responses sorted: ', results)
+                print(Fore.GREEN + 'Metadata responses sorted: ')
+                for item in results:
+                    print(item)
 
                 # Iterate through the await_response list. Upon task change this is an array:
                 # [True,] * num_agents
                 selected = False    # flag to check if the best agent of the lot has been selected
                 for idx in range(len(await_response)):
                     # Do some checks to remove to useless results
-                    if idx == self.agent_id: await_response[idx] = False
-                    if await_response[idx] is False: continue
-                    if results[idx] is False: continue
-                    elif results[idx]['mask_reward'] == torch.inf: await_response[idx] = False
+                    if results[idx]['agent_id'] == self.agent_id:
+                        print('Option 1')
+                        await_response[idx] = False
+                        continue
+
+                    if await_response[idx] is False:
+                        print('Option 2')
+                        continue
+
+                    if results[idx] is False:
+                        print('Option 3')
+                        continue
+
+                    elif results[idx]['mask_reward'] == torch.inf:
+                        print('Option 4')
+                        recv_agent_id = results[idx]['agent_id']
+                        send_msk_request[recv_agent_id] = None
+                        await_response[idx] = False
 
                     # Otherwise unpack the metadata
                     else:
+                        print('Option 5')
                         recv_agent_id = results[idx]['agent_id']
                         recv_msk_rw = results[idx]['mask_reward']
                         recv_dist = results[idx]['dist']
                         recv_label = results[idx]['emb_label']
+
+                        print(recv_agent_id, type(recv_agent_id), flush=True)
+                        print(recv_msk_rw, type(recv_msk_rw), flush=True)
+                        print(recv_dist, type(recv_dist), flush=True)
+                        print(recv_label, type(recv_label), flush=True)
 
                         # If the recv_dist is lower or equal to the threshold and a best agent
                         # hasn't been selected yet then continue
                         if recv_dist <= ParallelComm.THRESHOLD and selected == False:
                             # Check if the reward is greater than the current reward for the task
                             # or if the knowledge even exists.
-                            if (recv_msk_rw > mask_rewards_dict[tuple(msg)]) or (msg not in mask_rewards_dict.keys()):
+                            if tuple(msg) in mask_rewards_dict.keys():
+                                if recv_msk_rw > mask_rewards_dict[tuple(msg)]:
+                                    # Add the agent id and embedding/tasklabel from the agent
+                                    # to a dictionary to send requests/rejections to.
+                                    send_msk_request[recv_agent_id] = recv_label
+                                    # Make a note of the best agent id in memory of this agent
+                                    # We will use this later to get the mask from the best agent
+                                    best_agent_id = recv_agent_id
+                                    # Make the selected flag true so we don't pick another agent
+                                    selected = True
+
+                            # If we don't have any knowledge present for the task then get the mask 
+                            # anyway from the best agent.
+                            else:
                                 # Add the agent id and embedding/tasklabel from the agent
                                 # to a dictionary to send requests/rejections to.
                                 send_msk_request[recv_agent_id] = recv_label
@@ -687,18 +720,24 @@ class ParallelComm(object):
                                 # Make the selected flag true so we don't pick another agent
                                 selected = True
 
-                        # If best selected or doesn't meet criteria, then send rejection
-                        # i.e., None
-                        else:
-                            send_msk_request[recv_agent_id] = None
-
                         # We have checked the response so set it to False until the next task change
                         # and request loop begins
                         await_response[idx] = False
 
             print(Fore.GREEN + 'Mask requests to send to other agents: ', send_msk_request)
+            
+            try:
+                if all(value == None for value in send_msk_request.values()):
+                    pass
+            except:
+                print()
+                print()
+                print()
+                print()
+                print()
+                print()
+                print()
 
-            """
             #######################     COMMUNICATION STEP FOUR      #######################
             ####################### SEND MASK REQUESTS OR REJECTIONS #######################
             ### SEND MASK REQUEST OR REJECTION
@@ -713,17 +752,19 @@ class ParallelComm(object):
             # with a dictionary for each request. The expecting dictionary is reset by the
             # receive_mask_requests() function. Expecting should be empty at the end of this
             # code segment.
-            msk_requests = []
             #print(Fore.GREEN + 'Check expecting is empty: ', expecting)
             #if expecting:
             #    expecting, msk_requests = self.receive_mask_requests(expecting)
 
             
-            print(send_msk_request, expecting)
+            msk_requests = []
+            print('Before send_recv_req():', send_msk_request, expecting)
             expecting, msk_requests = self.send_recv_mask_req(send_msk_request, expecting)
 
-            
-            print(Fore.GREEN + 'After receiving mask req: ', expecting, msk_requests)
+            print(Fore.GREEN + 'After send_recv_req():', expecting, msk_requests)
+
+
+            """
             ####################### COMMUNICATION STEP FIVE #######################
             # Now the agent needs to send a mask to each agent in the msk_requests list
             # if it is not empty.

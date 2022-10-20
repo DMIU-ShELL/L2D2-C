@@ -586,8 +586,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
 
 
-    #check = queue_mask.get()
-    check = True
+    check = queue_mask.get()
+    #check = True
     if check:
         while True:
             #print(Fore.BLUE + 'Msg in this iteration: ', msg)
