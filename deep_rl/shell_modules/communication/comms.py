@@ -359,11 +359,13 @@ class ParallelComm(object):
         if send_msk_requests:
             for agent_id, emb_label in send_msk_requests.items():
                 print(agent_id, emb_label, flush=True)
-                if agent_id == self.agent_id:
-                    print('continue')
-                    continue
+                
+                
+                #if agent_id == self.agent_id:
+                #    print('continue')
+                #    continue
 
-                print('sending', flush=True)
+                #print('sending', flush=True)
                 # Convert embedding label to tensor
                 if isinstance(emb_label, np.ndarray):
                     emb_label = torch.tensor(emb_label, dtype=torch.float32)
@@ -419,7 +421,7 @@ class ParallelComm(object):
                     expecting.remove(idx)
 
         # Return a list of dictionaries for each agent that wants a mask
-        return expecting, ret
+        return ret
     
     def send_recv_mask_req(self, send_msk_requests, expecting):
         #print('SEND_MSK_REQ: ', send_msk_requests)
@@ -427,9 +429,11 @@ class ParallelComm(object):
         pool1 = mp.pool.ThreadPool(processes=1)
         pool2 = mp.pool.ThreadPool(processes=1)
 
+        #self.send_mask_request(send_msk_requests)
         _ = pool1.apply_async(self.send_mask_request, (send_msk_requests,))
         result = pool2.apply_async(self.receive_mask_requests, (expecting,))
 
+        #return None, None
         return result.get()
 
 
@@ -531,8 +535,6 @@ class ParallelComm(object):
         msg = None
         # Store the best agent id for quick reference
         best_agent_id = None
-        # Store list of agent IDs that this agent has sent metadata to
-        expecting = list()
 
         # initial state of input variables to loop
         comm_iter = 0
@@ -675,8 +677,8 @@ class ParallelComm(object):
 
                     elif results[idx]['mask_reward'] == torch.inf:
                         print('Option 4')
-                        recv_agent_id = results[idx]['agent_id']
-                        send_msk_request[recv_agent_id] = None
+                        #recv_agent_id = results[idx]['agent_id']
+                        #send_msk_request[recv_agent_id] = None
                         await_response[idx] = False
 
                     # Otherwise unpack the metadata
@@ -708,6 +710,13 @@ class ParallelComm(object):
                                     # Make the selected flag true so we don't pick another agent
                                     selected = True
 
+                                else:
+                                    # if this agent's reward is higher or the same as the other best agent
+                                    # then reject the best agent
+                                    recv_agent_id = results[idx]['agent_id']
+                                    send_msk_request[recv_agent_id] = None
+                                    
+
                             # If we don't have any knowledge present for the task then get the mask 
                             # anyway from the best agent.
                             else:
@@ -719,6 +728,12 @@ class ParallelComm(object):
                                 best_agent_id = recv_agent_id
                                 # Make the selected flag true so we don't pick another agent
                                 selected = True
+
+                        else:
+                            # if this agent's reward is higher or the same as the other best agent
+                            # then reject the best agent
+                            recv_agent_id = results[idx]['agent_id']
+                            send_msk_request[recv_agent_id] = None
 
                         # We have checked the response so set it to False until the next task change
                         # and request loop begins
@@ -759,12 +774,11 @@ class ParallelComm(object):
             
             msk_requests = []
             print('Before send_recv_req():', send_msk_request, expecting)
-            expecting, msk_requests = self.send_recv_mask_req(send_msk_request, expecting)
+            msk_requests = self.send_recv_mask_req(send_msk_request, expecting)
 
-            print(Fore.GREEN + 'After send_recv_req():', expecting, msk_requests)
+            print(Fore.GREEN + 'After send_recv_req():', msk_requests)
 
-
-            """
+            
             ####################### COMMUNICATION STEP FIVE #######################
             # Now the agent needs to send a mask to each agent in the msk_requests list
             # if it is not empty.
@@ -772,7 +786,6 @@ class ParallelComm(object):
             received_mask = None
 
             if msk_requests:
-                print('Agent has entered send_mask()')
                 # Iterate through the requests
                 # Send the label to be converted, to the agent
                 masks_list = []
@@ -811,7 +824,6 @@ class ParallelComm(object):
             #    raise ValueError('{0} communication mode has not been implemented!'.format(mode))
             #else:
             #    raise ValueError('{0} communication mode has not been implemented!'.format(mode))
-            """
             comm_iter += 1
 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
