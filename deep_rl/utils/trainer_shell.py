@@ -620,30 +620,6 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # with the iteration regardless of mask being available. Once the mask is available in
                 # an iteration cycle, then distil the knowledge to the network which should dramatically
                 # improve performance.
-                try:
-                    mask, track_tasks_temp, await_response = queue_mask.get_nowait()
-                    print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
-                    if mask is not None:
-                        agent.distil_task_knowledge_single(mask)
-                        print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
-                        del mask
-
-                    if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
-                        track_tasks = track_tasks_temp
-                        del track_tasks_temp
-
-                    else:
-                        temp_self_task = track_tasks[agent_id]
-                        track_tasks = track_tasks_temp
-                        track_tasks[agent_id] = temp_self_task
-                        del track_tasks_temp, temp_self_task
-                        
-                    ##print(Fore.BLUE + 'Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
-                    #print()
-
-                except Empty:
-                    print('Get mask failed')
-                    pass # continue with the iteration
 
                 
                 await_response = [True,] * num_agents
@@ -797,6 +773,31 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
 
 
+            if num_agents > 1:
+                try:
+                    mask, track_tasks_temp, await_response = queue_mask.get_nowait()
+                    print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
+                    if mask is not None:
+                        agent.distil_task_knowledge_single(mask)
+                        print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
+                        del mask
+
+                    if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
+                        track_tasks = track_tasks_temp
+                        del track_tasks_temp
+
+                    else:
+                        temp_self_task = track_tasks[agent_id]
+                        track_tasks = track_tasks_temp
+                        track_tasks[agent_id] = temp_self_task
+                        del track_tasks_temp, temp_self_task
+                        
+                    ##print(Fore.BLUE + 'Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
+                    #print()
+
+                except Empty:
+                    print('Get mask failed')
+                    pass # continue with the iteration
             # If ShELL is finished running all tasks then stop the program
             # this will have to be changed when we deploy so agents never stop working
             # and simply idle if there is nothing to learn.

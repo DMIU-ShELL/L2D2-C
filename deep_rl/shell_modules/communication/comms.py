@@ -210,63 +210,59 @@ class ParallelComm(object):
         '''
         Sends either the mask or meta data to another agent.
         '''
-        try:
-            self.logger.info('send_resp {0}'.format(req_dict))
-            
-            dst_agent_id = req_dict['dst_agent_id']
-            mask_reward =req_dict['mask_reward']
-            distance = req_dict['dist']
-            distance = np.float64(distance)
-            emb_label = req_dict['resp_task_label']
+        self.logger.info('send_resp {0}'.format(req_dict))
+        
+        dst_agent_id = req_dict['dst_agent_id']
+        mask_reward =req_dict['mask_reward']
+        distance = req_dict['dist']
+        distance = np.float64(distance)
+        emb_label = req_dict['resp_task_label']
 
-            #print(dst_agent_id, mask_reward, distance, emb_label)
-            #print(type(dst_agent_id), type(mask_reward), type(distance), type(emb_label))
+        #print(dst_agent_id, mask_reward, distance, emb_label)
+        #print(type(dst_agent_id), type(mask_reward), type(distance), type(emb_label))
 
-            #print(dst_agent_id, mask_reward, emb_label, flush=True)
-            #print(type(dst_agent_id), type(mask_reward), type(emb_label), flush=True)
+        #print(dst_agent_id, mask_reward, emb_label, flush=True)
+        #print(type(dst_agent_id), type(mask_reward), type(emb_label), flush=True)
 
-            #if isinstance(emb_label, np.ndarray):
-            #    emb_label = torch.tensor(emb_label, dtype=torch.float32)
+        #if isinstance(emb_label, np.ndarray):
+        #    emb_label = torch.tensor(emb_label, dtype=torch.float32)
 
-            # Consider changing to local buffer
-            buff = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + self.emb_label_sz, dtype=torch.float32) * torch.inf
-            buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
-            buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
+        # Consider changing to local buffer
+        buff = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + self.emb_label_sz, dtype=torch.float32) * torch.inf
+        buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
+        buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
 
-            #self.logger.info('send_resp: responding to agent {0} query'.format(dst_agent_id))
-            #self.logger.info('send_resp: mask (response) data type: {0}'.format(type(mask)))
+        #self.logger.info('send_resp: responding to agent {0} query'.format(dst_agent_id))
+        #self.logger.info('send_resp: mask (response) data type: {0}'.format(type(mask)))
 
-            # If mask is none then send back torch.inf
-            # otherwise send mask
-            if mask_reward is torch.inf:
-                #print('Mask reward is None -> True', flush=True)
-                buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
+        # If mask is none then send back torch.inf
+        # otherwise send mask
+        if mask_reward is torch.inf:
+            #print('Mask reward is None -> True', flush=True)
+            buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
 
-            else:
-                #print('Mask reward is None -> False', flush=True)
-                #print(mask_reward, emb_label, distance, flush=True)
-                #print(type(mask_reward), type(emb_label), type(distance), flush=True)
-                # if the mask is none but there is a mask reward, then overwrite the buffer with
-                # the meta data. Otherwise don't do anything.
-                buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_META
-                buff[ParallelComm.META_INF_IDX_MSK_RW] = mask_reward
-                buff[ParallelComm.META_INF_IDX_DIST] = distance
-                buff[ParallelComm.META_INF_IDX_TASK_SZ_ :] = emb_label
+        else:
+            #print('Mask reward is None -> False', flush=True)
+            #print(mask_reward, emb_label, distance, flush=True)
+            #print(type(mask_reward), type(emb_label), type(distance), flush=True)
+            # if the mask is none but there is a mask reward, then overwrite the buffer with
+            # the meta data. Otherwise don't do anything.
+            buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_META
+            buff[ParallelComm.META_INF_IDX_MSK_RW] = mask_reward
+            buff[ParallelComm.META_INF_IDX_DIST] = distance
+            buff[ParallelComm.META_INF_IDX_TASK_SZ_ :] = emb_label
 
-            #self.logger.info('Sending metadata to agent {0}: {1}'.format(dst_agent_id, buff, buff.dtype))
-            # actual send
-            #print(buff)
-            #for idx, val in enumerate(buff):
-                #print(type(val), val)
-            #print(type(buff))
-            #print(type(buff[0]), type(buff[1]), type(buff[2]), type(buff[3]), type(buff[4]), type(buff[5]))
-            #print('STARTING SEND')
-            req_send = dist.isend(tensor=buff, dst=dst_agent_id)
-            req_send.wait()
-            #print('COMPLETED SEND', flush=True)
-            return
-        except:
-            exit()
+        #self.logger.info('Sending metadata to agent {0}: {1}'.format(dst_agent_id, buff, buff.dtype))
+        # actual send
+        #print(buff)
+        #for idx, val in enumerate(buff):
+            #print(type(val), val)
+        #print(type(buff))
+        #print(type(buff[0]), type(buff[1]), type(buff[2]), type(buff[3]), type(buff[4]), type(buff[5]))
+        #print('STARTING SEND')
+        req_send = dist.isend(tensor=buff, dst=dst_agent_id)
+        req_send.wait()
+        #print('COMPLETED SEND', flush=True)
     def receive_meta_response(self, await_response):
         '''
         Receives the response from all in the network agents.
@@ -388,7 +384,6 @@ class ParallelComm(object):
                 req = dist.isend(tensor=data, dst=agent_id)
                 req.wait()
                 print('SENDING: ', data, agent_id, '\n', flush=True)
-                return
     def receive_mask_requests(self, expecting):
         # Check for mask requests from other agents if expecting any requests
         ret = []
@@ -437,37 +432,36 @@ class ParallelComm(object):
 
     # Multi-threaded handling of mask send recv
     def send_mask(self, masks_list):
-        print('Agent entered send_mask() actual')
-        for item in masks_list:
-            print(item)
-            mask = item['mask']
-            dst_agent_id = int(item['dst_agent_id'])
+        if masks_list:
+            print('Agent entered send_mask() actual')
+            for item in masks_list:
+                print(item)
+                mask = item['mask']
+                dst_agent_id = int(item['dst_agent_id'])
 
-            print(type(mask), mask.dtype)
+                print(type(mask), mask.dtype)
 
 
-            buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz, dtype=torch.float32) * torch.inf
+                buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz, dtype=torch.float32) * torch.inf
 
-            buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
-            buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
+                buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
+                buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
 
-            if mask is None:
-                buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
+                if mask is None:
+                    buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
 
-            else:
-                buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_MSK
-                buff[ParallelComm.META_INF_IDX_MASK_SZ : ] = mask # NOTE deepcopy?
+                else:
+                    buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_MSK
+                    buff[ParallelComm.META_INF_IDX_MASK_SZ : ] = mask # NOTE deepcopy?
 
-            print('send_mask(): sending buffer', buff, flush=True)
+                print('send_mask(): sending buffer', buff, flush=True)
 
-            #print('Buffer to be sent with mask: ', buff, flush=True)
-            # Send the mask to the destination agent id
-            print('Starting send data')
-            req_send = dist.isend(tensor=buff, dst=dst_agent_id)
-            req_send.wait()
-            print('send_mask() completed. Returning')
-            #print('Sending mask to agents part 2. All complete!')
-        return
+                #print('Buffer to be sent with mask: ', buff, flush=True)
+                # Send the mask to the destination agent id
+                print('Starting send data')
+                req_send = dist.isend(tensor=buff, dst=dst_agent_id)
+                req_send.wait()
+                print('send_mask() completed. Returning')
     def receive_mask(self, best_agent_id):
         received_mask = None
         
@@ -501,26 +495,21 @@ class ParallelComm(object):
 
             del _buff
 
-        return received_mask
+        return received_mask, best_agent_id
 
     def send_recv_mask(self, masks_list, best_agent_id):
         #print('Send Recv Mask Function', len(mask), dst_agent_id, best_agent_id)
         pool1 = mp.pool.ThreadPool(processes=1)
         pool2 = mp.pool.ThreadPool(processes=1)
 
-        if masks_list:
-            print('send_mask():', masks_list)
-            _ = pool1.apply_async(self.send_mask, (masks_list,))
-
-        mask = None
-        if best_agent_id:
-            print('recv_mask():', best_agent_id)
-            result = pool2.apply_async(self.receive_mask, (best_agent_id,))
-            mask = result.get()
+        
+        #print('send_mask():', masks_list)
+        _ = pool1.apply_async(self.send_mask, (masks_list,))
+        result = pool2.apply_async(self.receive_mask, (best_agent_id,))
 
         # If the recv was not run then return NoneType for mask and whatever was passed for
         # best_agent_id (probably []).
-        return mask
+        return result.get()
 
     ### Core functions
     def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
@@ -752,6 +741,7 @@ class ParallelComm(object):
                 print()
                 print()
 
+            
             #######################     COMMUNICATION STEP FOUR      #######################
             ####################### SEND MASK REQUESTS OR REJECTIONS #######################
             ### SEND MASK REQUEST OR REJECTION
@@ -781,53 +771,59 @@ class ParallelComm(object):
             print()
             print()
 
-            
+
+
             ####################### COMMUNICATION STEP FIVE #######################
             # Now the agent needs to send a mask to each agent in the msk_requests list
             # if it is not empty.
 
             received_mask = None
 
-            if msk_requests:
+            if msk_requests or best_agent_id:
                 # Iterate through the requests
                 # Send the label to be converted, to the agent
                 masks_list = []
                 for req in msk_requests:
-                    print('Mask request: ', req, flush=True)
+                    if type(req) is dict:
+                        print('Mask request: ', req, flush=True)
 
-                    # Send a mask to the requesting agent
-                    dst_agent_id = req['requester_agent_id']
-                    # Send label:id to agent
-                    _temp_label = req['task_label']
-                    queue_label_send.put_nowait((_temp_label, dst_agent_id))
+                        # Send a mask to the requesting agent
+                        dst_agent_id = req['requester_agent_id']
+                        # Send label:id to agent
+                        _temp_label = req['task_label']
+                        queue_label_send.put_nowait((_temp_label, dst_agent_id))
 
-                    print('Send label to be converted:', _temp_label, dst_agent_id, flush=True)
-                    print('Sending mask to agents part 1', flush=True)
+                        print('Send label to be converted:', _temp_label, dst_agent_id, flush=True)
+                        print('Sending mask to agents part 1', flush=True)
 
-                    # wait to receive a mask from the agent module. do not continue until you receive
-                    # this mask. agent will see the request eventually and send back the converted mask.
-                    mask, dst_agent_id = queue_mask_recv.get()
-                    print('MASK RECEIVED FROM AGENT MODULE:', len(mask), dst_agent_id)
+                        # wait to receive a mask from the agent module. do not continue until you receive
+                        # this mask. agent will see the request eventually and send back the converted mask.
+                        mask, dst_agent_id = queue_mask_recv.get()
+                        print('MASK RECEIVED FROM AGENT MODULE:', len(mask), dst_agent_id)
+                        
+                        d = {}
+                        d['mask'] = mask
+                        d['dst_agent_id'] = dst_agent_id
+                        masks_list.append(d)
                     
-                    d = {}
-                    d['mask'] = mask
-                    d['dst_agent_id'] = dst_agent_id
-                    masks_list.append(d)
-                    
-                received_mask = self.send_recv_mask(masks_list, best_agent_id)
+                print('Masks to send:', masks_list)
+                received_mask, best_agent_id = self.send_recv_mask(masks_list, best_agent_id)
 
 
-            print(Fore.GREEN + 'Returning to agent', received_mask, flush=True)
+            print(Fore.GREEN + 'Mask received for distillation', received_mask, best_agent_id, flush=True)
+
             # Send the mask to the agent (mask or NoneType) as well as the other variables 
             # used in the rest of the agent iteration. The communication loop will get
             # these variables back in the next cycle after being updated by the agent.
             queue_mask.put_nowait((received_mask, track_tasks, await_response))
-            print(Fore.GREEN + 'Return completed', flush=True)
+            #print(Fore.GREEN + 'Return completed', flush=True)
             
             #elif self.mode == 'fetchall':
             #    raise ValueError('{0} communication mode has not been implemented!'.format(mode))
             #else:
             #    raise ValueError('{0} communication mode has not been implemented!'.format(mode))
+            
+            
             comm_iter += 1
 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
