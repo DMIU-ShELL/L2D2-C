@@ -465,7 +465,7 @@ class ParallelComm(object):
                 # Send the mask to the destination agent id
                 print('Starting send data')
                 req_send = dist.isend(tensor=buff, dst=dst_agent_id)
-                #req_send.wait()
+                req_send.wait()
                 print('send_mask() completed. Returning')
     def receive_mask(self, best_agent_id):
         received_mask = None
@@ -478,8 +478,8 @@ class ParallelComm(object):
             # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
             print('Mask recv start')
             req_recv = dist.irecv(tensor=_buff, src=best_agent_id)
-            time.sleep(ParallelComm.SLEEP_DURATION)
-            #req_recv.wait()
+            #time.sleep(ParallelComm.SLEEP_DURATION)
+            req_recv.wait()
             print('Mask recv end')
             #time.sleep(ParallelComm.SLEEP_DURATION)
 
@@ -535,6 +535,7 @@ class ParallelComm(object):
         msg = None
         # Store the best agent id for quick reference
         best_agent_id = None
+        best_agent_rw = {}
 
         # initial state of input variables to loop
         comm_iter = 0
@@ -709,8 +710,10 @@ class ParallelComm(object):
                                     # Make a note of the best agent id in memory of this agent
                                     # We will use this later to get the mask from the best agent
                                     best_agent_id = recv_agent_id
+                                    best_agent_rw[tuple(msg)] = np.around(recv_msk_rw, 6)
                                     # Make the selected flag true so we don't pick another agent
                                     selected = True
+
 
                                 else:
                                     # if this agent's reward is higher or the same as the other best agent
@@ -727,7 +730,8 @@ class ParallelComm(object):
                                 send_msk_request[recv_agent_id] = recv_label
                                 # Make a note of the best agent id in memory of this agent
                                 # We will use this later to get the mask from the best agent
-                                best_agent_id = recv_agent_id
+                                best_agent_id = np.around(recv_agent_id, 6)
+                                best_agent_rw[tuple(msg)] = recv_msk_rw
                                 # Make the selected flag true so we don't pick another agent
                                 selected = True
 
@@ -793,6 +797,8 @@ class ParallelComm(object):
 
             received_mask = None
 
+            print('Before mask exchange:', msk_requests, best_agent_id)
+
             if msk_requests or best_agent_id:
                 # Iterate through the requests
                 # Send the label to be converted, to the agent
@@ -829,7 +835,7 @@ class ParallelComm(object):
             # Send the mask to the agent (mask or NoneType) as well as the other variables 
             # used in the rest of the agent iteration. The communication loop will get
             # these variables back in the next cycle after being updated by the agent.
-            queue_mask.put_nowait((received_mask, track_tasks, await_response))
+            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw))
             #print(Fore.GREEN + 'Return completed', flush=True)
             
             #elif self.mode == 'fetchall':

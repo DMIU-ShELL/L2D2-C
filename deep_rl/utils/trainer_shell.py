@@ -775,10 +775,13 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
             if num_agents > 1:
                 try:
-                    mask, track_tasks_temp, await_response = queue_mask.get_nowait()
+                    mask, track_tasks_temp, await_response, best_agent_rw = queue_mask.get_nowait()
                     print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
                     
                     if mask is not None:
+                        # Update the knowledge base with the expected reward
+                        mask_rewards_dict.update(best_agent_rw)
+                        # Update the network with the mask
                         agent.distil_task_knowledge_single(mask)
                         print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
                         del mask
@@ -792,6 +795,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                         track_tasks = track_tasks_temp
                         track_tasks[agent_id] = temp_self_task
                         del track_tasks_temp, temp_self_task
+
                         
                     ##print(Fore.BLUE + 'Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
                     #print()

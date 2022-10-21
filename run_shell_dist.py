@@ -68,7 +68,7 @@ def global_config(config, name):
     config.task_fn = None
     config.eval_task_fn = None
     config.network_fn = None 
-    config.eval_interval = 1
+    config.eval_interval = None#1
     return config
 
 '''
