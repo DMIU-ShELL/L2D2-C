@@ -334,10 +334,13 @@ class ParallelComm(object):
 
         _ = pool1.apply_async(self.send_meta_response, (requesters,))
         #self.send_meta_response(requesters)
-        time.sleep(0.2)
+        #time.sleep(0.2)
         result = pool2.apply_async(self.receive_meta_response, (await_response,))
         #result = self.receive_meta_response(await_response)
         #return result
+
+        pool1.close()
+        pool2.close()
         return result.get()
 
 
@@ -426,6 +429,8 @@ class ParallelComm(object):
         _ = pool1.apply_async(self.send_mask_request, (send_msk_requests,))
         result = pool2.apply_async(self.receive_mask_requests, (expecting,))
 
+        pool1.close()
+        pool2.close()
         #return None, None
         return result.get()
 
@@ -460,7 +465,7 @@ class ParallelComm(object):
                 # Send the mask to the destination agent id
                 print('Starting send data')
                 req_send = dist.isend(tensor=buff, dst=dst_agent_id)
-                req_send.wait()
+                #req_send.wait()
                 print('send_mask() completed. Returning')
     def receive_mask(self, best_agent_id):
         received_mask = None
@@ -473,7 +478,8 @@ class ParallelComm(object):
             # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
             print('Mask recv start')
             req_recv = dist.irecv(tensor=_buff, src=best_agent_id)
-            req_recv.wait()
+            time.sleep(ParallelComm.SLEEP_DURATION)
+            #req_recv.wait()
             print('Mask recv end')
             #time.sleep(ParallelComm.SLEEP_DURATION)
 
@@ -502,10 +508,16 @@ class ParallelComm(object):
         pool1 = mp.pool.ThreadPool(processes=1)
         pool2 = mp.pool.ThreadPool(processes=1)
 
-        
+        #self.send_mask(masks_list)
+        #received_mask, best_agent_id = self.receive_mask(best_agent_id)
+
+        #return received_mask, best_agent_id
         #print('send_mask():', masks_list)
         _ = pool1.apply_async(self.send_mask, (masks_list,))
         result = pool2.apply_async(self.receive_mask, (best_agent_id,))
+
+        pool1.close()
+        pool2.close()
 
         # If the recv was not run then return NoneType for mask and whatever was passed for
         # best_agent_id (probably []).
@@ -598,7 +610,7 @@ class ParallelComm(object):
                     d = {}
                     print('Knowledge base', mask_rewards_dict)
                     for tlabel, treward in mask_rewards_dict.items():
-                        if treward != 0.0:
+                        if treward != np.around(0.0, decimals=6):
                             print(np.asarray(tlabel), treward)
                             dist = np.sum(abs(np.subtract(req_label_as_np, np.asarray(tlabel))))
                             if dist <= 0.0:
@@ -677,6 +689,8 @@ class ParallelComm(object):
                         recv_dist = results[idx]['dist']
                         recv_label = results[idx]['emb_label']
 
+
+
                         print(recv_agent_id, type(recv_agent_id), flush=True)
                         print(recv_msk_rw, type(recv_msk_rw), flush=True)
                         print(recv_dist, type(recv_dist), flush=True)
@@ -688,7 +702,7 @@ class ParallelComm(object):
                             # Check if the reward is greater than the current reward for the task
                             # or if the knowledge even exists.
                             if tuple(msg) in mask_rewards_dict.keys():
-                                if recv_msk_rw > mask_rewards_dict[tuple(msg)]:
+                                if round(recv_msk_rw, 6) > mask_rewards_dict[tuple(msg)]:
                                     # Add the agent id and embedding/tasklabel from the agent
                                     # to a dictionary to send requests/rejections to.
                                     send_msk_request[recv_agent_id] = recv_label

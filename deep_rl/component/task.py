@@ -537,6 +537,7 @@ class MiniGrid(BaseTask):
     def random_tasks(self, num_tasks, requires_task_label=True):
         raise NotImplementedError
 
+import numpy as np
 class MiniGridFlatObs(MiniGrid):
     def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
         super(MiniGridFlatObs, self).__init__(name, env_config_path, log_dir, seed, eval_mode)
@@ -545,6 +546,12 @@ class MiniGridFlatObs(MiniGrid):
     def step(self, action):
         state, reward, done, info = self.env.step(action)
         if done: state = self.reset()
+
+        # Adding noise to reward for synchronised learning
+        #noise = float(np.random.uniform(0, 0.001, 1))
+        #reward = reward + noise
+
+
         return state.ravel(), reward, done, info
 
     def reset(self):

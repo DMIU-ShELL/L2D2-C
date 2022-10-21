@@ -672,7 +672,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 
                 # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
                 # logging cycle. Take average of all worker averages as the most recent reward score for a given task
-                mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.mean(agent.iteration_rewards)
+                mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.around(np.mean(agent.iteration_rewards), decimals=6)
                 print(Fore.BLUE + '', mask_rewards_dict, flush=True)
                 #print(track_tasks)
 
@@ -777,6 +777,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 try:
                     mask, track_tasks_temp, await_response = queue_mask.get_nowait()
                     print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
+                    
                     if mask is not None:
                         agent.distil_task_knowledge_single(mask)
                         print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
