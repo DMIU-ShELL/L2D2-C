@@ -590,6 +590,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     #check = True
     if check:
         while True:
+            START = time.time()
             #print(Fore.BLUE + 'Msg in this iteration: ', msg)
             # If world size is 1 then act as an individual agent.
             ######################## COMMUNICATION MODULE HANDLING ########################
@@ -598,18 +599,50 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             communication module to get it masks from the network if available. Agent will continue to function
             regardless of whether the communication module gets a mask or not.
             '''
+            time.sleep(1)
             if num_agents > 1:
+                try:
+                    mask, track_tasks_temp, await_response, best_agent_rw = queue_mask.get_nowait()
+                    print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
+                    
+                    if mask is not None:
+                        # Update the knowledge base with the expected reward
+                        mask_rewards_dict.update(best_agent_rw)
+                        # Update the network with the mask
+                        agent.distil_task_knowledge_single(mask)
+                        print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
+                        #del mask
+
+                    if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
+                        track_tasks = track_tasks_temp
+                        del track_tasks_temp
+
+                    else:
+                        temp_self_task = track_tasks[agent_id]
+                        track_tasks = track_tasks_temp
+                        track_tasks[agent_id] = temp_self_task
+                        del track_tasks_temp, temp_self_task
+
+                        
+                    ##print(Fore.BLUE + 'Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
+                    #print()
+
+                except Empty:
+                    print('Get mask failed')
+                    pass # continue with the iteration
+
+
+
                 # Check if the communication module has sent a label to be converted to a mask
                 # convert it and send it back to the agent
                 try:
                     #print(Fore.BLUE + 'Agent checking for any label conversion req')
-                    comm_label, dst_agent_id = queue_label_send.get_nowait()              # receive label
-                    #print(comm_label, type)
-                    comm_label = comm_label.detach().cpu().numpy()
-                    print(Fore.BLUE + 'Requested label:', comm_label)
-                    queue_mask_recv.put((agent.label_to_mask(comm_label), dst_agent_id))    # convert label and send
-                    #print(Fore.BLUE + 'Mask sent to comm!')
-                    del comm_label, dst_agent_id                                       # delete the stored label
+                    conversions = queue_label_send.get_nowait()
+                    _conversions = {}
+                    for dst_agent_id, comm_label in conversions.items():
+                        comm_label = comm_label.detach().cpu().numpy()
+                        _conversions[dst_agent_id] = agent.label_to_mask(comm_label)
+                    queue_mask_recv.put((_conversions))
                 except Empty:
                     print(Fore.BLUE + 'No label to convert to mask')
                     pass
@@ -771,38 +804,10 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # reset eval tracker and add new buffer to save next eval metrics
                 shell_eval_tracker = False
                 shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
+            
+            print()
+            print('***** AGENT ITERATION TIME ELAPSED:', time.time()-START)
 
-
-            if num_agents > 1:
-                try:
-                    mask, track_tasks_temp, await_response, best_agent_rw = queue_mask.get_nowait()
-                    print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
-                    
-                    if mask is not None:
-                        # Update the knowledge base with the expected reward
-                        mask_rewards_dict.update(best_agent_rw)
-                        # Update the network with the mask
-                        agent.distil_task_knowledge_single(mask)
-                        print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
-                        del mask
-
-                    if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
-                        track_tasks = track_tasks_temp
-                        del track_tasks_temp
-
-                    else:
-                        temp_self_task = track_tasks[agent_id]
-                        track_tasks = track_tasks_temp
-                        track_tasks[agent_id] = temp_self_task
-                        del track_tasks_temp, temp_self_task
-
-                        
-                    ##print(Fore.BLUE + 'Agent received from comm: ', mask, track_tasks, mask_rewards_dict, await_response)
-                    #print()
-
-                except Empty:
-                    print('Get mask failed')
-                    pass # continue with the iteration
             # If ShELL is finished running all tasks then stop the program
             # this will have to be changed when we deploy so agents never stop working
             # and simply idle if there is nothing to learn.
