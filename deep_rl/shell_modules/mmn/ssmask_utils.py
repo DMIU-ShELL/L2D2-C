@@ -427,7 +427,9 @@ def get_mask(model, task, raw_score=True):
     return mask 
 
 def set_mask(model, mask, task):
+    print('mask in set_mask', mask, type(mask))
     for n, m in model.named_modules():
+        print(n)
         if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
             m.set_mask(mask[n], task)
 

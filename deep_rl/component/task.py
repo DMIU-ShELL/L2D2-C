@@ -537,7 +537,6 @@ class MiniGrid(BaseTask):
     def random_tasks(self, num_tasks, requires_task_label=True):
         raise NotImplementedError
 
-import numpy as np
 class MiniGridFlatObs(MiniGrid):
     def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
         super(MiniGridFlatObs, self).__init__(name, env_config_path, log_dir, seed, eval_mode)

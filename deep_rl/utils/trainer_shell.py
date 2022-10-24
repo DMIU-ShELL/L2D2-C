@@ -827,20 +827,10 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
         agent.close()
         return
 
-
-
-
-def shell_dist_eval_mp(agent, comm, agent_id, num_agents=1):
+def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     logger = agent.config.logger
-
-    # Initialise the process group
-    comm.init_dist()
-
-    # DETECT MODULE CONSTANTS
-    # Threshold for embedding/tasklabel distance (similarity)
-    THRESHOLD = 0
-
     #print()
+
     logger.info('*****start shell training')
 
     shell_done = False
@@ -848,6 +838,12 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents=1):
     shell_tasks = agent.config.cl_tasks_info # tasks for agent
     shell_task_ids = agent.config.task_ids
     shell_task_counter = 0
+
+
+    _task_ids = shell_task_ids
+    _tasks = shell_tasks
+    _names = [eval_task_info['name'] for eval_task_info in _tasks]
+    eval_task_info = zip(_task_ids, _tasks)
 
     shell_eval_tracker = False
     shell_eval_data = []
@@ -858,421 +854,363 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents=1):
         buffering=1) # buffering=1 means flush data to file after every line written
     shell_eval_end_time = None
 
+    # Evaluation agent likely wont need a iteration logging function
     '''if agent.task.name == agent.config.ENV_METAWORLD or \
         agent.task.name == agent.config.ENV_CONTINUALWORLD:
         itr_log_fn = _shell_itr_log_mw
     else:
         itr_log_fn = _shell_itr_log'''
 
-   #await_response = [False,] * num_agents # flag
+    # We will still need the await_response list for communication
+    await_response = [True,] * num_agents
+
+
+    # We will not use the normal task setting. Instead we will use the evaluation version below
     # set the first task each agent is meant to train on
     '''states_ = agent.task.reset_task(shell_tasks[0])
     agent.states = agent.config.state_normalizer(states_)
     logger.info('*****agent {0} / setting first task (task 0)'.format(agent_id))
     logger.info('task: {0}'.format(shell_tasks[0]['task']))
-    logger.info('task_label: {0}'.format(shell_tasks[0]['task_label']))'''
-    #agent.task_train_start(shell_tasks[0]['task_label'])
-    '''#print()
-    del states_'''
-
-
-    # Msg can be embedding or task label.
-    msg = None
-    # Store the best agent id for quick reference
-    best_agent_id = None
-    # Store list of agent IDs that this agent has sent metadata to
-    expecting = list()
-    # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
-    mask_rewards_dict = dict()
-
-    while True:
-       
-        shell_iterations += 1
-
-        # tensorboard log
-        '''if shell_iterations % agent.config.iteration_log_interval == 0:
-            itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, dict_logs)
-            
-            # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
-            # logging cycle. Take average of all worker averages as the most recent reward score for a given task
-            mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.mean(agent.iteration_rewards)
-            #print(mask_rewards_dict)'''
-
-
-        # evaluation block
-        if (agent.config.eval_interval is not None and \
-            shell_iterations % agent.config.eval_interval == 0):
-            logger.info('*****agent {0} / evaluation block'.format(agent_id))
-            _task_ids = shell_task_ids
-            _tasks = shell_tasks
-            _names = [eval_task_info['name'] for eval_task_info in _tasks]
-            logger.info('eval tasks: {0}'.format(', '.join(_names)))
-            for eval_task_idx, eval_task_info in zip(_task_ids, _tasks):
-                agent.task_eval_start(eval_task_info['task_label'])
-                eval_states = agent.evaluation_env.reset_task(eval_task_info)
-                agent.evaluation_states = eval_states
-                # performance (perf) can be success rate in (meta-)continualworld or
-                # rewards in other environments
-                perf, eps = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
-                agent.task_eval_end()
-                shell_eval_data[-1][eval_task_idx] = np.mean(perf)
-            shell_eval_tracker = True
-            shell_eval_end_time = time.time()
-
-        # end of current task training. move onto next task or end training if last task.
-        # i.e., Task Change occurs here. For detect module, if the task embedding signifies a task
-        # change then that occurs here.
-        '''
-        If we want to use a Fetch All mode for ShELL then we need to add a commmunication component
-        at task change which broadcasts the mask to all other agents currently on the network.
-
-        Otherwise the current implementation is a On Demand mode where each agent requests knowledge
-        only when required.
-        '''
-        
-                    
-        if shell_eval_tracker:
-            # log the last eval metrics to file
-            _record = np.concatenate([shell_eval_data[-1],np.array(shell_eval_end_time).reshape(1,)])
-            np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
-            del _record
-
-            # reset eval tracker and add new buffer to save next eval metrics
-            shell_eval_tracker = False
-            shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
-        if all(shell_eval_tracker):
-            _metrics = shell_eval_data[-1]
-            # compute icr
-            _max_reward = _metrics.max(axis=0) 
-            _agent_ids = _metrics.argmax(axis=0).tolist()
-            _agent_ids = ', '.join([str(_agent_id) for _agent_id in _agent_ids])
-            icr = _max_reward.sum()
-            shell_metric_icr.append(icr)
-            # log eval to file/screen and tensorboard
-            logger.info('*****shell evaluation:')
-            logger.info('best agent per task:'.format(_agent_ids))
-            logger.info('shell eval ICR: {0}'.format(icr))
-            logger.info('shell eval TP: {0}'.format(np.sum(shell_metric_icr)))
-            logger.scalar_summary('shell_eval/icr', icr)
-            logger.scalar_summary('shell_eval/tpot', np.sum(shell_metric_icr))
-            # reset eval tracker
-            shell_eval_tracker = [False for _ in shell_eval_tracker]
-            # initialise new eval block
-            shell_eval_data.append(np.zeros((1, num_eval_tasks), dtype=np.float32))
-
-        if shell_done:
-            break
-        comm.barrier()
-    # end of while True
-
-    eval_data_fh.close()
-    # discard last eval data entry as it was not used.
-    if np.all(shell_eval_data[-1] == 0.):
-        shell_eval_data.pop(-1)
-    # save eval metrics
-    to_save = np.stack(shell_eval_data, axis=0)
-    with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
-        np.save(f, to_save)
-        
-    agent.close()
-    return
-
-
-
-
-
-
-
-
-
-'''
-ShELL distributed with multiprocessing and improved version of the revised communication algorithm
-for more efficient bandwidth usage.
-
-Adds synchronised training into algorithm and improves communication optimisation.
-'''
-def shell_dist_train_mp_v2(agent, comm, agent_id, num_agents):
-    logger = agent.config.logger
-
-    # Initialise the process group
-    comm.init_dist()
-
-    # DETECT MODULE CONSTANTS
-    # Threshold for embedding/tasklabel distance (similarity)
-    THRESHOLD = 0
-
-    #print()
-    logger.info('*****start shell training')
-
-    shell_done = False
-    shell_iterations = 0
-    shell_tasks = agent.config.cl_tasks_info # tasks for agent
-    shell_task_ids = agent.config.task_ids
-    shell_task_counter = 0
-
-    shell_eval_tracker = False
-    shell_eval_data = []
-    num_eval_tasks = len(agent.evaluation_env.get_all_tasks())
-    shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
-    shell_metric_icr = [] # icr => instant cumulative reward metric. NOTE may be redundant now
-    eval_data_fh = open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_id), 'a', \
-        buffering=1) # buffering=1 means flush data to file after every line written
-    shell_eval_end_time = None
-
-    if agent.task.name == agent.config.ENV_METAWORLD or \
-        agent.task.name == agent.config.ENV_CONTINUALWORLD:
-        itr_log_fn = _shell_itr_log_mw
-    else:
-        itr_log_fn = _shell_itr_log
-
-    await_response = [False,] * num_agents # flag
-    # set the first task each agent is meant to train on
-    states_ = agent.task.reset_task(shell_tasks[0])
-    agent.states = agent.config.state_normalizer(states_)
-    logger.info('*****agent {0} / setting first task (task 0)'.format(agent_id))
-    logger.info('task: {0}'.format(shell_tasks[0]['task']))
     logger.info('task_label: {0}'.format(shell_tasks[0]['task_label']))
-    agent.task_train_start(shell_tasks[0]['task_label'])
-    #print()
-    del states_
+    agent.task_train_start(shell_tasks[0]['task_label'])'''
+    
+    task_steps_limit = sum(agent.config.max_steps)
+
+    # set the first task the eval agent should evaluate on
+    eval_states = agent.evaluation_env.reset_task(_tasks[0])
+    agent.evaluation_states = eval_states
+    logger.info('*****agent {0} / setting first task (task 0)'.format(agent_id))
+    logger.info('task: {0}'.format(_tasks[0]['task']))
+    logger.info('task_label: {0}'.format(_tasks[0]['task_label']))
+    agent.task_eval_start(_tasks[0]['task_label'])
+    print()
+    del eval_states
+    #del states_
+
+
 
 
     # Msg can be embedding or task label.
     # Set msg to first task. The agents will then request knowledge on the first task.
     # this will ensure that other agents are aware that this agent is now working this task
     # until a task change happens.
-    msg = shell_tasks[0]['task_label']
-    # Store the best agent id for quick reference
-    best_agent_id = None
-    # Store list of agent IDs that this agent has sent metadata to
-    expecting = list()
+    msg = _tasks[0]['task_label']
+    
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
+    # Not sure we will need this anymore but might be useful to track what knowledge the eval agent has
+    # in any given iteration. 
     mask_rewards_dict = dict()
 
     # Track which agents are working which tasks. This will be resized every time a new agent is added
     # to the network. Every time there is a communication step 1, we will check if it is none otherwise update
     # this dictionary
-    track_tasks = {agent_id: msg}
+    # We probably won't need this in the future.
+    track_tasks = {agent_id: torch.from_numpy(msg)}
 
 
-    mode = 'ondemand'
+    # Agent-Communication interaction queues
+    # Eval agent will still need most of these.
+    manager = mp.Manager()
+    queue_mask = manager.Queue()
+    queue_label = manager.Queue()
+    queue_label_send = manager.Queue()  # Used to send label from comm to agent to convert to mask
+    queue_mask_recv = manager.Queue()   # Used to send mask from agent to comm after conversion from label
+    queue_loop = manager.Queue()
 
-    while True:
-        # If num_agents (worldsize) is 1 then this agent is alone in the world and must act
-        # independantly. If the worldsize increases then the agent can start communicating.
-        # otherwise there is no need.
-        if num_agents == 1:
-            continue
+    # Put in the initial data into the loop queue so that the comm module is not blocking the agent
+    # from running.
+    queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response))
 
-        elif mode == 'ondemand':
-            ####################### COMMUNICATION STEP ONE #######################
-            # Send and receive a query for knowledge for a newly encountered tasklabel/embedding
-            # most of the time this will do nothing. Only does something if there is a new task
-            start_time = time.time()
-            other_agents_request = comm.send_receive_labels(msg)
-            #print('STEP ONE ', time.time() - start_time)
-
-
-            ####################### COMMUNICATION STEP TWO #######################
-            # Respond to received queries with metadata.
-            # Meta data contains the reward for the similar task, distance and the similar 
-            # tasklabel/embedding.
-            start_time = time.time()
-
-            # Go through the requests and take note of what agent is doing what task
-            # We will know when an agent is still doing the same task if the update is None
-            # otherwise the update will be a new task label request
-            for req in other_agents_request:
-                if req['msg_data'] is not None:
-                    track_tasks[req['sender_agent_id']] = req['label'].detach().cpu().numpy()
-
-            curr_task = None
-            for key, val in track_tasks.items():
-                #print(key, agent_id)
-                if key == agent_id:
-                    curr_task = val
-
-                dist = abs(np.sum(np.subtract(val, curr_task)))
-                if dist <= THRESHOLD:
-                    # If the distance is within the threshold then the other agent(s) are learning
-                    # a similar task. We can now request the metadata for the task from the other agents
-                    req['agent_id'] = key
-                    req['label'] = val
-                    
-                    comm.send_meta_response(self, req)
+    # Start the communication module with the initial states and the first task label.
+    # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
+    # Also pass the queue proxies to enable interaction between the communication module and the agent module
+    pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
 
 
+    for item in _tasks:
+        print(item)
+    
+    check = queue_mask.get()
+    if check:
+        while True:
+            print()
+            print(shell_iterations, shell_task_counter, agent.total_steps, agent.config.max_steps, task_steps_limit)
+            agent.total_steps += agent.config.rollout_length * agent.config.num_workers 
 
-
-        ### AGENT ITERATION (training step): collect on policy data and optimise agent
-        dict_logs = agent.iteration()
-        shell_iterations += 1
-
-
-        ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING
-        '''
-        Logs metrics to tensorboard log file and updates the embedding, reward pair in this cycle for a particular task
-        
-        TODO: Modify how the key of the dictionary (the embedding) is compared to the previous embedding and updated
-                We will need to store the embedding from the previous cycle and the new embedding to update the reward
-                tracking. This will continue until the Detect module tells us that there is a task change and we
-                create a new addition to the dictionary.
-        '''
-        if shell_iterations % agent.config.iteration_log_interval == 0:
-            itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, dict_logs)
+            START = time.time()
+            #print(Fore.BLUE + 'Msg in this iteration: ', msg)
+            # If world size is 1 then act as an individual agent.
+            ######################## COMMUNICATION MODULE HANDLING ########################
+            '''
+            Handles the interaction between the agent and the communication module. The agent can tell the
+            communication module to get it masks from the network if available. Agent will continue to function
+            regardless of whether the communication module gets a mask or not.
+            '''
+            #time.sleep(2) # Try turning this back if we have issues with mask synchronisation with comm module
             
-            # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
-            # logging cycle. Take average of all worker averages as the most recent reward score for a given task
-            mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.mean(agent.iteration_rewards)
-            #print(mask_rewards_dict)
-            #print(track_tasks)
+            # Agent communication code block. All communication module related interactions are in here
+            if num_agents > 1:
+                try:
+                    mask, track_tasks_temp, await_response, best_agent_rw = queue_mask.get_nowait()
+                    print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
+                    
+                    if mask is not None:
+                        # Update the knowledge base with the expected reward
+                        mask_rewards_dict.update(best_agent_rw)
+                        # Update the network with the mask
+                        agent.distil_task_knowledge_single(mask)
+                        print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
+                        #del mask
+
+                    if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
+                        track_tasks = track_tasks_temp
+                        del track_tasks_temp
+
+                    else:
+                        temp_self_task = track_tasks[agent_id]
+                        track_tasks = track_tasks_temp
+                        track_tasks[agent_id] = temp_self_task
+                        del track_tasks_temp, temp_self_task
+
+                except Empty:
+                    print('Get mask failed')
+                    pass
+
+                # Evaluation agent will not need to do any label to mask conversions so this code will never run
+                '''
+                # Check if the communication module has sent a label to be converted to a mask
+                # convert it and send it back to the agent
+                try:
+                    #print(Fore.BLUE + 'Agent checking for any label conversion req')
+                    conversions = queue_label_send.get_nowait()
+                    _conversions = {}
+                    for dst_agent_id, comm_label in conversions.items():
+                        comm_label = comm_label.detach().cpu().numpy()
+                        _conversions[dst_agent_id] = agent.label_to_mask(comm_label)
+                    queue_mask_recv.put((_conversions))
+                except Empty:
+                    print(Fore.BLUE + 'No label to convert to mask')
+                    pass
+                '''
+                
+                await_response = [True,] * num_agents
+                # Update the communication module with the latest information from this iteration
+                queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response))
+                
+                # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
+                # the communication module will do its thing.
+                queue_label.put_nowait(msg)
 
 
-        ### EVALUATION BLOCK
-        '''
-        Performs the evaluation block.
-        
-        TODO: Need to create a flag to activate only evaluation or only iteration. This will allow us
-                to create a dedicated evaluation agent which will need to use fetchall in every task
-                to find the best mask from other agents. This evaluation agent will need to have a 
-                unique identifier so other agents know to ignore it when requesting information but are
-                aware it exists in the network. Other agents will simply need to answer this agents request for
-                task masks.
-        '''
-        start_time = time.time()
-        # If we want to stop evaluating then set agent.config.eval_interval to None
-        if (agent.config.eval_interval is not None and \
-            shell_iterations % agent.config.eval_interval == 0):
-            logger.info('*****agent {0} / evaluation block'.format(agent_id))
-            _task_ids = shell_task_ids
-            _tasks = shell_tasks
-            _names = [eval_task_info['name'] for eval_task_info in _tasks]
-            logger.info('eval tasks: {0}'.format(', '.join(_names)))
-            for eval_task_idx, eval_task_info in zip(_task_ids, _tasks):
-                agent.task_eval_start(eval_task_info['task_label'])
-                eval_states = agent.evaluation_env.reset_task(eval_task_info)
-                agent.evaluation_states = eval_states
-                # performance (perf) can be success rate in (meta-)continualworld or
-                # rewards in other environments
-                perf, eps = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
-                agent.task_eval_end()
-                shell_eval_data[-1][eval_task_idx] = np.mean(perf)
-            shell_eval_tracker = True
-            shell_eval_end_time = time.time()
-            #print('EVAL BLOCK: ', shell_eval_end_time - start_time)
+            ######################## AGENT ITERATION AND LOGGING ########################
+            '''
+            The main iteration loop. Handles everything from the actual iteration function (data collection/optimisation),
+            iteration logging function, evaluation block, task change function, and the evaluation logging
+            TODO: Look to convert the agent iteration loop to a parallel process like the communciation
+                    module, to achieve true asynchronisity. Might take heavy refactoring of how the config
+                    object is setup with lambda functions.
+            '''
+
+            ### AGENT ITERATION (training step): collect on policy data and optimise agent
+            '''
+            Handles the data collection and optimisation functionalities of the agent.
+            TODO: Look into multihreading/multiprocessing the data collection and optimisation of the agent
+                    to achieve the continous data collection we want for a real world scenario.
+                
+                Possibly the optimisation could be made a seperate process parallel to the data collection
+                    process, similar to the communication-agent(trainer) architecture. Data collection and the code
+                    below would run together in the main loop.
+            '''
+            
+            # Evaluation agent does not need to do data collection and optimisation so we will
+            # not need to run the agent.iteration() function here. We will need to increment the shell
+            # iterations however.
+            #dict_logs = agent.iteration()
+            perf, eps = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
+            shell_iterations += 1
 
 
-        ### TASK CHANGE
-        # end of current task training. move onto next task or end training if last task.
-        # i.e., Task Change occurs here. For detect module, if the task embedding signifies a task
-        # change then that occurs here.
-        '''
-        If we want to use a Fetch All mode for ShELL then we need to add a commmunication component
-        at task change which broadcasts the mask to all other agents currently on the network.
+            ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING
+            '''
+            Logs metrics to tensorboard log file and updates the embedding, reward pair in this cycle for a particular task
+            
+            TODO: Modify how the key of the dictionary (the embedding) is compared to the previous embedding and updated
+                    We will need to store the embedding from the previous cycle and the new embedding to update the reward
+                    tracking. This will continue until the Detect module tells us that there is a task change and we
+                    create a new addition to the dictionary.
+            '''
+            # Since we have no agent.iteration() then we will also not need to run the iteration log function
+            # Maybe we can refactor it for our evaluation metrics purposes.
+            '''
+            if shell_iterations % agent.config.iteration_log_interval == 0:
+                itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, dict_logs)
+                
+                # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
+                # logging cycle. Take average of all worker averages as the most recent reward score for a given task
+                mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.around(np.mean(agent.iteration_rewards), decimals=6)
+                print(Fore.BLUE + '', mask_rewards_dict, flush=True)
+            '''
 
-        Otherwise the current implementation is a On Demand mode where each agent requests knowledge
-        only when required.
-        '''
-        if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
-        task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
-        if agent.total_steps >= task_steps_limit:
-            #print()
+            ### EVALUATION BLOCK
+            '''
+            Performs the evaluation block.
+            
+            TODO: Need to create a flag to activate only evaluation or only iteration. This will allow us
+                    to create a dedicated evaluation agent which will need to use fetchall in every task
+                    to find the best mask from other agents. This evaluation agent will need to have a 
+                    unique identifier so other agents know to ignore it when requesting information but are
+                    aware it exists in the network. Other agents will simply need to answer this agents request for
+                    task masks.
+            '''
+            # If we want to stop evaluating then set agent.config.eval_interval to None
+            '''if (agent.config.eval_interval is not None and \
+                shell_iterations % agent.config.eval_interval == 0):
+                logger.info('*****agent {0} / evaluation block'.format(agent_id))
+                _task_ids = shell_task_ids
+                _tasks = shell_tasks
+                _names = [eval_task_info['name'] for eval_task_info in _tasks]
+                logger.info('eval tasks: {0}'.format(', '.join(_names)))
+                for eval_task_idx, eval_task_info in zip(_task_ids, _tasks):
+                    agent.task_eval_start(eval_task_info['task_label'])
+                    eval_states = agent.evaluation_env.reset_task(eval_task_info)
+                    agent.evaluation_states = eval_states
+                    # performance (perf) can be success rate in (meta-)continualworld or
+                    # rewards in other environments
+                    perf, eps = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
+                    agent.task_eval_end()
+                    shell_eval_data[-1][eval_task_idx] = np.mean(perf)
+                shell_eval_tracker = True
+                shell_eval_end_time = time.time()'''
+
+
+            ### TASK CHANGE
+            # end of current task training. move onto next task or end training if last task.
+            # i.e., Task Change occurs here. For detect module, if the task embedding signifies a task
+            # change then that occurs here.
+            '''
+            If we want to use a Fetch All mode for ShELL then we need to add a commmunication component
+            at task change which broadcasts the mask to all other agents currently on the network.
+
+            Otherwise the current implementation is a On Demand mode where each agent requests knowledge
+            only when required.
+            '''
+            '''if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
+            task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
+            if agent.total_steps >= task_steps_limit:
+                #print()
+                task_counter_ = shell_task_counter
+                logger.info('*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
+                agent.task_train_end()
+
+                task_counter_ += 1
+                shell_task_counter = task_counter_
+                if task_counter_ < len(shell_tasks):
+                    # new task
+                    logger.info('*****agent {0} / set next task {1}'.format(agent_id, task_counter_))
+                    logger.info('task: {0}'.format(shell_tasks[task_counter_]['task']))
+                    logger.info('task_label: {0}'.format(shell_tasks[task_counter_]['task_label']))
+                    states_ = agent.task.reset_task(shell_tasks[task_counter_]) # set new task
+                    agent.states = agent.config.state_normalizer(states_)
+                    agent.task_train_start(shell_tasks[task_counter_]['task_label'])
+
+                    # set message (task_label) that will be sent to other agent as a request for
+                    # task knowledge (mask) about current task. this will be sent in the next
+                    # receive/send request cycle.
+                    logger.info('*****agent {0} / query other agents using current task label'\
+                        .format(agent_id))
+
+                    # Update the msg, track_tasks dict for this agent and reset await_responses for new task
+                    msg = shell_tasks[task_counter_]['task_label']
+                    track_tasks[agent_id] = torch.from_numpy(msg)       # remove later
+                    await_response = [True,] * num_agents
+                    del states_
+                    #print()
+                else:
+                    shell_done = True # training done for all task for agent
+                    logger.info('*****agent {0} / end of all training'.format(agent_id))
+                del task_counter_'''
+                
+            if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
+            if shell_task_counter == len(shell_tasks)-1:
+                shell_task_counter = -1
+
             task_counter_ = shell_task_counter
             logger.info('*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
-            agent.task_train_end()
+            agent.task_eval_end()
+            shell_eval_data[-1][task_counter_] = np.mean(perf)
+
+            #task_counter_ += 1
+            shell_task_counter = task_counter_
+            #task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
+            #if agent.total_steps >= task_steps_limit:
 
             task_counter_ += 1
             shell_task_counter = task_counter_
-            if task_counter_ < len(shell_tasks):
-                # new task
+            if task_counter_ < len(_tasks):
+                # If task_counter_ is == to the number of tasks then stop.
+                # We need to change this.
+                if agent.total_steps >= task_steps_limit:
+                    shell_done = True # training done for all task for agent
+                    logger.info('*****agent {0} / end of all evaluation'.format(agent_id))
+                    break
+
+                # switch to next task
                 logger.info('*****agent {0} / set next task {1}'.format(agent_id, task_counter_))
                 logger.info('task: {0}'.format(shell_tasks[task_counter_]['task']))
                 logger.info('task_label: {0}'.format(shell_tasks[task_counter_]['task_label']))
-                states_ = agent.task.reset_task(shell_tasks[task_counter_]) # set new task
-                agent.states = agent.config.state_normalizer(states_)
-                agent.task_train_start(shell_tasks[task_counter_]['task_label'])
 
-                # set message (task_label) that will be sent to other agent as a request for
-                # task knowledge (mask) about current task. this will be sent in the next
-                # receive/send request cycle.
+                eval_states = agent.evaluation_env.reset_task(_tasks[task_counter_])
+                agent.states = agent.config.state_normalizer(eval_states)
+                agent.task_eval_start(_tasks[task_counter_]['task_label'])
+
                 logger.info('*****agent {0} / query other agents using current task label'\
                     .format(agent_id))
-                msg = shell_tasks[task_counter_]['task_label']
+
+                msg = _tasks[task_counter_]['task_label']
+                track_tasks[agent_id] = torch.from_numpy(msg)   # remote later
+
                 await_response = [True,] * num_agents
-                del states_
-                #print()
-            else:
-                shell_done = True # training done for all task for agent
-                logger.info('*****agent {0} / end of all training'.format(agent_id))
+                del eval_states
+            
+            shell_eval_tracker = True
+            shell_eval_end_time = time.time()
+
             del task_counter_
 
-        ### EVALUATION BLOCK LOGGING
-        '''
-        Logs the evaluation block data and tracks it.
-        TODO: This will need to be refactored as part of the evaluation agent refactoring.
-        '''
-        if shell_eval_tracker:
-            # log the last eval metrics to file
-            _record = np.concatenate([shell_eval_data[-1],np.array(shell_eval_end_time).reshape(1,)])
-            np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
-            del _record
 
-            # reset eval tracker and add new buffer to save next eval metrics
-            shell_eval_tracker = False
-            shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
-        #if all(shell_eval_tracker):
-        #    _metrics = shell_eval_data[-1]
-        #    # compute icr
-        #    _max_reward = _metrics.max(axis=0) 
-        #    _agent_ids = _metrics.argmax(axis=0).tolist()
-        #    _agent_ids = ', '.join([str(_agent_id) for _agent_id in _agent_ids])
-        #    icr = _max_reward.sum()
-        #    shell_metric_icr.append(icr)
-        #    # log eval to file/screen and tensorboard
-        #    logger.info('*****shell evaluation:')
-        #    logger.info('best agent per task:'.format(_agent_ids))
-        #    logger.info('shell eval ICR: {0}'.format(icr))
-        #    logger.info('shell eval TP: {0}'.format(np.sum(shell_metric_icr)))
-        #    logger.scalar_summary('shell_eval/icr', icr)
-        #    logger.scalar_summary('shell_eval/tpot', np.sum(shell_metric_icr))
-        #    # reset eval tracker
-        #    shell_eval_tracker = [False for _ in shell_eval_tracker]
-        #    # initialise new eval block
-        #    shell_eval_data.append(np.zeros((1, num_eval_tasks), dtype=np.float32))
+            ### EVALUATION BLOCK LOGGING
+            '''
+            Logs the evaluation block data and tracks it.
+            TODO: This will need to be refactored as part of the evaluation agent refactoring.
+            '''
+            if shell_eval_tracker:
+                # log the last eval metrics to file
+                _record = np.concatenate([shell_eval_data[-1],np.array(shell_eval_end_time).reshape(1,)])
+                np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
+                del _record
 
-        # If ShELL is finished running all tasks then stop the program
-        # this will have to be changed when we deploy so agents never stop working
-        # and simply idle if there is nothing to learn.
-        if shell_done:
-            break
-        #comm.barrier()
-    # end of while True
+                # reset eval tracker and add new buffer to save next eval metrics
+                shell_eval_tracker = False
+                shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
 
-    eval_data_fh.close()
-    # discard last eval data entry as it was not used.
-    if np.all(shell_eval_data[-1] == 0.):
-        shell_eval_data.pop(-1)
-    # save eval metrics
-    to_save = np.stack(shell_eval_data, axis=0)
-    with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
-        np.save(f, to_save)
 
-    agent.close()
-    return
+            print('***** AGENT ITERATION TIME ELAPSED:', time.time()-START)
 
-def shell_dist_train_mp_v3(agent, comm, agent_id, num_agents):
+            # If ShELL is finished running all tasks then stop the program
+            # this will have to be changed when we deploy so agents never stop working
+            # and simply idle if there is nothing to learn.
+            if shell_done:
+                break
+        # end of while True
 
-    #print("INITIALISING PROCESS GROUP")
-    # Initialise the process group for torch distributed
-    #comm.init_dist()
-    #print("Torch is initialised! ", torch.cuda.is_initialized())
-    #print("STARTING THE AGENT ITERATION PROCESS")
-    # Start the training loop
-    # This will perform the iteration and perform a communication loop with comm module if needed
-    agent.iteration_loop()
-    #print("Torch is initialised! ", torch.cuda.is_initialized())
+        eval_data_fh.close()
+        # discard last eval data entry as it was not used.
+        if np.all(shell_eval_data[-1] == 0.):
+            shell_eval_data.pop(-1)
+        # save eval metrics
+        to_save = np.stack(shell_eval_data, axis=0)
+        with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
+            np.save(f, to_save)
 
-    #print("STARTING THE COMMUNICATION LOOP")
-    # Start the communication loop
-    # This will do nothing until a msg is provided by the agent via the queue
-    #comm.comm_loop()
+        agent.close()
+        return
