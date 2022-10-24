@@ -133,10 +133,13 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
+
+    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
+
     # set up communication (transfer module)
     mode = 'ondemand'
     comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode)
+        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval)
 
     # start training
     shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
@@ -265,22 +268,11 @@ def shell_dist_minigrid_mp(name, args, shell_config):
 
 
 
+    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
+
     mode = 'ondemand'
     comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode)
-
-
-
-
-    # For full parallelisation
-    #agent = ParallelizedAgent(config, args.agent_id, args.num_agents)
-    #config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
-
-    # set up communication (transfer module)
-    #comm = ParallelizedComm(args.agent_id, args.num_agents, agent.task_label_dim(), \
-    #    agent.model_mask_dim(), logger, init_address, init_port, queue_agent, queue_comm)
-    #comm = None
-
+        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval)
 
 
     # start training
@@ -342,8 +334,6 @@ def shell_dist_minigrid_eval(name, args, shell_config):
 
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
-
-
 
     mode = 'ondemand'
     comm = ParallelCommEval(args.agent_id, args.num_agents, agent.task_label_dim, \
@@ -424,10 +414,13 @@ def shell_dist_continualworld_mp(name, args, shell_config):
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
+
+    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
+
     # set up communication (transfer module)
     mode = 'ondemand'
     comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode)
+        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval)
 
     # start training
     shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)

@@ -123,8 +123,8 @@
         }
     ],
     "env": {
-        "env_name": "minigrid",
-        "env_config_path": "./env_configs/minigrid_sc_3.json"
+        "env_name": "ctgraph",
+        "env_config_path": "./env_configs/meta_ctgraph.json"
     
     },
     "dist_only": {

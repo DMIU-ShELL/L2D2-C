@@ -840,8 +840,15 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     shell_task_counter = 0
 
 
+    
+
+
     _task_ids = shell_task_ids
     _tasks = shell_tasks
+    # agent.seen_tasks = {_tasks}
+    agent.seen_tasks = {}
+    for idx, eval_task_info in enumerate(_tasks):
+        agent.seen_tasks[idx] =  eval_task_info['task_label']
     _names = [eval_task_info['name'] for eval_task_info in _tasks]
     eval_task_info = zip(_task_ids, _tasks)
 
@@ -1132,20 +1139,27 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
                 del task_counter_'''
                 
             if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
-            if shell_task_counter > len(shell_tasks)-1:
-                shell_task_counter = 0
+
 
             task_counter_ = shell_task_counter
+            print(task_counter_)
+            
             logger.info('*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
             agent.task_eval_end()
             shell_eval_data[-1][task_counter_] = np.mean(perf)
+            shell_eval_tracker = True
+            shell_eval_end_time = time.time()
 
             #task_counter_ += 1
-            shell_task_counter = task_counter_
+            #shell_task_counter = task_counter_
             #task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
             #if agent.total_steps >= task_steps_limit:
 
+            
             task_counter_ += 1
+            if task_counter_ > len(shell_tasks)-1:
+                task_counter_ = 0
+
             shell_task_counter = task_counter_
             if task_counter_ < len(_tasks):
                 # If task_counter_ is == to the number of tasks then stop.
@@ -1172,9 +1186,6 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
 
                 await_response = [True,] * num_agents
                 del eval_states
-            
-            shell_eval_tracker = True
-            shell_eval_end_time = time.time()
 
             del task_counter_
 

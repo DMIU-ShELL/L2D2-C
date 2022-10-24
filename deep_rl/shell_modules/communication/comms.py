@@ -70,7 +70,7 @@ class ParallelComm(object):
     SLEEP_DURATION = 1
 
     # Task label size can be replaced with the embedding size.
-    def __init__(self, agent_id, num_agents, emb_label_sz, mask_sz, logger, init_address, init_port, mode):
+    def __init__(self, agent_id, num_agents, emb_label_sz, mask_sz, logger, init_address, init_port, mode, mask_interval):
         super(ParallelComm, self).__init__()
         self.agent_id = agent_id
         self.num_agents = num_agents
@@ -78,6 +78,7 @@ class ParallelComm(object):
         self.mask_sz = mask_sz
         self.logger = logger
         self.mode = mode
+        self.mask_interval = mask_interval
 
         print('MASK SIZE IS: ', self.mask_sz)
         
@@ -706,16 +707,23 @@ class ParallelComm(object):
                             # Check if the reward is greater than the current reward for the task
                             # or if the knowledge even exists.
                             if tuple(msg) in mask_rewards_dict.keys():
-                                if round(recv_msk_rw, 6) > mask_rewards_dict[tuple(msg)]:
-                                    # Add the agent id and embedding/tasklabel from the agent
-                                    # to a dictionary to send requests/rejections to.
-                                    send_msk_requests[recv_agent_id] = recv_label
-                                    # Make a note of the best agent id in memory of this agent
-                                    # We will use this later to get the mask from the best agent
-                                    best_agent_id = recv_agent_id
-                                    best_agent_rw[tuple(msg)] = np.around(recv_msk_rw, 6)
-                                    # Make the selected flag true so we don't pick another agent
-                                    selected = True
+                                if comm_iter % self.mask_interval == 0:
+                                    if round(recv_msk_rw, 6) > mask_rewards_dict[tuple(msg)]:
+                                        # Add the agent id and embedding/tasklabel from the agent
+                                        # to a dictionary to send requests/rejections to.
+                                        send_msk_requests[recv_agent_id] = recv_label
+                                        # Make a note of the best agent id in memory of this agent
+                                        # We will use this later to get the mask from the best agent
+                                        best_agent_id = recv_agent_id
+                                        best_agent_rw[tuple(msg)] = np.around(recv_msk_rw, 6)
+                                        # Make the selected flag true so we don't pick another agent
+                                        selected = True
+
+                                    else:
+                                        # if this agent's reward is higher or the same as the other best agent
+                                        # then reject the best agent
+                                        recv_agent_id = results[idx]['agent_id']
+                                        send_msk_requests[recv_agent_id] = None
 
 
                                 else:
@@ -1345,6 +1353,9 @@ class ParallelCommEval(object):
         # Initialise the process group for torch distributed
         proc_check = self.init_dist()
         queue_mask.put(proc_check)
+
+
+
 
 
         msg = None

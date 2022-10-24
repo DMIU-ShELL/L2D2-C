@@ -569,7 +569,9 @@ class ShellAgent_DP(LLAgent):
         print(mask)
 
         task_label = self.curr_eval_task_label
+        print(task_label)
         task_idx = self._label_to_idx(task_label)
+        print(task_idx)
 
         # Process the single mask as opposed to multiple
         mask = self.vec_to_mask(mask.to(self.config.DEVICE))
