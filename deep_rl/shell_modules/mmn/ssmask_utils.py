@@ -178,6 +178,9 @@ class MultitaskMaskLinear(nn.Linear):
 
     @torch.no_grad()
     def set_mask(self, mask, task):
+        print('task', task)
+        print('scores', self.scores)
+        print('idk what this is', self.scores[task].data)
         self.scores[task].data = mask
         # NOTE, this operation might not be required and could be remove to save compute time
         self.cache_masks() 
@@ -429,7 +432,7 @@ def get_mask(model, task, raw_score=True):
 def set_mask(model, mask, task):
     print('mask in set_mask', mask, type(mask))
     for n, m in model.named_modules():
-        print(n)
+        print(n, type(m))
         if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
             m.set_mask(mask[n], task)
 

@@ -882,6 +882,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     logger.info('*****agent {0} / setting first task (task 0)'.format(agent_id))
     logger.info('task: {0}'.format(_tasks[0]['task']))
     logger.info('task_label: {0}'.format(_tasks[0]['task_label']))
+    print('FIRST TASK LABEL', _tasks)
     agent.task_eval_start(_tasks[0]['task_label'])
     print()
     del eval_states
@@ -958,7 +959,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
                         # Update the knowledge base with the expected reward
                         mask_rewards_dict.update(best_agent_rw)
                         # Update the network with the mask
-                        agent.distil_task_knowledge_single(mask)
+                        agent.distil_task_knowledge_single_eval(mask)
                         print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
                         #del mask
 
@@ -1131,8 +1132,8 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
                 del task_counter_'''
                 
             if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
-            if shell_task_counter == len(shell_tasks)-1:
-                shell_task_counter = -1
+            if shell_task_counter > len(shell_tasks)-1:
+                shell_task_counter = 0
 
             task_counter_ = shell_task_counter
             logger.info('*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))

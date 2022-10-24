@@ -382,6 +382,7 @@ class LLAgent(PPOContinualLearnerAgent):
         self.seen_tasks = {} # contains task labels that agent has experienced so far.
         self.new_task = False
         self.curr_train_task_label = None
+        self.curr_eval_task_label = None
 
     def _label_to_idx(self, task_label):
         eps = 1e-5
@@ -560,6 +561,25 @@ class ShellAgent_DP(LLAgent):
             return True
         else:
             return False
+
+    def distil_task_knowledge_single_eval(self, mask):
+        # New distil task knowledge algorithm
+        # this function receives only one mask
+        # which is the best mask.
+        print(mask)
+
+        task_label = self.curr_eval_task_label
+        task_idx = self._label_to_idx(task_label)
+
+        # Process the single mask as opposed to multiple
+        mask = self.vec_to_mask(mask.to(self.config.DEVICE))
+
+        if mask is not None:
+            set_mask(self.network, mask, task_idx)
+            return True
+        else:
+            return False
+
 
     def mask_to_vec(self, dict_mask):
         with torch.no_grad():
