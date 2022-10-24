@@ -29,7 +29,7 @@ from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, c
 
 from .BaseAgent import BaseAgent, BaseContinualLearnerAgent
 from ..network.network_bodies import FCBody_SS, DummyBody_CL
-from ..utils.torch_utils import select_device, tensor
+from ..utils.torch_utils import random_seed, select_device, tensor
 from ..utils.misc import Batcher
 from ..component.replay import Replay
 
@@ -136,11 +136,17 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         # set seed before creating network to ensure network parameters are
         # same across all shell agents
-        torch.manual_seed(config.seed)
+        #torch.manual_seed(config.seed)
+        
+        random_seed(9157)   # Chris
+
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)
         _params = list(self.network.parameters())
         self.opt = config.optimizer_fn(_params, config.lr)
         self.total_steps = 0
+
+        random_seed(config.seed)    # Chris
+
 
         self.episode_rewards = np.zeros(config.num_workers)
         self.last_episode_rewards = np.zeros(config.num_workers)

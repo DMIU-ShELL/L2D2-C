@@ -547,8 +547,8 @@ class MiniGridFlatObs(MiniGrid):
         if done: state = self.reset()
 
         # Adding noise to reward for synchronised learning
-        noise = float(np.random.uniform(0, 0.001, 1))
-        reward = reward + noise
+        #noise = float(np.random.uniform(0, 0.001, 1))
+        #reward = reward + noise
 
 
         return state.ravel(), reward, done, info

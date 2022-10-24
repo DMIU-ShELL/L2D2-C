@@ -851,7 +851,10 @@ class ParallelComm(object):
 
 
 
-
+'''
+Evaluation agent variation of the parallelised communication module. Evaluation agent only
+returns null metaresponses so that other agents can ignore it.
+'''
 class ParallelCommEval(object):
     # DETECT MODULE CONSTANTS
     # Threshold for embedding/tasklabel distance (similarity)

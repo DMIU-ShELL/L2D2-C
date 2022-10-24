@@ -227,10 +227,12 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     config.state_normalizer = RescaleNormalizer(1./10.)
 
     # set seed
-    config.seed = config_seed
+    config.seed = 9157#config_seed              # Chris
     
     # set up logging system
-    exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
+    #exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
+    exp_id = '{0}-seed-{1}'.format(args.exp_id, config_seed)    # Chris
+
     path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
@@ -251,9 +253,11 @@ def shell_dist_minigrid_mp(name, args, shell_config):
         config.max_steps = shell_config['curriculum']['max_steps']
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * num_tasks
-    task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
+    #task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
+    task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, 9157, False)          # Chris
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
-    eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
+    #eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
+    eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir, 9157, True)            # Chris
     config.eval_task_fn = eval_task_fn
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
@@ -263,8 +267,14 @@ def shell_dist_minigrid_mp(name, args, shell_config):
         critic_body=DummyBody_CL(200),
         num_tasks=num_tasks)
 
+
+    config.seed = config_seed       # Chris
+
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
+
+    for k, v in agent.network.named_parameters():       # Chris
+        print(k, " : ", v)
 
 
 
@@ -295,7 +305,7 @@ def shell_dist_minigrid_eval(name, args, shell_config):
     config.state_normalizer = RescaleNormalizer(1./10.)
 
     # set seed
-    config.seed = config_seed
+    config.seed = 9157#config_seed
     
     # set up logging system
     exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
@@ -320,9 +330,11 @@ def shell_dist_minigrid_eval(name, args, shell_config):
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
 
-    task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
+    #task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
+    task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, 9157, False)
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
-    eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
+    #eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
+    eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,9157,True)
     config.eval_task_fn = eval_task_fn
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
@@ -332,8 +344,14 @@ def shell_dist_minigrid_eval(name, args, shell_config):
         critic_body=DummyBody_CL(200),
         num_tasks=num_tasks)
 
+
+    config.seed = config_seed       # Chris
+
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
+    
+    for k, v in agent.network.named_parameters():       # Chris
+        print(k, " : ", v)
 
     mode = 'ondemand'
     comm = ParallelCommEval(args.agent_id, args.num_agents, agent.task_label_dim, \
@@ -526,6 +544,7 @@ if __name__ == '__main__':
     with open(args.shell_config_path, 'r') as f:
         shell_config = json.load(f)
         shell_config['curriculum'] = shell_config['agents'][args.agent_id]
+        shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
         del shell_config['agents'][args.agent_id]
 
     if shell_config['env']['env_name'] == 'minigrid':

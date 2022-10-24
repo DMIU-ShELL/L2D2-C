@@ -524,6 +524,9 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     shell_task_ids = agent.config.task_ids
     shell_task_counter = 0
 
+    shell_agent_seed = agent.config.seed        # Chris
+
+
     shell_eval_tracker = False
     shell_eval_data = []
     num_eval_tasks = len(agent.evaluation_env.get_all_tasks())
@@ -599,6 +602,9 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             communication module to get it masks from the network if available. Agent will continue to function
             regardless of whether the communication module gets a mask or not.
             '''
+
+            print(Fore.BLUE + 'Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED:', shell_agent_seed, flush=True)           # Chris
+
             time.sleep(1)
             if num_agents > 1:
                 try:
@@ -840,6 +846,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     shell_task_counter = 0
 
 
+    shell_agent_seed = agent.config.seed        # Chris
     
 
 
@@ -956,6 +963,8 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
             '''
             #time.sleep(2) # Try turning this back if we have issues with mask synchronisation with comm module
             
+            print(Fore.BLUE + 'Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED:', shell_agent_seed, flush=True)         # Chris
+
             # Agent communication code block. All communication module related interactions are in here
             if num_agents > 1:
                 try:
