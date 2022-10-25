@@ -1,7 +1,7 @@
 { "general_seed" : 3,
   "graph_shape": {
-    "depth": 3,
-    "branching_factor": 2,
+    "depth": 2,
+    "branching_factor": 3,
     "wait_prob": 0.0
   },
   "reward": {
@@ -21,7 +21,7 @@
     "graph_ends": [24,31]
   },
   "image_dataset": {
-    "seed": 1,
+    "seed": 2,
     "1D": false,
     "nr_of_images": 32,
     "noise_on_images_on_read": 0,

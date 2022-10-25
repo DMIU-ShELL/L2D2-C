@@ -1,0 +1,6 @@
+2022-10-25 13:30:17,248 - MAIN - INFO: *****initialising agent 0
+2022-10-25 13:30:18,494 - MAIN - INFO: *****start shell training
+2022-10-25 13:30:18,498 - MAIN - INFO: *****agent 0 / setting first task (task 0)
+2022-10-25 13:30:18,499 - MAIN - INFO: task: MiniGrid-SimpleCrossingS9N1-v0_seed9157
+2022-10-25 13:30:18,499 - MAIN - INFO: task_label: [1. 0. 0.]
+2022-10-25 13:30:18,625 - MAIN - INFO: *****agent 0 / initialising transfer (communication) module

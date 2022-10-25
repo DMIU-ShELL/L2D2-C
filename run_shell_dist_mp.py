@@ -62,8 +62,8 @@ def global_config(config, name):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 512
-    config.evaluation_episodes = 5
+    config.max_steps = 30720
+    config.evaluation_episodes = 75
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
@@ -164,7 +164,7 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
     
     # set up logging system
     exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
-    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
+    path_name = '{0}-shell-eval-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
     config.logger = logger
@@ -202,7 +202,7 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
 
     # set up communication (transfer module)
     mode = 'ondemand'
-    comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
+    comm = ParallelCommEval(args.agent_id, args.num_agents, agent.task_label_dim, \
         agent.model_mask_dim, logger, init_address, init_port, mode)
 
     # start training
@@ -277,7 +277,8 @@ def shell_dist_minigrid_mp(name, args, shell_config):
         print(k, " : ", v)
 
 
-
+    # For optimal performance the mask interval should be divisible by the number of iterations per task
+    # i..e, set max_steps to multiple of 512
     mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
 
     mode = 'ondemand'
@@ -533,7 +534,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)
     parser.add_argument('num_agents', help='world: total number of agents', type=int)
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_18t_30a.json')
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
     parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)

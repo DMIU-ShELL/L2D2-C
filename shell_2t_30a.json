@@ -2,129 +2,129 @@
     "seed": [9157, 9158, 9159, 9160, 9161, 9162, 9163, 9164, 9165, 9166, 9167, 9168, 9169, 9170, 9171, 9172, 9173, 9174, 9175, 9176, 9177, 9178, 9179, 9180, 9181, 9182, 9183, 9184, 9185, 9186],
     "agents": [
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [0, 1],
             "max_steps": 102400
         }, 
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [1, 2],
             "max_steps": 102400
         },
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [2, 0],
             "max_steps": 102400
         },
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [0, 1],
             "max_steps": 102400
         }, 
         {
-            "task_ids": [1, 2, 0],
+            "task_ids": [1, 2],
             "max_steps": 102400
         },
         {
-            "task_ids": [2, 0, 1],
+            "task_ids": [2, 0],
             "max_steps": 102400
         },
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [0, 1],
             "max_steps": 102400
         }, 
         {
-            "task_ids": [1, 2, 0],
+            "task_ids": [1, 2],
             "max_steps": 102400
         },
         {
-            "task_ids": [2, 0, 1],
+            "task_ids": [2, 0],
             "max_steps": 102400
         },
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [0, 1],
             "max_steps": 102400
         }, 
         {
-            "task_ids": [1, 2, 0],
+            "task_ids": [1, 2],
             "max_steps": 102400
         },
         {
-            "task_ids": [2, 0, 1],
+            "task_ids": [2, 0],
             "max_steps": 102400
         },
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [0, 1],
             "max_steps": 102400
         }, 
         {
-            "task_ids": [1, 2, 0],
+            "task_ids": [1, 2],
             "max_steps": 102400
         },
         {
-            "task_ids": [2, 0, 1],
+            "task_ids": [2, 0],
             "max_steps": 102400
         },
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [0, 1],
             "max_steps": 102400
         }, 
         {
-            "task_ids": [1, 2, 0],
+            "task_ids": [1, 2],
             "max_steps": 102400
         },
         {
-            "task_ids": [2, 0, 1],
+            "task_ids": [2, 0],
             "max_steps": 102400
         },
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [0, 1],
             "max_steps": 102400
         }, 
         {
-            "task_ids": [1, 2, 0],
+            "task_ids": [1, 2],
             "max_steps": 102400
         },
         {
-            "task_ids": [2, 0, 1],
+            "task_ids": [2, 0],
             "max_steps": 102400
         },
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [0, 1],
             "max_steps": 102400
         }, 
         {
-            "task_ids": [1, 2, 0],
+            "task_ids": [1, 2],
             "max_steps": 102400
         },
         {
-            "task_ids": [2, 0, 1],
+            "task_ids": [2, 0],
             "max_steps": 102400
         },
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [0, 1],
             "max_steps": 102400
         }, 
         {
-            "task_ids": [1, 2, 0],
+            "task_ids": [1, 2],
             "max_steps": 102400
         },
         {
-            "task_ids": [2, 0, 1],
+            "task_ids": [2, 0],
             "max_steps": 102400
         },
         {
-            "task_ids": [0, 1, 2],
+            "task_ids": [0, 1],
             "max_steps": 102400
         }, 
         {
-            "task_ids": [1, 2, 0],
+            "task_ids": [1, 2],
             "max_steps": 102400
         },
         {
-            "task_ids": [2, 0, 1],
+            "task_ids": [2, 0],
             "max_steps": 102400
         }
     ],
     "env": {
-        "env_name": "minigrid",
-        "env_config_path": "./env_configs/minigrid_sc_3.json"
+        "env_name": "ctgraph",
+        "env_config_path": "./env_configs/meta_ctgraph_2t.json"
     
     },
     "dist_only": {
@@ -132,5 +132,4 @@
         "init_port": "29505"
     }
     }
-
     

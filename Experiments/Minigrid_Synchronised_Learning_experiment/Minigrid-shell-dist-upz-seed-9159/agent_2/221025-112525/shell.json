@@ -129,8 +129,7 @@
     },
     "dist_only": {
         "init_address": "127.0.0.1",
-        "init_port": "29505"
+        "init_port": "29504"
     }
     }
-
     

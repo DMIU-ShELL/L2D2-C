@@ -533,11 +533,10 @@ class ParallelComm(object):
 
     ### Core functions
     def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
-
+        timings = []
         # Initialise the process group for torch distributed
         proc_check = self.init_dist()
         queue_mask.put(proc_check)
-
 
         msg = None
         # Store the best agent id for quick reference
@@ -578,7 +577,8 @@ class ParallelComm(object):
             start_time = time.time()
             dist.barrier()
             other_agents_request = self.send_receive_request(msg)
-            print('******** TIME TAKEN FOR SEND_RECV_REQ():', time.time()-start_time)
+            END1 = time.time()-start_time
+            print('******** TIME TAKEN FOR SEND_RECV_REQ():', END1)
             print()
             print(Fore.GREEN + 'Other agent requests: ', other_agents_request)
 
@@ -660,7 +660,8 @@ class ParallelComm(object):
             start_time = time.time()
             dist.barrier()
             results = self.send_recv_meta(meta_responses, await_response)
-            print('******** TIME TAKEN FOR SEND_RECV_META():', time.time()-start_time)
+            END2 = time.time()-start_time
+            print('******** TIME TAKEN FOR SEND_RECV_META():', END2)
             print()
 
 
@@ -779,7 +780,8 @@ class ParallelComm(object):
             start_time = time.time()
             dist.barrier()
             msk_requests = self.send_recv_mask_req(send_msk_requests, expecting)
-            print('******** TIME TAKEN FOR SEND_RECV_MASK_REQ():', time.time()-start_time)
+            END3 = time.time()-start_time
+            print('******** TIME TAKEN FOR SEND_RECV_MASK_REQ():', END3)
             print()
 
             print(Fore.GREEN + 'After send_recv_req():', msk_requests)
@@ -833,13 +835,17 @@ class ParallelComm(object):
             start_time = time.time()
             dist.barrier()
             received_mask, best_agent_id = self.send_recv_mask(masks_list, best_agent_id)
-
+            END4 = time.time()-start_time
+            print('***** TIME TAKEN FRO SEND_RECV_MASK():', END4)
             print(Fore.GREEN + 'Mask received for distillation', received_mask, best_agent_id, flush=True)
             queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw))
 
             comm_iter += 1
 
-            print('***** COMM ITERATION TIME ELAPSED:', time.time() - START)
+            END5 = time.time()-START
+            print('***** COMM ITERATION TIME ELAPSED:', END5)
+            timings.append([comm_iter, END1, END2, END3, END4, END5])
+            np.savetxt(self.logger.log_dir + '/timings_{0}.csv'.format(self.agent_id), timings, delimiter=',')
 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
         p = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop))

@@ -593,6 +593,9 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     #check = True
     if check:
         while True:
+            if not pcomm.is_alive():
+                pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
+                
             START = time.time()
             #print(Fore.BLUE + 'Msg in this iteration: ', msg)
             # If world size is 1 then act as an individual agent.
@@ -605,7 +608,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
             print(Fore.BLUE + 'Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED:', shell_agent_seed, flush=True)           # Chris
 
-            time.sleep(1)
+            #time.sleep(1)
             if num_agents > 1:
                 try:
                     mask, track_tasks_temp, await_response, best_agent_rw = queue_mask.get_nowait()
@@ -812,7 +815,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
             
             print()
-            print('***** AGENT ITERATION TIME ELAPSED:', time.time()-START)
+            END = time.time()-START
+            print('***** AGENT ITERATION TIME ELAPSED:', END)
 
             # If ShELL is finished running all tasks then stop the program
             # this will have to be changed when we deploy so agents never stop working
@@ -948,6 +952,9 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     check = queue_mask.get()
     if check:
         while True:
+            if not pcomm.is_alive():
+                pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
+
             print()
             print(shell_iterations, shell_task_counter, agent.total_steps, agent.config.max_steps, task_steps_limit)
             agent.total_steps += agent.config.rollout_length * agent.config.num_workers 
@@ -961,7 +968,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
             communication module to get it masks from the network if available. Agent will continue to function
             regardless of whether the communication module gets a mask or not.
             '''
-            #time.sleep(2) # Try turning this back if we have issues with mask synchronisation with comm module
+            time.sleep(3) # Try turning this back if we have issues with mask synchronisation with comm module
             
             print(Fore.BLUE + 'Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED:', shell_agent_seed, flush=True)         # Chris
 

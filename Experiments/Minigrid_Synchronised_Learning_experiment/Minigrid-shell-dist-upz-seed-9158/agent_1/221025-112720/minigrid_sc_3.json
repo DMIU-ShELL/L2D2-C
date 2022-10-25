@@ -1,0 +1,6 @@
+{
+"tasks": ["MiniGrid-SimpleCrossingS9N1-v0", "MiniGrid-SimpleCrossingS9N2-v0", "MiniGrid-SimpleCrossingS9N3-v0"],
+"one_hot": true,
+"label_dim": 3,
+"action_dim": 3
+}
