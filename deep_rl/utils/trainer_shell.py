@@ -595,7 +595,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
         while True:
             if not pcomm.is_alive():
                 pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
-                
+
             START = time.time()
             #print(Fore.BLUE + 'Msg in this iteration: ', msg)
             # If world size is 1 then act as an individual agent.
@@ -968,7 +968,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
             communication module to get it masks from the network if available. Agent will continue to function
             regardless of whether the communication module gets a mask or not.
             '''
-            time.sleep(3) # Try turning this back if we have issues with mask synchronisation with comm module
+            #time.sleep(3) # Try turning this back if we have issues with mask synchronisation with comm module
             
             print(Fore.BLUE + 'Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED:', shell_agent_seed, flush=True)         # Chris
 

@@ -16,14 +16,14 @@
   "observations": {
     "MDP_decision_s": true,
     "MDP_wait_s": true,
-    "wait_states": [2,16],
-    "decision_states": [17,23],
-    "graph_ends": [24,31]
+    "wait_states": [2,14],
+    "decision_states": [15,18],
+    "graph_ends": [19,27]
   },
   "image_dataset": {
     "seed": 1,
     "1D": false,
-    "nr_of_images": 32,
+    "nr_of_images": 28,
     "noise_on_images_on_read": 0,
     "small_rotation_on_read": 1
   }

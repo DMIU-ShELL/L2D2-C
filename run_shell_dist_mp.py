@@ -62,8 +62,8 @@ def global_config(config, name):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 30720
-    config.evaluation_episodes = 75
+    config.max_steps = 40960
+    config.evaluation_episodes = 50
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
@@ -93,10 +93,12 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     config.state_normalizer = ImageNormalizer()
 
     # set seed
-    config.seed = config_seed
+    config.seed = 9157#config_seed              # Chris
     
     # set up logging system
-    exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
+    #exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
+    exp_id = '{0}-seed-{1}'.format(args.exp_id, config_seed)    # Chris
+
     path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
@@ -118,9 +120,11 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
 
-    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    #task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)          # Chris
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
-    eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    #eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    eval_task_fn= lambda log_dir: MetaCTgraphFlatObs(name, env_config_path,log_dir)            # Chris
     config.eval_task_fn = eval_task_fn
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
@@ -130,8 +134,13 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         critic_body=DummyBody_CL(200),
         num_tasks=num_tasks)
 
+    config.seed = config_seed       # Chris
+
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
+
+    for k, v in agent.network.named_parameters():       # Chris
+        print(k, " : ", v)
 
 
     mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
@@ -160,10 +169,11 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
     config.state_normalizer = ImageNormalizer()
 
     # set seed
-    config.seed = config_seed
+    config.seed = 9157#config_seed              # Chris
     
     # set up logging system
-    exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
+    #exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
+    exp_id = '{0}-seed-{1}'.format(args.exp_id, config_seed)    # Chris
     path_name = '{0}-shell-eval-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
@@ -185,9 +195,11 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
 
-    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    #task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)          # Chris
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
-    eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    #eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    eval_task_fn= lambda log_dir: MetaCTgraphFlatObs(name, env_config_path,log_dir)            # Chris
     config.eval_task_fn = eval_task_fn
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
@@ -197,8 +209,13 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
         critic_body=DummyBody_CL(200),
         num_tasks=num_tasks)
 
+    config.seed = config_seed       # Chris
+
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
+
+    for k, v in agent.network.named_parameters():       # Chris
+        print(k, " : ", v)
 
     # set up communication (transfer module)
     mode = 'ondemand'
@@ -364,6 +381,7 @@ def shell_dist_minigrid_eval(name, args, shell_config):
 
 
 ##### ContinualWorld environment
+# Need to add changes from Chris for seeds. Currently broken.
 def shell_dist_continualworld_mp(name, args, shell_config):
     shell_config_path = args.shell_config_path
     num_agents = args.num_agents
