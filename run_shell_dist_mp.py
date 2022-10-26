@@ -47,7 +47,7 @@ def global_config(config, name):
     random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
-    config.num_workers = 4
+    config.num_workers = 1
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
@@ -62,7 +62,7 @@ def global_config(config, name):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 40960
+    config.max_steps = 40960###HEY!!!!!!!!!!!!!!
     config.evaluation_episodes = 50
     config.cl_requires_task_label = True
     config.task_fn = None
@@ -143,7 +143,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         print(k, " : ", v)
 
 
-    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
+    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 2
 
     # set up communication (transfer module)
     mode = 'ondemand'
@@ -552,7 +552,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)
     parser.add_argument('num_agents', help='world: total number of agents', type=int)
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_18t_30a.json')
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_2t_30a.json')
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
     parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)
