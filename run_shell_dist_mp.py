@@ -25,7 +25,7 @@ from deep_rl.utils.config import Config
 from deep_rl.component.policy import SamplePolicy
 from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, RunningStatsNormalizer, RewardRunningStatsNormalizer
 from deep_rl.utils.logger import get_logger
-from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_eval_mp
+from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_eval_mp, shell_dist_eval_mp_v2
 from deep_rl.agent.PPO_agent import ShellAgent_DP
 from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld
@@ -63,7 +63,7 @@ def global_config(config, name):
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 25600
-    config.evaluation_episodes = 50#50
+    config.evaluation_episodes = 5#50
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
@@ -143,7 +143,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     #    print(k, " : ", v)
 
 
-    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 200
+    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
 
     # set up communication (transfer module)
     mode = 'ondemand'
@@ -223,7 +223,7 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
         agent.model_mask_dim, logger, init_address, init_port, mode)
 
     # start training
-    shell_dist_eval_mp(agent, comm, args.agent_id, args.num_agents)
+    shell_dist_eval_mp_v2(agent, comm, args.agent_id, args.num_agents)
 
 
 ##### Minigrid environment

@@ -568,13 +568,13 @@ class ShellAgent_DP(LLAgent):
         else:
             return False
 
-    def distil_task_knowledge_single_eval(self, mask):
+    def distil_task_knowledge_single_eval(self, mask, task_label):
         # New distil task knowledge algorithm
         # this function receives only one mask
         # which is the best mask.
         print(mask)
 
-        task_label = self.curr_eval_task_label
+        #task_label = self.curr_eval_task_label
         print(task_label)
         task_idx = self._label_to_idx(task_label)
         print(task_idx)
