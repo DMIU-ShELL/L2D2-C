@@ -11,6 +11,9 @@ data
 dataset
 draw_*
 log
+Experiments
+test_scripts
+log_temp
 old_logs
 figure
 to_plot
