@@ -62,13 +62,13 @@ def global_config(config, name):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 6400
+    config.max_steps = 25600
     config.evaluation_episodes = 50#50
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
     config.network_fn = None 
-    config.eval_interval = 1
+    config.eval_interval = None#1
     return config
 
 '''
@@ -143,7 +143,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     #    print(k, " : ", v)
 
 
-    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
+    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 200
 
     # set up communication (transfer module)
     mode = 'ondemand'
