@@ -178,9 +178,6 @@ class MultitaskMaskLinear(nn.Linear):
 
     @torch.no_grad()
     def set_mask(self, mask, task):
-        print('task', task)
-        print('scores', self.scores)
-        print('idk what this is', self.scores[task].data)
         self.scores[task].data = mask
         # NOTE, this operation might not be required and could be remove to save compute time
         self.cache_masks() 

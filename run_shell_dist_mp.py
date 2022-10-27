@@ -62,13 +62,13 @@ def global_config(config, name):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 40960###HEY!!!!!!!!!!!!!!
-    config.evaluation_episodes = 50
+    config.max_steps = 6400
+    config.evaluation_episodes = 50#50
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
     config.network_fn = None 
-    config.eval_interval = None#1
+    config.eval_interval = 1
     return config
 
 '''
@@ -139,11 +139,11 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
-    for k, v in agent.network.named_parameters():       # Chris
-        print(k, " : ", v)
+    #for k, v in agent.network.named_parameters():       # Chris
+    #    print(k, " : ", v)
 
 
-    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 2
+    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
 
     # set up communication (transfer module)
     mode = 'ondemand'

@@ -771,6 +771,7 @@ class ParallelComm(object):
                 print()
                 print()'''
 
+            best_agent_id_ = best_agent_id  # temp variable for logging purposes
             
             #######################     COMMUNICATION STEP FOUR      #######################
             ####################### SEND MASK REQUESTS OR REJECTIONS #######################
@@ -838,7 +839,7 @@ class ParallelComm(object):
             END4 = time.time()-start_time
             print('***** TIME TAKEN FRO SEND_RECV_MASK():', END4)
             print(Fore.GREEN + 'Mask received for distillation', received_mask, best_agent_id, flush=True)
-            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw))
+            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw, best_agent_id_))
 
             comm_iter += 1
 
@@ -1578,6 +1579,7 @@ class ParallelCommEval(object):
                 print()
                 print()'''
 
+            best_agent_id_ = best_agent_id  # temp variable for logging purposes
             
             #######################     COMMUNICATION STEP FOUR      #######################
             ####################### SEND MASK REQUESTS OR REJECTIONS #######################
@@ -1643,7 +1645,7 @@ class ParallelCommEval(object):
             received_mask, best_agent_id = self.send_recv_mask(masks_list, best_agent_id)
 
             print(Fore.GREEN + 'Mask received for distillation', received_mask, best_agent_id, flush=True)
-            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw))
+            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw, best_agent_id_))
 
             comm_iter += 1
 

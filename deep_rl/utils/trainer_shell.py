@@ -588,6 +588,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     # Also pass the queue proxies to enable interaction between the communication module and the agent module
     pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
 
+    exchanges = []
 
     check = queue_mask.get()
     #check = True
@@ -611,7 +612,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             #time.sleep(1)
             if num_agents > 1:
                 try:
-                    mask, track_tasks_temp, await_response, best_agent_rw = queue_mask.get_nowait()
+                    mask, track_tasks_temp, await_response, best_agent_rw, best_agent_id = queue_mask.get_nowait()
                     print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
                     
                     if mask is not None:
@@ -620,6 +621,15 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                         # Update the network with the mask
                         agent.distil_task_knowledge_single(mask)
                         print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
+
+                        print(shell_iterations)
+                        print(best_agent_id)
+                        print(best_agent_rw)
+                        print(len(mask))
+                        print(mask)
+
+                        exchanges.append([shell_iterations, best_agent_id, best_agent_rw, len(mask), mask])
+                        np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
                         #del mask
 
                     if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
@@ -865,7 +875,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
 
     shell_eval_tracker = False
     shell_eval_data = []
-    num_eval_tasks = len(agent.evaluation_env.get_all_tasks())
+    num_eval_tasks = len(_tasks)#len(agent.evaluation_env.get_all_tasks())
     shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
     shell_metric_icr = [] # icr => instant cumulative reward metric. NOTE may be redundant now
     eval_data_fh = open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_id), 'a', \
@@ -946,9 +956,10 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
 
 
-    for item in _tasks:
-        print(item)
+    #for item in _tasks:
+    #    print(item)
     
+    exchanges = []
     check = queue_mask.get()
     if check:
         while True:
@@ -975,7 +986,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
             # Agent communication code block. All communication module related interactions are in here
             if num_agents > 1:
                 try:
-                    mask, track_tasks_temp, await_response, best_agent_rw = queue_mask.get_nowait()
+                    mask, track_tasks_temp, await_response, best_agent_rw, best_agent_id = queue_mask.get_nowait()
                     print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
                     
                     if mask is not None:
@@ -984,6 +995,9 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
                         # Update the network with the mask
                         agent.distil_task_knowledge_single_eval(mask)
                         print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
+
+                        exchanges.append([shell_iterations, best_agent_id, best_agent_rw, len(mask), mask])
+                        np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
                         #del mask
 
                     if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
