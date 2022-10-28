@@ -961,6 +961,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     
     exchanges = []
     check = queue_mask.get()
+    #check = True
     if check:
         while True:
             if not pcomm.is_alive():
@@ -1349,6 +1350,7 @@ def shell_dist_eval_mp_v2(agent, comm, agent_id, num_agents):
     
     exchanges = []
     check = queue_mask.get()
+    #check = True
     if check:
         while True:
             if not pcomm.is_alive():

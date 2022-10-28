@@ -198,7 +198,6 @@ dependencies:
     - opt-einsum==3.3.0
     - pandas==1.4.3
     - pathlib==1.0.1
-    - pathos==0.3.0.dev0
     - platformdirs==2.5.2
     - pox==0.3.1
     - ppft==1.7.6.5

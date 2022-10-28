@@ -34,6 +34,7 @@ from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
 #from deep_rl import *
 import argparse
 import torch
+import random
 
 
 
@@ -47,7 +48,7 @@ def global_config(config, name):
     random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
-    config.num_workers = 1
+    config.num_workers = 4
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
@@ -111,7 +112,9 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     # create/initialise agent
     logger.info('*****initialising agent {0}'.format(args.agent_id))
-    # task may repeat, so get number of unique tasks.
+
+
+
     num_tasks = len(set(shell_config['curriculum']['task_ids']))
     config.cl_num_tasks = num_tasks
     config.task_ids = shell_config['curriculum']['task_ids']
@@ -556,6 +559,7 @@ if __name__ == '__main__':
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
     parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)
+    parser.add_argument('--shuffle', help='randomise the task curriculum', type=int, default=1)
     args = parser.parse_args()
 
     print(args)
@@ -563,6 +567,11 @@ if __name__ == '__main__':
     with open(args.shell_config_path, 'r') as f:
         shell_config = json.load(f)
         shell_config['curriculum'] = shell_config['agents'][args.agent_id]
+
+        # Randomise the curriculum
+        if args.shuffle == 1:
+            random.shuffle(shell_config['curriculum']['task_ids'])
+
         shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
         del shell_config['agents'][args.agent_id]
 
