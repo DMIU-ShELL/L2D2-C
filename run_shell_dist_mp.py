@@ -107,7 +107,13 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     config.log_dir = log_dir
 
     # save shell config and env config
-    shutil.copy(shell_config_path, log_dir)
+    #shutil.copy(shell_config_path, log_dir)
+    try:
+        with open(log_dir + '/shell_config.json', 'w') as f:
+            json.dump(shell_config, f, indent=4)
+            print('Shell configuration saved to shell_config.json')
+    except:
+        print('Something went wrong. Unable to save shell configuration json')
     shutil.copy(env_config_path, log_dir)
 
     # create/initialise agent
@@ -555,7 +561,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)
     parser.add_argument('num_agents', help='world: total number of agents', type=int)
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_2t_30a.json')
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_4x4.json')
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
     parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)

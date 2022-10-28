@@ -6,15 +6,15 @@
             "max_steps": 40960
         },
         {
-            "task_ids": [17, 15, 13, 11, 9, 7, 5, 3, 1, 2, 4, 6, 8, 10, 12, 14, 16, 0],
+            "task_ids": [17, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
             "max_steps": 40960
         }, 
         {
-            "task_ids": [0, 16, 14, 12, 10, 8, 6, 4, 2, 3, 5, 7, 9, 11, 13, 15, 17, 1],
+            "task_ids": [16, 17, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
             "max_steps": 40960
         },
         {
-            "task_ids": [1, 17, 15, 13, 11, 9, 7, 5, 3, 4, 6, 8, 10, 12, 14, 16, 0, 2],
+            "task_ids": [15, 16,],
             "max_steps": 40960
         },
         {
@@ -128,7 +128,7 @@
     ],
     "env": {
         "env_name": "ctgraph",
-        "env_config_path": "./env_configs/meta_ctgraph_18t.json"
+        "env_config_path": "./env_configs/meta_ctgraph.json"
     
     },
     "dist_only": {
