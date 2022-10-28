@@ -569,7 +569,7 @@ if __name__ == '__main__':
         shell_config['curriculum'] = shell_config['agents'][args.agent_id]
 
         # Randomise the curriculum
-        if args.shuffle == 1:
+        if args.shuffle == 1 and args.mode != 1:
             random.shuffle(shell_config['curriculum']['task_ids'])
 
         shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
