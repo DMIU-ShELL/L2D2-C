@@ -550,7 +550,7 @@ class ParallelComm(object):
             expecting = list() # Come back to once all components are checked. Might cause issues
 
             # Get the latest states of these variables
-            track_tasks, mask_rewards_dict, await_response = queue_loop.get()
+            track_tasks, mask_rewards_dict, await_response, shell_iterations = queue_loop.get()
             print()
             print()
             print()
@@ -708,7 +708,7 @@ class ParallelComm(object):
                             # Check if the reward is greater than the current reward for the task
                             # or if the knowledge even exists.
                             if tuple(msg) in mask_rewards_dict.keys():
-                                if comm_iter % self.mask_interval == 0:
+                                if shell_iterations % self.mask_interval == 0:
                                     if round(recv_msk_rw, 6) > mask_rewards_dict[tuple(msg)]:
                                         # Add the agent id and embedding/tasklabel from the agent
                                         # to a dictionary to send requests/rejections to.
@@ -1363,10 +1363,6 @@ class ParallelCommEval(object):
         # Initialise the process group for torch distributed
         proc_check = self.init_dist()
         queue_mask.put(proc_check)
-
-
-
-
 
         msg = None
         # Store the best agent id for quick reference

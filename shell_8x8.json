@@ -3,39 +3,39 @@
     "agents": [
         {
             "task_ids": [0, 1, 2, 3, 4, 5, 6, 7],
-            "max_steps": 12800
+            "max_steps": 25600
         }, 
         {
             "task_ids": [0, 1, 2, 3, 4, 5, 6, 7],
-            "max_steps": 12800
+            "max_steps": 25600
         },
         {
             "task_ids": [7, 0, 1, 2, 3, 4, 5, 6],
-            "max_steps": 12800
+            "max_steps": 25600
         },
         {
             "task_ids": [6, 7, 0, 1, 2, 3, 4, 5],
-            "max_steps": 12800
+            "max_steps": 25600
         }, 
         {
             "task_ids": [5, 6, 7, 0, 1, 2, 3, 4],
-            "max_steps": 12800
+            "max_steps": 25600
         }, 
         {
             "task_ids": [4, 5, 6, 7, 0, 1, 2, 3],
-            "max_steps": 12800
+            "max_steps": 25600
         }, 
         {
             "task_ids": [3, 4, 5, 6, 7, 0, 1, 2],
-            "max_steps": 12800
+            "max_steps": 25600
         }, 
         {
             "task_ids": [2, 3, 4, 5, 6, 7, 0, 1],
-            "max_steps": 12800
+            "max_steps": 25600
         }, 
         {
             "task_ids": [1, 2, 3, 4, 5, 6, 7, 0],
-            "max_steps": 12800
+            "max_steps": 25600
         }
     ],
     "env": {

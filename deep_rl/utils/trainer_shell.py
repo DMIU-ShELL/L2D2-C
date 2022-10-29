@@ -581,7 +581,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
     # Put in the initial data into the loop queue so that the comm module is not blocking the agent
     # from running.
-    queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response))
+    queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response, shell_iterations))
 
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
@@ -589,6 +589,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
 
     exchanges = []
+    task_times = []
+    task_times.append([0, shell_tasks[0]['task_label'], time.time()])
 
     check = queue_mask.get()
     #check = True
@@ -616,6 +618,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                     print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
                     
                     if mask is not None:
+                        #if shell_iterations % mask_interval == 0:
                         # Update the knowledge base with the expected reward
                         mask_rewards_dict.update(best_agent_rw)
                         # Update the network with the mask
@@ -676,7 +679,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 
                 await_response = [True,] * num_agents
                 # Update the communication module with the latest information from this iteration
-                queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response))
+                queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response, shell_iterations))
                 
                 # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
                 # the communication module will do its thing.
@@ -783,6 +786,10 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 task_counter_ += 1
                 shell_task_counter = task_counter_
                 if task_counter_ < len(shell_tasks):
+                    task_times.append([task_counter_, shell_tasks[task_counter_]['task_label'], time.time()])
+                    np.savetxt(logger.log_dir + '/task_changes_{0}.csv'.format(agent_id), task_times, delimiter=',', fmt='%s')
+
+
                     # new task
                     logger.info('*****agent {0} / set next task {1}'.format(agent_id, task_counter_))
                     logger.info('task: {0}'.format(shell_tasks[task_counter_]['task']))
@@ -1411,7 +1418,6 @@ def shell_dist_eval_mp_v2(agent, comm, agent_id, num_agents):
                 # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
                 # the communication module will do its thing.
                 msg = _tasks[shell_task_counter]['task_label']
-                print(msg)
                 #agent.curr_eval_task_label = msg
                 queue_label.put_nowait(msg)
 

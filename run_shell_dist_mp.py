@@ -64,7 +64,7 @@ def global_config(config, name):
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 25600
-    config.evaluation_episodes = 5#50
+    config.evaluation_episodes = 3#50
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
