@@ -194,7 +194,7 @@ def main(args):
     shell_icr = np.stack(shell_icr, axis=0)  # shape: num_seeds x num_evals
     shell_tpot = np.stack(shell_tpot, axis=0) # shape: num_seeds x num_evals
     num_evals = shell_data.shape[1]
-    num_shell_agents = shell_data.shape[2]
+    num_shell_agents = args.num_agents#shell_data.shape[2]
 	# icr
     data['icr']['shell'] = {}
     data['icr']['shell']['xdata'] = np.arange(num_evals)
@@ -289,5 +289,6 @@ if __name__ == '__main__':
     parser.add_argument('--ll_paths', help='paths to the experiment folder for single'\
         'agent lifelong learning (support paths to multiple seeds)', nargs='+', default=None)
     parser.add_argument('--exp_name', help='name of experiment', default='metrics_plot')
+    parser.add_argument('--num_agents', help='number of agents in the experiment', type=int, default=1)
     main(parser.parse_args())
 
