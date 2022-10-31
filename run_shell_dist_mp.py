@@ -561,7 +561,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)
     parser.add_argument('num_agents', help='world: total number of agents', type=int)
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_4x4.json')
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_16x16.json')
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
     parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)

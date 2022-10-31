@@ -74,15 +74,16 @@ def load_shell_data(args_path):
 
     names = os.listdir(args_path)
     names = [name for name in names if re.search('agent_*', name) is not None]
-    names = sorted(names, key=lambda x: int(x.split('_')[1]))
+    names = sorted(names, key=lambda x: int(x.split('_')[3].split('.')[0]))
+    print(names)
 
     paths = [args_path + name for name in names]
-    paths = ['{0}/{1}/'.format(path, os.listdir(path)[-1]) for path in paths]
+    #paths = ['{0}/{1}/'.format(path, os.listdir(path)[-1]) for path in paths]
     num_agents = len(paths)
     metrics = []
     for name, path in zip(names, paths):
-        file_path = path + 'eval_metrics_{0}.csv'.format(name)
-        m = np.loadtxt(file_path, dtype=np.float32, delimiter=',')
+        #file_path = path + 'eval_metrics_{0}.csv'.format(name)
+        m = np.loadtxt(path, dtype=np.float32, delimiter=',')
         if m.ndim == 1:
             m = np.expand_dims(m, axis=0)
         metrics.append(m)
@@ -121,8 +122,8 @@ def load_shell_data(args_path):
 
 def load_ll_data(path):
         # Load baseline data for a single LL agent
-        if os.path.exists(path + 'eval_metrics.csv'):
-            path = path + 'eval_metrics.csv'
+        if os.path.exists(path + 'eval_metrics_agent_0.csv'):
+            path = path + 'eval_metrics_agent_0.csv'
             raw_data = np.loadtxt(path, dtype=np.float32, delimiter=',')
         else:
             path = path + 'eval_metrics.npy'
@@ -218,7 +219,7 @@ def main(args):
         eps = 1e-6 # to help with zero divide
         # tla
         #tla = data['tpot']['shell']['ydata'] / (data['tpot']['ll']['ydata'] + eps)
-        tla = (data['tpot']['shell']['ydata'] + 1) / (data['tpot']['ll']['ydata'] + 1)
+        tla = ((data['tpot']['shell']['ydata'])[0:len(data['tpot']['ll']['ydata'])] + 1) / ((data['tpot']['ll']['ydata'])[0:len(data['tpot']['shell']['ydata'])] + 1)
         data['tla']['shell'] = {}
         data['tla']['shell']['xdata'] = np.arange(num_evals)
         data['tla']['shell']['ydata'] = tla
@@ -226,7 +227,7 @@ def main(args):
         data['tla']['shell']['plot_colour'] = 'green'
         # ila
         #ila = data['icr']['shell']['ydata'] / (data['icr']['ll']['ydata'] + eps)
-        ila = (data['icr']['shell']['ydata'] + 1) / (data['icr']['ll']['ydata'] + 1)
+        ila = ((data['icr']['shell']['ydata'])[0:len(data['icr']['ll']['ydata'])] + 1) / ((data['icr']['ll']['ydata'])[0:len(data['icr']['shell']['ydata'])] + 1)
         data['ila']['shell'] = {}
         data['ila']['shell']['xdata'] = np.arange(num_evals)
         data['ila']['shell']['ydata'] = ila 
