@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-'''
-_________                                           .__                  __   .__                 
-\_   ___ \   ____    _____    _____   __ __   ____  |__|  ____  _____  _/  |_ |__|  ____    ____  
-/    \  \/  /  _ \  /     \  /     \ |  |  \ /    \ |  |_/ ___\ \__  \ \   __\|  | /  _ \  /    \ 
-\     \____(  <_> )|  Y Y  \|  Y Y  \|  |  /|   |  \|  |\  \___  / __ \_|  |  |  |(  <_> )|   |  \
- \______  / \____/ |__|_|  /|__|_|  /|____/ |___|  /|__| \___  >(____  /|__|  |__| \____/ |___|  /
-        \/               \/       \/             \/          \/      \/                        \/ 
 
-'''
+#   _________                                           .__                  __   .__                 
+#   \_   ___ \   ____    _____    _____   __ __   ____  |__|  ____  _____  _/  |_ |__|  ____    ____  
+#   /    \  \/  /  _ \  /     \  /     \ |  |  \ /    \ |  |_/ ___\ \__  \ \   __\|  | /  _ \  /    \ 
+#   \     \____(  <_> )|  Y Y  \|  Y Y  \|  |  /|   |  \|  |\  \___  / __ \_|  |  |  |(  <_> )|   |  \
+#    \______  / \____/ |__|_|  /|__|_|  /|____/ |___|  /|__| \___  >(____  /|__|  |__| \____/ |___|  /
+#           \/               \/       \/             \/          \/      \/                        \/ 
+#
+#
 import os
 import copy
 import time
@@ -453,11 +453,13 @@ class ParallelComm(object):
                 self._send_mask(mask_dict)
     def _send_mask(self, mask_dict):
         print(mask_dict, flush=True)
-        mask = mask_dict['mask']
         dst_agent_id = int(mask_dict['dst_agent_id'])
+        emb_label = mask_dict['label']
+        mask = mask_dict['mask']
+
         print(type(mask), mask.dtype, flush=True)
 
-        buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz, dtype=torch.float32) * torch.inf
+        buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz + self.emb_label_sz, dtype=torch.float32) * torch.inf
 
         buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
         buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
@@ -468,7 +470,8 @@ class ParallelComm(object):
 
         else:
             buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_MSK
-            buff[ParallelComm.META_INF_IDX_MASK_SZ : ] = mask # NOTE deepcopy?
+            buff[ParallelComm.META_INF_IDX_MASK_SZ : ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz] = mask # NOTE deepcopy?
+            buff[ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz : ] = emb_label
 
         print('send_mask(): sending buffer', buff, flush=True)
         req_send = dist.isend(tensor=buff, dst=dst_agent_id)
@@ -476,11 +479,12 @@ class ParallelComm(object):
         print('send_mask() completed. Returning', flush=True)
     def receive_mask(self, best_agent_id):
         received_mask = None
+        received_label = None
 
         if best_agent_id is not None:
             print('Agent entered receive_mask()', flush=True)
             # We want to get the mask from the best agent
-            _buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz, dtype=torch.float32) * torch.inf
+            _buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz + self.emb_label_sz, dtype=torch.float32) * torch.inf
             print(_buff, len(_buff))
             # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
             print('Mask recv start', flush=True)
@@ -499,12 +503,13 @@ class ParallelComm(object):
                 print('MASK DATA RECEIVED', flush=True)
                 if _buff[ParallelComm.META_INF_IDX_PROC_ID] == best_agent_id:
                     print('SENDER IS BEST AGENT', flush=True)
-                    received_mask = _buff[ParallelComm.META_INF_IDX_MASK_SZ : ]
+                    received_mask = _buff[ParallelComm.META_INF_IDX_MASK_SZ : ParallelComm.META_INF_IDX_MASK_SZ+self.mask_sz]
+                    received_label = _buff[ParallelComm.META_INF_IDX_MASK_SZ+self.mask_sz : ]
 
             # Reset the best agent id for the next request
             best_agent_id = None
 
-        return received_mask, best_agent_id
+        return received_mask, best_agent_id, received_label
 
     def send_recv_mask(self, masks_list, best_agent_id):
         #print('Send Recv Mask Function', len(mask), dst_agent_id, best_agent_id)
@@ -532,11 +537,11 @@ class ParallelComm(object):
         return result.get()
 
     ### Core functions
-    def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
+    def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check):
         timings = []
         # Initialise the process group for torch distributed
         proc_check = self.init_dist()
-        queue_mask.put(proc_check)
+        queue_check.put(proc_check)
 
         msg = None
         # Store the best agent id for quick reference
@@ -575,7 +580,7 @@ class ParallelComm(object):
             # send out broadcast request to all other agents for task label
             #print(Fore.GREEN + 'Doing request')
             start_time = time.time()
-            dist.barrier()
+            dist.monitored_barrier(wait_all_ranks=True)
             other_agents_request = self.send_receive_request(msg)
             END1 = time.time()-start_time
             print('******** TIME TAKEN FOR SEND_RECV_REQ():', END1)
@@ -658,7 +663,7 @@ class ParallelComm(object):
 
             results = []
             start_time = time.time()
-            dist.barrier()
+            dist.monitored_barrier(wait_all_ranks=True)
             results = self.send_recv_meta(meta_responses, await_response)
             END2 = time.time()-start_time
             print('******** TIME TAKEN FOR SEND_RECV_META():', END2)
@@ -758,18 +763,6 @@ class ParallelComm(object):
                         await_response[idx] = False
 
             print(Fore.GREEN + 'Mask requests to send to other agents: ', send_msk_requests)
-            
-            '''try:
-                if all(value == None for value in send_msk_request.values()):
-                    pass
-            except:
-                print()
-                print()
-                print()
-                print()
-                print()
-                print()
-                print()'''
 
             best_agent_id_ = best_agent_id  # temp variable for logging purposes
             
@@ -779,7 +772,7 @@ class ParallelComm(object):
             msk_requests = []
             print('Before send_recv_req():', send_msk_requests, expecting)
             start_time = time.time()
-            dist.barrier()
+            dist.monitored_barrier(wait_all_ranks=True)
             msk_requests = self.send_recv_mask_req(send_msk_requests, expecting)
             END3 = time.time()-start_time
             print('******** TIME TAKEN FOR SEND_RECV_MASK_REQ():', END3)
@@ -819,13 +812,17 @@ class ParallelComm(object):
                 # wait to receive a mask from the agent module. do not continue until you receive
                 # this mask. agent will see the request eventually and send back the converted mask.
                 
-                conversions = queue_mask_recv.get()
-                for dst, mask in conversions.items():
-                    d = {}
-                    d['mask'] = mask
-                    d['dst_agent_id'] = dst
+                masks_list = queue_mask_recv.get()
 
-                    masks_list.append(d)
+                #for item in conversions:
+                #    d = {}
+
+                #    for dst, mask in conversions.items():
+                #        d = {}
+                #        d['mask'] = mask
+                #        d['dst_agent_id'] = dst
+                        
+                #        masks_list.append(d)
                 
 
 
@@ -833,13 +830,14 @@ class ParallelComm(object):
             print()
             print('Masks to send:', masks_list)
             received_mask = None
+            received_label = None
             start_time = time.time()
-            dist.barrier()
-            received_mask, best_agent_id = self.send_recv_mask(masks_list, best_agent_id)
+            dist.monitored_barrier(wait_all_ranks=True)
+            received_mask, best_agent_id, received_label = self.send_recv_mask(masks_list, best_agent_id)
             END4 = time.time()-start_time
             print('***** TIME TAKEN FRO SEND_RECV_MASK():', END4)
-            print(Fore.GREEN + 'Mask received for distillation', received_mask, best_agent_id, flush=True)
-            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw, best_agent_id_))
+            print(Fore.GREEN + 'Mask received for distillation', received_mask, best_agent_id, received_label, flush=True)
+            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw, best_agent_id_, received_label))
 
             comm_iter += 1
 
@@ -848,8 +846,8 @@ class ParallelComm(object):
             timings.append([comm_iter, END1, END2, END3, END4, END5])
             np.savetxt(self.logger.log_dir + '/timings_{0}.csv'.format(self.agent_id), timings, delimiter=',')
 
-    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
-        p = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop))
+    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check):
+        p = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check))
         p.start()
         return p
 
@@ -1279,22 +1277,25 @@ class ParallelCommEval(object):
                 self._send_mask(mask_dict)
     def _send_mask(self, mask_dict):
         print(mask_dict, flush=True)
-        mask = mask_dict['mask']
         dst_agent_id = int(mask_dict['dst_agent_id'])
+        emb_label = mask_dict['label']
+        mask = mask_dict['mask']
+
         print(type(mask), mask.dtype, flush=True)
 
-        buff = torch.ones(ParallelCommEval.META_INF_IDX_MASK_SZ + self.mask_sz, dtype=torch.float32) * torch.inf
+        buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz + self.emb_label_sz, dtype=torch.float32) * torch.inf
 
-        buff[ParallelCommEval.META_INF_IDX_PROC_ID] = self.agent_id
-        buff[ParallelCommEval.META_INF_IDX_MSG_TYPE] = ParallelCommEval.MSG_TYPE_SEND_RESP
+        buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
+        buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
 
         if mask is None:
-            buff[ParallelCommEval.META_INF_IDX_MSG_DATA] = ParallelCommEval.MSG_DATA_NULL
-            buff[ParallelCommEval.META_INF_IDX_MASK_SZ : ] = torch.inf
+            buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
+            buff[ParallelComm.META_INF_IDX_MASK_SZ : ] = torch.inf
 
         else:
-            buff[ParallelCommEval.META_INF_IDX_MSG_DATA] = ParallelCommEval.MSG_DATA_MSK
-            buff[ParallelCommEval.META_INF_IDX_MASK_SZ : ] = mask # NOTE deepcopy?
+            buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_MSK
+            buff[ParallelComm.META_INF_IDX_MASK_SZ : ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz] = mask # NOTE deepcopy?
+            buff[ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz : ] = emb_label
 
         print('send_mask(): sending buffer', buff, flush=True)
         req_send = dist.isend(tensor=buff, dst=dst_agent_id)
@@ -1302,11 +1303,12 @@ class ParallelCommEval(object):
         print('send_mask() completed. Returning', flush=True)
     def receive_mask(self, best_agent_id):
         received_mask = None
+        received_label = None
 
         if best_agent_id is not None:
             print('Agent entered receive_mask()', flush=True)
             # We want to get the mask from the best agent
-            _buff = torch.ones(ParallelCommEval.META_INF_IDX_MASK_SZ + self.mask_sz, dtype=torch.float32) * torch.inf
+            _buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz + self.emb_label_sz, dtype=torch.float32) * torch.inf
             print(_buff, len(_buff))
             # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
             print('Mask recv start', flush=True)
@@ -1315,23 +1317,24 @@ class ParallelCommEval(object):
             req_recv = dist.irecv(tensor=_buff, src=best_agent_id)
             req_recv.wait()
             print('Mask recv end', flush=True)
-            #time.sleep(ParallelCommEval.SLEEP_DURATION)
+            #time.sleep(ParallelComm.SLEEP_DURATION)
 
             # otherwise return the mask
-            if _buff[ParallelCommEval.META_INF_IDX_MSG_DATA] == torch.inf:
+            if _buff[ParallelComm.META_INF_IDX_MSG_DATA] == torch.inf:
                 pass
 
-            elif _buff[ParallelCommEval.META_INF_IDX_MSG_DATA] == ParallelCommEval.MSG_DATA_MSK:
+            elif _buff[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_MSK:
                 print('MASK DATA RECEIVED', flush=True)
-                if _buff[ParallelCommEval.META_INF_IDX_PROC_ID] == best_agent_id:
+                if _buff[ParallelComm.META_INF_IDX_PROC_ID] == best_agent_id:
                     print('SENDER IS BEST AGENT', flush=True)
-                    received_mask = _buff[ParallelCommEval.META_INF_IDX_MASK_SZ : ]
+                    received_mask = _buff[ParallelComm.META_INF_IDX_MASK_SZ : ParallelComm.META_INF_IDX_MASK_SZ+self.mask_sz]
+                    received_label = _buff[ParallelComm.META_INF_IDX_MASK_SZ+self.mask_sz : ]
 
             # Reset the best agent id for the next request
             best_agent_id = None
 
-        return received_mask, best_agent_id
-
+        return received_mask, best_agent_id, received_label
+    
     def send_recv_mask(self, masks_list, best_agent_id):
         #print('Send Recv Mask Function', len(mask), dst_agent_id, best_agent_id)
         pool1 = mp.pool.ThreadPool(processes=1)
@@ -1358,11 +1361,11 @@ class ParallelCommEval(object):
         return result.get()
 
     ### Core functions
-    def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
+    def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check):
 
         # Initialise the process group for torch distributed
         proc_check = self.init_dist()
-        queue_mask.put(proc_check)
+        queue_check.put(proc_check)
 
         msg = None
         # Store the best agent id for quick reference
@@ -1401,7 +1404,7 @@ class ParallelCommEval(object):
             # send out broadcast request to all other agents for task label
             #print(Fore.GREEN + 'Doing request')
             start_time = time.time()
-            dist.barrier()
+            dist.monitored_barrier(wait_all_ranks=True)
             other_agents_request = self.send_receive_request(msg)
             print('******** TIME TAKEN FOR SEND_RECV_REQ():', time.time()-start_time)
             print()
@@ -1470,7 +1473,7 @@ class ParallelCommEval(object):
 
             results = []
             start_time = time.time()
-            dist.barrier()
+            dist.monitored_barrier(wait_all_ranks=True)
             results = self.send_recv_meta(meta_responses, await_response)
             print('******** TIME TAKEN FOR SEND_RECV_META():', time.time()-start_time)
             print()
@@ -1562,18 +1565,6 @@ class ParallelCommEval(object):
                         await_response[idx] = False
 
             print(Fore.GREEN + 'Mask requests to send to other agents: ', send_msk_requests)
-            
-            '''try:
-                if all(value == None for value in send_msk_request.values()):
-                    pass
-            except:
-                print()
-                print()
-                print()
-                print()
-                print()
-                print()
-                print()'''
 
             best_agent_id_ = best_agent_id  # temp variable for logging purposes
             
@@ -1583,7 +1574,7 @@ class ParallelCommEval(object):
             msk_requests = []
             print('Before send_recv_req():', send_msk_requests, expecting)
             start_time = time.time()
-            dist.barrier()
+            dist.monitored_barrier(wait_all_ranks=True)
             msk_requests = self.send_recv_mask_req(send_msk_requests, expecting)
             print('******** TIME TAKEN FOR SEND_RECV_MASK_REQ():', time.time()-start_time)
             print()
@@ -1601,34 +1592,34 @@ class ParallelCommEval(object):
             print('Before mask exchange:', msk_requests, best_agent_id)
 
             masks_list = []
-            if msk_requests:
+            #if msk_requests:
                 # Iterate through the requests
                 # Send the label to be converted, to the agent
                 
-                _temp_labels = {}
-                for req in msk_requests:
-                    if type(req) is dict:
-                        print('Mask request: ', req, flush=True)
+            #    _temp_labels = {}
+            #    for req in msk_requests:
+            #        if type(req) is dict:
+            #            print('Mask request: ', req, flush=True)
 
                         # Send a mask to the requesting agent
-                        dst_agent_id = req['requester_agent_id']
+            #            dst_agent_id = req['requester_agent_id']
                         # Send label:id to agent
-                        _temp_labels[dst_agent_id] = req['task_label']
+            #            _temp_labels[dst_agent_id] = req['task_label']
 
-                queue_label_send.put_nowait((_temp_labels))
+            #    queue_label_send.put_nowait((_temp_labels))
 
-                print('Send label to be converted:', _temp_labels, flush=True)
+            #    print('Send label to be converted:', _temp_labels, flush=True)
 
                 # wait to receive a mask from the agent module. do not continue until you receive
                 # this mask. agent will see the request eventually and send back the converted mask.
                 
-                conversions = queue_mask_recv.get()
-                for dst, mask in conversions.items():
-                    d = {}
-                    d['mask'] = mask
-                    d['dst_agent_id'] = dst
+            #    masks_list = queue_mask_recv.get()
+                #for dst, mask in conversions.items():
+                #    d = {}
+                #    d['mask'] = mask
+                #    d['dst_agent_id'] = dst
 
-                    masks_list.append(d)
+                #    masks_list.append(d)
                 
 
 
@@ -1636,18 +1627,19 @@ class ParallelCommEval(object):
             print()
             print('Masks to send:', masks_list)
             received_mask = None
+            received_label = None
             start_time = time.time()
-            dist.barrier()
-            received_mask, best_agent_id = self.send_recv_mask(masks_list, best_agent_id)
+            dist.monitored_barrier(wait_all_ranks=True)
+            received_mask, best_agent_id, received_label = self.send_recv_mask(masks_list, best_agent_id)
 
-            print(Fore.GREEN + 'Mask received for distillation', received_mask, best_agent_id, flush=True)
-            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw, best_agent_id_))
+            print(Fore.GREEN + 'Mask received for distillation', received_mask, best_agent_id, received_label, flush=True)
+            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw, best_agent_id_, received_label))
 
             comm_iter += 1
 
             print('***** COMM ITERATION TIME ELAPSED:', time.time() - START)
 
-    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop):
-        p = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop))
+    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check):
+        p = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check))
         p.start()
         return p

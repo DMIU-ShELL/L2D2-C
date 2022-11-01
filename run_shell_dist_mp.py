@@ -25,7 +25,7 @@ from deep_rl.utils.config import Config
 from deep_rl.component.policy import SamplePolicy
 from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, RunningStatsNormalizer, RewardRunningStatsNormalizer
 from deep_rl.utils.logger import get_logger
-from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_eval_mp, shell_dist_eval_mp_v2
+from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_eval_mp
 from deep_rl.agent.PPO_agent import ShellAgent_DP
 from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld
@@ -64,7 +64,7 @@ def global_config(config, name):
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 25600
-    config.evaluation_episodes = 3#50
+    config.evaluation_episodes = 10#50
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
@@ -232,7 +232,7 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
         agent.model_mask_dim, logger, init_address, init_port, mode)
 
     # start training
-    shell_dist_eval_mp_v2(agent, comm, args.agent_id, args.num_agents)
+    shell_dist_eval_mp(agent, comm, args.agent_id, args.num_agents)
 
 
 ##### Minigrid environment
@@ -561,7 +561,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)
     parser.add_argument('num_agents', help='world: total number of agents', type=int)
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_16x16.json')
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_4x4.json')
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
     parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)
