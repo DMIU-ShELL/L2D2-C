@@ -247,7 +247,8 @@ def main(args):
         max_icr = np.amax(data['icr']['ll']['ydata'])
         # make a nparray from 0 to max icr with a step of 0.1
         icr_steps = np.around(np.arange(0, floor((max_icr+0.1)*10)/10, 0.5), 1)
-        icr_steps = np.append(icr_steps, max_icr)
+        #print(icr_steps)
+        #icr_steps = np.append(icr_steps, max_icr)
         # Get the index where the icr value is >= i
         # Get the eval_step or time value at that same index
         # Append to single_arr
@@ -271,11 +272,12 @@ def main(args):
         y = np.divide(single_arr, shell_arr)
         y[np.isnan(y)] = 0
         #print(y)
-        x = np.append(np.around(np.arange(0, floor((max_icr+0.1)*10)/10, 0.5, dtype=np.float32), 1), max_icr)
+        x = np.around(np.arange(0, floor((max_icr+0.1)*10)/10, 0.5, dtype=np.float32), 1)
+        #x = np.append(x, max_icr)  # Needed if we want to use >0.1
         den = max(x)
         for index, val in enumerate(x):
             x[index] = (val/den)*100
-
+            
         NUM_AGENTS = num_shell_agents
         fig = plot_tra(x, y, NUM_AGENTS)
         fig.savefig(save_path + 'TRA_' + str(NUM_AGENTS) + '_Agents.pdf', bbox_inches='tight', \

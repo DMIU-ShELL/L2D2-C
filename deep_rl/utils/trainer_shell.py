@@ -743,6 +743,10 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 print(Fore.BLUE + '', mask_rewards_dict, flush=True)
                 #print(track_tasks)
 
+                # Save agent model
+                agent.save(agent.config.log_dir + '/%s-%s-model-%s.bin' % (agent.config.agent_name, agent.config.tag, \
+                        agent.task.name))
+
 
             ### EVALUATION BLOCK
             '''

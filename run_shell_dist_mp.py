@@ -75,7 +75,7 @@ def global_config(config, name):
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 25600
-    config.evaluation_episodes = 10#50
+    config.evaluation_episodes = 2#50
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
@@ -572,7 +572,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)
     parser.add_argument('num_agents', help='world: total number of agents', type=int)
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_4x4.json')
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_32x32.json')
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
     parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)
