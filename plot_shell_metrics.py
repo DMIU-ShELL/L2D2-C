@@ -210,10 +210,10 @@ def main(args):
 
     # plot icr
     fig = plot(data['icr'], 'ICR', yaxis_label='Instant Cumulative Reward (ICR)')
-    fig.savefig(save_path + 'metrics_icr.pdf', dpi=256, format='pdf')
+    fig.savefig(save_path + 'metrics_icr.pdf', dpi=256, format='pdf', bbox_inches='tight')
     # plot tpot
     fig = plot(data['tpot'], 'TPOT', yaxis_label='Total Performance Over Time (TPOT)')
-    fig.savefig(save_path + 'metrics_tpot.pdf', dpi=256, format='pdf')
+    fig.savefig(save_path + 'metrics_tpot.pdf', dpi=256, format='pdf', bbox_inches='tight')
 
     if args.ll_paths is not None:
         eps = 1e-6 # to help with zero divide
@@ -221,7 +221,7 @@ def main(args):
         #tla = data['tpot']['shell']['ydata'] / (data['tpot']['ll']['ydata'] + eps)
         tla = ((data['tpot']['shell']['ydata'])[0:len(data['tpot']['ll']['ydata'])] + 1) / ((data['tpot']['ll']['ydata'])[0:len(data['tpot']['shell']['ydata'])] + 1)
         data['tla']['shell'] = {}
-        data['tla']['shell']['xdata'] = np.arange(num_evals)
+        data['tla']['shell']['xdata'] = np.arange(len(tla))#np.arange(num_evals)
         data['tla']['shell']['ydata'] = tla
         data['tla']['shell']['ydata_cfi'] = np.zeros_like(tla)
         data['tla']['shell']['plot_colour'] = 'green'
@@ -229,18 +229,18 @@ def main(args):
         #ila = data['icr']['shell']['ydata'] / (data['icr']['ll']['ydata'] + eps)
         ila = ((data['icr']['shell']['ydata'])[0:len(data['icr']['ll']['ydata'])] + 1) / ((data['icr']['ll']['ydata'])[0:len(data['icr']['shell']['ydata'])] + 1)
         data['ila']['shell'] = {}
-        data['ila']['shell']['xdata'] = np.arange(num_evals)
+        data['ila']['shell']['xdata'] = np.arange(len(ila))#np.arange(num_evals)
         data['ila']['shell']['ydata'] = ila 
         data['ila']['shell']['ydata_cfi'] = np.zeros_like(ila)
         data['ila']['shell']['plot_colour'] = 'green'
         # plot tla
         y_label = 'TPOT(Shell, t) / TPOT(SingleLLAgent, t)'
         fig = plot(data['tla'], 'Total Learning Advantage (TLA)', yaxis_label=y_label)
-        fig.savefig(save_path + 'metrics_tla.pdf', dpi=256, format='pdf')
+        fig.savefig(save_path + 'metrics_tla.pdf', dpi=256, format='pdf', bbox_inches='tight')
         # plot ila
         y_label = 'ICR(Shell, t) / ICR(SingleLLAgent, t)'
         fig = plot(data['ila'], 'Instant Learning Advantage (ILA)', yaxis_label=y_label)
-        fig.savefig(save_path + 'metrics_ila.pdf', dpi=256, format='pdf')
+        fig.savefig(save_path + 'metrics_ila.pdf', dpi=256, format='pdf', bbox_inches='tight')
         
         #tra
         # Get the max icr achieved by ll
@@ -292,5 +292,6 @@ if __name__ == '__main__':
         'agent lifelong learning (support paths to multiple seeds)', nargs='+', default=None)
     parser.add_argument('--exp_name', help='name of experiment', default='metrics_plot')
     parser.add_argument('--num_agents', help='number of agents in the experiment', type=int, default=1)
+    parser.add_argument('--interval', help='interval', type=int, default=1)
     main(parser.parse_args())
 
