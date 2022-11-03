@@ -68,14 +68,13 @@ def plot_tra(xdata, ydata, num_agents):
     #addlabels(xdata, ydata)
     return fig
 
-def load_shell_data(args_path):
+def load_shell_data(args_path, interval):
     if args_path[-1] != '/':
         args_path += '/'
 
     names = os.listdir(args_path)
     names = [name for name in names if re.search('agent_*', name) is not None]
     names = sorted(names, key=lambda x: int(x.split('_')[3].split('.')[0]))
-    print(names)
 
     paths = [args_path + name for name in names]
     #paths = ['{0}/{1}/'.format(path, os.listdir(path)[-1]) for path in paths]
@@ -99,7 +98,9 @@ def load_shell_data(args_path):
     wall_clock_time = wall_clock_time.transpose(1, 0)
 
     metrics = metrics[ : , : , : -1] # remove the last dim (wall clock time) from metrics
-    #print(metrics.shape)
+    metrics = metrics[:, :, 0::interval]
+    #metrics = metrics + 0.03125 # 1/32 random probability for depth 2 branching factor 2
+
     # shape: num_evals x num_agents x num_tasks
     metrics = metrics.transpose(1, 0, 2)
     #print(metrics.shape)
@@ -120,7 +121,7 @@ def load_shell_data(args_path):
     
     return metrics, metrics_icr, metrics_tpot, wall_clock_time
 
-def load_ll_data(path):
+def load_ll_data(path, interval):
         # Load baseline data for a single LL agent
         if os.path.exists(path + 'eval_metrics_agent_0.csv'):
             path = path + 'eval_metrics_agent_0.csv'
@@ -133,6 +134,9 @@ def load_ll_data(path):
         wall_clock_time = np.expand_dims(wall_clock_time, axis=1)
 
         raw_data = raw_data[ : , : -1] # remove the last dim (wall clock time)
+        raw_data = raw_data[:, 0::interval]
+        #raw_data = metrics + 0.03125 # 1/32 random probability for depth 2 branching factor 2
+
         metrics_icr = raw_data.sum(axis=1)
         metrics_tpot = []
         for idx in range(len(metrics_icr)):
@@ -160,7 +164,7 @@ def main(args):
         ll_icr = []
         ll_tpot = []
         for p in args.ll_paths:
-            raw_data, metrics_icr, metrics_tpot, ll_wall_clock = load_ll_data(p)
+            raw_data, metrics_icr, metrics_tpot, ll_wall_clock = load_ll_data(p, args.interval)
             ll_data.append(raw_data)
             ll_icr.append(metrics_icr)
             ll_tpot.append(metrics_tpot)
@@ -186,7 +190,7 @@ def main(args):
     shell_icr = []
     shell_tpot = []
     for p in args.shell_paths:
-        raw_data, metrics_icr, metrics_tpot, shell_wall_clock = load_shell_data(p)
+        raw_data, metrics_icr, metrics_tpot, shell_wall_clock = load_shell_data(p, args.interval)
         shell_data.append(raw_data)
         shell_icr.append(metrics_icr)
         shell_tpot.append(metrics_tpot)
@@ -219,7 +223,7 @@ def main(args):
         eps = 1e-6 # to help with zero divide
         # tla
         #tla = data['tpot']['shell']['ydata'] / (data['tpot']['ll']['ydata'] + eps)
-        tla = ((data['tpot']['shell']['ydata'])[0:len(data['tpot']['ll']['ydata'])] + 1) / ((data['tpot']['ll']['ydata'])[0:len(data['tpot']['shell']['ydata'])] + 1)
+        tla = ((data['tpot']['shell']['ydata'])[0:len(data['tpot']['ll']['ydata'])] + 0.03125) / ((data['tpot']['ll']['ydata'])[0:len(data['tpot']['shell']['ydata'])] + 0.03125)
         data['tla']['shell'] = {}
         data['tla']['shell']['xdata'] = np.arange(len(tla))#np.arange(num_evals)
         data['tla']['shell']['ydata'] = tla
@@ -227,7 +231,7 @@ def main(args):
         data['tla']['shell']['plot_colour'] = 'green'
         # ila
         #ila = data['icr']['shell']['ydata'] / (data['icr']['ll']['ydata'] + eps)
-        ila = ((data['icr']['shell']['ydata'])[0:len(data['icr']['ll']['ydata'])] + 1) / ((data['icr']['ll']['ydata'])[0:len(data['icr']['shell']['ydata'])] + 1)
+        ila = ((data['icr']['shell']['ydata'])[0:len(data['icr']['ll']['ydata'])] + 0.03125) / ((data['icr']['ll']['ydata'])[0:len(data['icr']['shell']['ydata'])] + 0.03125)
         data['ila']['shell'] = {}
         data['ila']['shell']['xdata'] = np.arange(len(ila))#np.arange(num_evals)
         data['ila']['shell']['ydata'] = ila 
