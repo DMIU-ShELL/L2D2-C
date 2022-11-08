@@ -96,8 +96,8 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
     # address and port number of the master/first agent (rank/id 0) in the pool of agents
-    init_address = shell_config['dist_only']['init_address']
-    init_port = shell_config['dist_only']['init_port']
+    init_address = args.ip#shell_config['dist_only']['init_address']
+    init_port = args.port#shell_config['dist_only']['init_port']
 
     # set up config
     config = Config()
@@ -575,7 +575,9 @@ if __name__ == '__main__':
     parser.add_argument('--shell_config_path', help='shell config', default='./shell_2x2.json')
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
-    parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)
+    parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=1)
+    parser.add_argument('--port', help='port to use for this agent', type=int, default=29500)
+    parser.add_argument('--ip', help='ip address to use for this agent', type=str, default='127.0.0.1')
     parser.add_argument('--shuffle', help='randomise the task curriculum', type=int, default=1)
     args = parser.parse_args()
 
@@ -594,27 +596,27 @@ if __name__ == '__main__':
 
     if shell_config['env']['env_name'] == 'minigrid':
         name = Config.ENV_MINIGRID
-        if args.mode == 1:
+        if args.mode == 0:
             shell_dist_minigrid_eval(name, args, shell_config)
-        elif args.mode == 2:
+        elif args.mode == 1:
             shell_dist_minigrid_mp(name, args, shell_config)
         else:
             raise ValueError('--mode {0} not implemented'.format(args.mode))
 
     elif shell_config['env']['env_name'] == 'ctgraph':
         name = Config.ENV_METACTGRAPH
-        if args.mode == 1:
+        if args.mode == 0:
             shell_dist_mctgraph_eval(name, args, shell_config)
-        elif args.mode == 2:
+        elif args.mode == 1:
             shell_dist_mctgraph_mp(name, args, shell_config)
         else:
             raise ValueError('--mode {0} not implemented'.format(args.mode))
 
     elif shell_config['env']['env_name'] == 'continualworld':
         name = Config.ENV_CONTINUALWORLD
-        if args.mode == 1:
+        if args.mode == 0:
             shell_dist_continualworld_eval(name, args, shell_config)
-        elif args.mode == 2:
+        elif args.mode == 1:
             shell_dist_continualworld_mp(name, args, shell_config)
         else:
             raise ValueError('--mode {0} not implemented'.format(args.mode))
