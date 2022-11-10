@@ -6,8 +6,7 @@ import argparse
 
 HOST = '127.0.0.1'
 
-OTHER_PORTS = [29500, 29501, 29502, 29503, 29504]
-
+OTHER_PORTS = []
 
 def server(port):
     while True:
@@ -17,6 +16,7 @@ def server(port):
             conn, addr = s.accept()
             with conn:
                 print(f"Connected by {addr}")
+                
                 while True:
                     data = conn.recv(512)
                     if not data:
