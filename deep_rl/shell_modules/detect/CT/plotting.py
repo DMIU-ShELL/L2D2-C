@@ -8,13 +8,15 @@ import matplotlib
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-def heatmap(data, row_labels, col_labels, ax=None,
+def heatmap(title, data, row_labels, col_labels, ax=None,
             cbar_kw={}, cbarlabel="", **kwargs):
     """
     Create a heatmap from a numpy array and two lists of labels.
 
     Parameters
     ----------
+    title
+        A string.
     data
         A 2D numpy array of shape (M, N).
     row_labels
@@ -43,6 +45,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
     cax = divider.append_axes("right", size="5%", pad=0.25)
     cbar = ax.figure.colorbar(im, ax=ax, cax=cax)
     cbar.ax.set_ylabel(cbarlabel, rotation=0, va="bottom")
+    cbar.ax.tick_params(labelsize=16)
 
     # Show all ticks and label them with the respective list entries.
     ax.set_xticks(np.arange(data.shape[1]))
@@ -51,8 +54,8 @@ def heatmap(data, row_labels, col_labels, ax=None,
     ax.set_yticklabels(row_labels, Fontsize=14)
 
     # Let the horizontal axes labeling appear on top.
-    ax.tick_params(top=True, bottom=False,
-                   labeltop=True, labelbottom=False)
+    ax.tick_params(top=False, bottom=True,
+                   labeltop=False, labelbottom=True)
 
     # Rotate the tick labels and set their alignment.
     plt.setp(ax.get_xticklabels(), rotation=0, ha="right",
@@ -66,6 +69,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
     ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
     ax.grid(which="minor", color="w", linestyle='-', linewidth=3)
     ax.tick_params(which="minor", bottom=False, left=False)
+    ax.set_title(title, fontdict={'fontsize': 22, 'fontweight': 'medium'})
 
     return im, cbar
 
