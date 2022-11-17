@@ -29,7 +29,7 @@ import copy
 import shutil
 import matplotlib
 matplotlib.use("Pdf")
-import multiprocess as mp
+import multiprocessing as mp
 from deep_rl.utils.misc import mkdir, get_default_log_dir
 from deep_rl.utils.torch_utils import set_one_thread, random_seed, select_device
 from deep_rl.utils.config import Config
@@ -166,9 +166,20 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
 
     # set up communication (transfer module)
+
+    addresses = []
+    ports = []
+    file1 = open('./addresses.csv', 'r')
+    lines = file1.readlines()
+    for line in lines:
+        line = line.strip('\n')
+        line = line.split(', ')
+        addresses.append(line[0])
+        ports.append(int(line[1]))
+
     mode = 'ondemand'
     comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval)
+        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses)
 
     # start training
     shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
@@ -254,8 +265,8 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
     # address and port number of the master/first agent (rank/id 0) in the pool of agents
-    init_address = shell_config['dist_only']['init_address']
-    init_port = shell_config['dist_only']['init_port']
+    init_address = args.ip#shell_config['dist_only']['init_address']
+    init_port = args.port#shell_config['dist_only']['init_port']
 
     # set up config
     config = Config()
@@ -277,19 +288,27 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     config.log_dir = log_dir
 
     # save shell config and env config
-    shutil.copy(shell_config_path, log_dir)
+    #shutil.copy(shell_config_path, log_dir)
+    try:
+        with open(log_dir + '/shell_config.json', 'w') as f:
+            json.dump(shell_config, f, indent=4)
+            print('Shell configuration saved to shell_config.json')
+    except:
+        print('Something went wrong. Unable to save shell configuration json')
     shutil.copy(env_config_path, log_dir)
 
     # create/initialise agent
     logger.info('*****initialising agent {0}'.format(args.agent_id))
-    # task may repeat, so get number of unique tasks.
+    
     num_tasks = len(set(shell_config['curriculum']['task_ids']))
     config.cl_num_tasks = num_tasks
     config.task_ids = shell_config['curriculum']['task_ids']
     if isinstance(shell_config['curriculum']['max_steps'], list):
         config.max_steps = shell_config['curriculum']['max_steps']
     else:
-        config.max_steps = [shell_config['curriculum']['max_steps'], ] * num_tasks
+        config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
+
+
     #task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
     task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, 9157, False)          # Chris
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
@@ -310,17 +329,27 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
-    for k, v in agent.network.named_parameters():       # Chris
-        print(k, " : ", v)
+    #for k, v in agent.network.named_parameters():       # Chris
+    #    print(k, " : ", v)
 
 
     # For optimal performance the mask interval should be divisible by the number of iterations per task
     # i..e, set max_steps to multiple of 512
     mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
 
+    addresses = []
+    ports = []
+    file1 = open('./addresses.csv', 'r')
+    lines = file1.readlines()
+    for line in lines:
+        line = line.strip('\n')
+        line = line.split(', ')
+        addresses.append(line[0])
+        ports.append(int(line[1]))
+
     mode = 'ondemand'
     comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval)
+        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports)
 
 
     # start training
@@ -572,13 +601,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)
     parser.add_argument('num_agents', help='world: total number of agents', type=int)
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_2x2.json')
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)
-    parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=1)
+    parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)
     parser.add_argument('--port', help='port to use for this agent', type=int, default=29500)
     parser.add_argument('--ip', help='ip address to use for this agent', type=str, default='127.0.0.1')
-    parser.add_argument('--shuffle', help='randomise the task curriculum', type=int, default=1)
+    parser.add_argument('--shuffle', help='randomise the task curriculum', type=int, default=0)
     args = parser.parse_args()
 
     print(args)
@@ -596,27 +625,27 @@ if __name__ == '__main__':
 
     if shell_config['env']['env_name'] == 'minigrid':
         name = Config.ENV_MINIGRID
-        if args.mode == 0:
+        if args.mode == 1:
             shell_dist_minigrid_eval(name, args, shell_config)
-        elif args.mode == 1:
+        elif args.mode == 0:
             shell_dist_minigrid_mp(name, args, shell_config)
         else:
             raise ValueError('--mode {0} not implemented'.format(args.mode))
 
     elif shell_config['env']['env_name'] == 'ctgraph':
         name = Config.ENV_METACTGRAPH
-        if args.mode == 0:
+        if args.mode == 1:
             shell_dist_mctgraph_eval(name, args, shell_config)
-        elif args.mode == 1:
+        elif args.mode == 0:
             shell_dist_mctgraph_mp(name, args, shell_config)
         else:
             raise ValueError('--mode {0} not implemented'.format(args.mode))
 
     elif shell_config['env']['env_name'] == 'continualworld':
         name = Config.ENV_CONTINUALWORLD
-        if args.mode == 0:
+        if args.mode == 1:
             shell_dist_continualworld_eval(name, args, shell_config)
-        elif args.mode == 1:
+        elif args.mode == 0:
             shell_dist_continualworld_mp(name, args, shell_config)
         else:
             raise ValueError('--mode {0} not implemented'.format(args.mode))
