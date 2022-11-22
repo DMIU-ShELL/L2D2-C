@@ -178,8 +178,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         ports.append(int(line[1]))
 
     mode = 'ondemand'
-    comm = ParallelComm(agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses)
+    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports)
 
     # start training
     shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
@@ -348,8 +347,7 @@ def shell_dist_minigrid_mp(name, args, shell_config):
         ports.append(int(line[1]))
 
     mode = 'ondemand'
-    comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports)
+    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports)
 
 
     # start training

@@ -457,8 +457,11 @@ class ParallelComm(object):
         '''
         Event handler for validating a new agent that is attempting to join the existing network.
         '''
-        self.recv_init_conn(data, world_size)
+        self.recv_join_net(data, world_size)
     def update_network(self, data, world_size):
+        '''
+        Event handler for an existing agent exiting the network
+        '''
         self.recv_exit_net(data, world_size)
     def query(self, data, knowledge_base):
         '''
@@ -541,6 +544,7 @@ class ParallelComm(object):
                             elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_LEAVE:
                                 t_leave = mpd.Pool(processes=1)
                                 _ = t_leave.apply_async(self.update_network, (data, world_size))
+                                t_leave.close()
 
                             elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_QUERY:
                                 t_query = mpd.Pool(processes=1)
@@ -610,6 +614,7 @@ class ParallelComm(object):
             # Do some checks on the agent/communication interaction queues and perform actions based on those
             shell_iterations = queue_loop.get()     # This makes the communication module synchronised to the agent. If we remove this the communication module will be on speed. Nobody knows what will happen if this is removed. Do not remove... or maybe do. Idk. Users discretion. Good luck.
             self.logger.info(Fore.GREEN + f'Knowledge base in this iteration: {knowledge_base}')
+            self.logger.info(Fore.GREEN + f'World size in this iteration: {world_size.value}')
 
             # Get an embedding to query for. If no embedding to query for then do nothing.
             try:
@@ -875,11 +880,11 @@ class ParallelComm(object):
                 queue_mask.put((recv_mask, best_agent_rw, best_agent_id, recv_embedding))
     '''
 
-    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base):
+    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base, world_size):
         '''
         Parallelisation function for communication loop.
         '''
-        p_client = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base))
+        p_client = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base, world_size))
         p_client.start()
 
 '''

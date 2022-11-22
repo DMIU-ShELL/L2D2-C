@@ -580,7 +580,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
     knowledge_base = manager.dict()
-    world_size = manager.Value('i', 1)
+    world_size = manager.Value('i', num_agents)
     #metadata = manager.dict()
     #shell_iterations = manager.Value('i', 0)
 
