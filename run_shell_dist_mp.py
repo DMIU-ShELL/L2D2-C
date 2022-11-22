@@ -178,7 +178,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         ports.append(int(line[1]))
 
     mode = 'ondemand'
-    comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
+    comm = ParallelComm(agent.task_label_dim, \
         agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses)
 
     # start training
@@ -599,15 +599,15 @@ if __name__ == '__main__':
     mp.set_start_method('fork', force=True)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)
-    parser.add_argument('num_agents', help='world: total number of agents', type=int)
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')
+    parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int, default=0)      # Not required in deployment
+    parser.add_argument('--num_agents', help='world: total number of agents', type=int, default=1)                      # Not required in deployment
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')                             # Required
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
-        'up structured directory of experiment results/data', default='upz', type=str)
-    parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)
-    parser.add_argument('--port', help='port to use for this agent', type=int, default=29500)
-    parser.add_argument('--ip', help='ip address to use for this agent', type=str, default='127.0.0.1')
-    parser.add_argument('--shuffle', help='randomise the task curriculum', type=int, default=0)
+        'up structured directory of experiment results/data', default='upz', type=str)                                  # Not required in deployment
+    parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)                                # Not required in deployment
+    parser.add_argument('--port', help='port to use for this agent', type=int, default=29500)                           # Required
+    parser.add_argument('--ip', help='ip address to use for this agent', type=str, default='127.0.0.1')                 # Required
+    parser.add_argument('--shuffle', help='randomise the task curriculum', type=int, default=0)                         # Not required in deployment
     args = parser.parse_args()
 
     print(args)
