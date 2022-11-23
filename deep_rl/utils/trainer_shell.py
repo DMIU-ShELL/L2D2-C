@@ -764,7 +764,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
                 # Update the msg, track_tasks dict for this agent and reset await_responses for new task
                 msg = shell_tasks[task_counter_]['task_label']
-                track_tasks[agent_id] = torch.from_numpy(msg)       # remove later
+                #track_tasks[agent_id] = torch.from_numpy(msg)       # remove later
                 await_response = [True,] * num_agents
                 del states_
                 #print()
