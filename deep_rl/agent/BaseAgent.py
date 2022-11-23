@@ -115,7 +115,7 @@ class BaseContinualLearnerAgent(BaseAgent):
             q = out.detach().cpu().numpy().ravel()
             return np.argmax(q), {'logits': q}
 
-    def run_episode(self, deterministic=True):
+    def run_episode(self, deterministic=False):
         epi_info = {'policy_output': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
             'value': [], 'agent_action': [], 'reward': [], 'terminal': []}
 

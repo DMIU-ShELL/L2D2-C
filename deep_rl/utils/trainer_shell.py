@@ -562,7 +562,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     # Set msg to first task. The agents will then request knowledge on the first task.
     # this will ensure that other agents are aware that this agent is now working this task
     # until a task change happens.
-    msg = shell_tasks[0]['task_label']
+    msg = None#shell_tasks[0]['task_label']
     
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
     mask_rewards_dict = dict()
@@ -589,11 +589,11 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
     # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check)
+    pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check) # CHANGE THIS TO GET THE EMBEDDINGS!!!!!!!!!!!
 
     exchanges = []
     task_times = []
-    task_times.append([0, shell_iterations, np.argmax(shell_tasks[0]['task_label'], axis=0), time.time()])
+    task_times.append([0, shell_iterations, np.argmax(shell_tasks[0]['task_label'], axis=0), time.time()]) # CHNAGE THIS FORM LABEL TO EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     check = queue_check.get()
     #check = True
@@ -601,7 +601,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
         while True:
             if not pcomm.is_alive():
                 pcomm.kill()    # Kill the old process and start a new one
-                pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check)
+                pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check) # CHNAGE TO TAKE EMBEDDINGS INSTEAD OF LABELS !!!!!!!!!
 
             START = time.time()
             #print(Fore.BLUE + 'Msg in this iteration: ', msg)
@@ -618,7 +618,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             #time.sleep(1)
             if num_agents > 1:
                 try:
-                    mask, track_tasks_temp, await_response, best_agent_rw, best_agent_id, received_label = queue_mask.get_nowait()
+                    mask, track_tasks_temp, await_response, best_agent_rw, best_agent_id, received_label = queue_mask.get_nowait() # CHANGE TO TAKE EMBEDDINGS INSTEAD OF LABELS !!!!!!!!!!!!!
                     print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
                     
                     if mask is not None:
@@ -626,7 +626,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                         # Update the knowledge base with the expected reward
                         mask_rewards_dict.update(best_agent_rw)
                         # Update the network with the mask
-                        agent.distil_task_knowledge_single(mask, received_label)
+                        agent.distil_task_knowledge_single(mask, received_label) # CHANGE SO IT DISTILS KNOWLEDGE BASED ON THE EMBEDDING, NOT LABEL!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                         print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
 
                         #print(shell_iterations)
@@ -639,7 +639,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                         for key, val in mask_rewards_dict.items():
                             _tempknowledgebase[np.argmax(key, axis=0)] = val
 
-                        exchanges.append([shell_iterations, best_agent_id, np.argmax(received_label, axis=0), _tempknowledgebase, len(mask), mask])
+                        exchanges.append([shell_iterations, best_agent_id, np.argmax(received_label, axis=0), _tempknowledgebase, len(mask), mask]) #CHANGE TO USE THE EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                         np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
                         #del mask
 
@@ -667,13 +667,13 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # convert it and send it back to the agent
                 try:
                     #print(Fore.BLUE + 'Agent checking for any label conversion req')
-                    to_convert = queue_label_send.get_nowait()
+                    to_convert = queue_label_send.get_nowait() #CHANGE TO WORK WITH THE EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!!!
                     _conversions = []
-                    for dst_agent_id, comm_label in to_convert.items():
+                    for dst_agent_id, comm_label in to_convert.items(): #comm_label SHOULD NOW BE AN EMBEDDING!!!!!!!!!!!!
                         _comm_label = comm_label.detach().cpu().numpy()
                         d = {}
                         d['dst_agent_id'] = dst_agent_id
-                        d['label'] = comm_label
+                        d['label'] = comm_label # REPLACE WITH THE EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                         d['mask'] = agent.label_to_mask(_comm_label)
                         _conversions.append(d)
                     queue_mask_recv.put((_conversions))
@@ -721,7 +721,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                     process, similar to the communication-agent(trainer) architecture. Data collection and the code
                     below would run together in the main loop.
             '''
-            dict_logs = agent.iteration()
+            dict_logs = agent.iteration() #NOTE WE PERFORM THE TRAINING ITERATION HERE, IT IS WHERE OUR REPLAY BUFFER WILL BE FEELED WITH DATA!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             shell_iterations += 1
 
 
@@ -739,7 +739,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 
                 # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
                 # logging cycle. Take average of all worker averages as the most recent reward score for a given task
-                mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.around(np.mean(agent.iteration_rewards), decimals=6)
+                mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.around(np.mean(agent.iteration_rewards), decimals=6)#CHANGE TO USE THE EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!
                 print(Fore.BLUE + '', mask_rewards_dict, flush=True)
                 #print(track_tasks)
 
@@ -802,17 +802,17 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 task_counter_ += 1
                 shell_task_counter = task_counter_
                 if task_counter_ < len(shell_tasks):
-                    task_times.append([task_counter_, shell_iterations, np.argmax(shell_tasks[task_counter_]['task_label'], axis=0), time.time()])
+                    task_times.append([task_counter_, shell_iterations, np.argmax(shell_tasks[task_counter_]['task_label'], axis=0), time.time()])#CHANGE TO WORK WITH EMBEDDING !!!!!!!!!!!!!!!!!!!!!!!!!!
                     np.savetxt(logger.log_dir + '/task_changes_{0}.csv'.format(agent_id), task_times, delimiter=',', fmt='%s')
 
 
                     # new task
                     logger.info('*****agent {0} / set next task {1}'.format(agent_id, task_counter_))
                     logger.info('task: {0}'.format(shell_tasks[task_counter_]['task']))
-                    logger.info('task_label: {0}'.format(shell_tasks[task_counter_]['task_label']))
+                    logger.info('task_label: {0}'.format(shell_tasks[task_counter_]['task_label'])) #CHANGE TO WORK WITH EMBEDDING!!!!!!!!!!!!!!
                     states_ = agent.task.reset_task(shell_tasks[task_counter_]) # set new task
                     agent.states = agent.config.state_normalizer(states_)
-                    agent.task_train_start(shell_tasks[task_counter_]['task_label'])
+                    agent.task_train_start(shell_tasks[task_counter_]['task_label'])# CHANGE TO WORK WITH EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!!
 
                     # set message (task_label) that will be sent to other agent as a request for
                     # task knowledge (mask) about current task. this will be sent in the next
@@ -821,7 +821,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                         .format(agent_id))
 
                     # Update the msg, track_tasks dict for this agent and reset await_responses for new task
-                    msg = shell_tasks[task_counter_]['task_label']
+                    msg = None#shell_tasks[task_counter_]['task_label'] #CHANGE THIS WITH THE CALUCLATED EMBEDDING OR NONE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     track_tasks[agent_id] = torch.from_numpy(msg)       # remove later
                     await_response = [True,] * num_agents
                     del states_

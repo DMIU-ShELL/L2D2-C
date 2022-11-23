@@ -95,6 +95,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
+    config_emb_dist_threshold = shell_config['emb_dist_threshold']
     # address and port number of the master/first agent (rank/id 0) in the pool of agents
     init_address = shell_config['dist_only']['init_address']
     init_port = shell_config['dist_only']['init_port']
@@ -153,6 +154,8 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
         num_tasks=num_tasks)
+
+    config.emb_dist_threshold = config_emb_dist_threshold
 
     config.seed = config_seed       # Chris
 
@@ -591,6 +594,9 @@ if __name__ == '__main__':
 
         shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
         del shell_config['agents'][args.agent_id]
+
+        shell_config['emb_dist_threshold'] = shell_config['emb_dist_threshold'][args.agent_id]      # Chris
+        #del shell_config['agents'][args.agent_id]
 
     if shell_config['env']['env_name'] == 'minigrid':
         name = Config.ENV_MINIGRID

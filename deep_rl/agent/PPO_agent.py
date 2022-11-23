@@ -32,6 +32,7 @@ from ..network.network_bodies import FCBody_SS, DummyBody_CL
 from ..utils.torch_utils import random_seed, select_device, tensor
 from ..utils.misc import Batcher
 from ..component.replay import Replay
+from ..detect import Detect
 
 
 class PPOAgent(BaseAgent):
@@ -132,7 +133,19 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         del tasks_
         self.config.cl_tasks_info = tasks
         label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label'])
-        self.task_label_dim = label_dim 
+        self.task_label_dim = label_dim
+
+        self.emb_dist_threshold = config.emb_dist_threshold
+
+        #Create a Refernce for the Wasserstain Embeddings
+        torch.manual_seed(98)
+        reference = torch.rand(500, self.task.state_dim)
+
+        #Assing a detect Component to the Agent upon initialisation
+        self.detect = Detect(reference, one_hot=False, normalized=False, num_samples=100)
+
+        #Create a list for saving the calculated embeddings
+        self.encounterd_task_embs = []
 
         # set seed before creating network to ensure network parameters are
         # same across all shell agents
@@ -179,6 +192,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             self.iteration_success_rate = None
 
     def iteration(self):
+        '''This function performs the training iteration.
+        It is where the learner of the agent (the neural network) is being optimized'''
         config = self.config
         rollout = []
         states = self.states
@@ -275,6 +290,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             'ppo_ratio': ratio_log}
 
     def _rollout_normal(self, states, batch_task_label):
+        '''It runs the agent on the environment and collects SAR data to staore in the Replay
+        Buffer'''
         # clear running performance buffers
         self.running_episodes_rewards = [[] for _ in range(self.config.num_workers)]
 
@@ -348,9 +365,27 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         return states, rollout
 
+    def asign_task_emb(self, a_new_emb, emb_distance):
+        '''It asigns the most up to date embedding to the current task based
+        basd on the embedding distance thershold. 
+            If the distance is smaller smaller than the treshold it means that
+        the agent is stil working at the same task. Hence we update the embeding
+        by averaging the old ebedding, that the agent already has for that task,
+        with the new embedding caluclated the detect module.o
+            If the distance is bigger than the threshold then the agent encounters
+        a  new task so we update the attribute 'emb' of the coresponding of the
+        list of dictionaries that our agent poseses'''
+        if emb_distance < 
+        return     
     def _avg_episodic_perf(self, running_perf):
         if len(running_perf) == 0: return 0.
         else: return np.mean(running_perf)
+
+    
+    def store_embeddings(self, an_embedding):
+        '''Function that appends on the list of different embeddings the ebedding for 
+        a new encountered task.'''
+        self.encounterd_task_embs. append(an_embedding)
 
 class BaselineAgent(PPOContinualLearnerAgent):
     '''
@@ -400,6 +435,10 @@ class LLAgent(PPOContinualLearnerAgent):
         return found_task_idx
         
     def task_train_start(self, task_label):
+
+        '''Function for starting the new <<Detected>> task. It takes as an argument the tasklabel given by the 
+        the "trainer_shell" from the "shell_tasks" list of dictionaries.'''
+
         task_idx = self._label_to_idx(task_label)
         if task_idx is None:
             # new task. add it to the agent's seen_tasks dictionary

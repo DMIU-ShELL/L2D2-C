@@ -354,7 +354,8 @@ class MetaCTgraph(BaseTask):
             tasks = list(product(list(range(branch)), repeat=depth))
             names = ['ctgraph_d{0}_b{1}_imgseed_{2}_task_{3}'.format(depth, branch, img_seed, j) \
                 for j in range(len(tasks))] 
-            tasks = [{'name': name, 'task': np.array(task), 'task_label': None, 'env_idx': idx} \
+            #NOTE: tasks Includes the 'task-label' whichh is  a disaprated valvue
+            tasks = [{'name': name, 'task': np.array(task), 'task_label': None, 'task_emb': None, 'env_idx': idx} \
                 for name, task in zip(names, tasks)]
             _all_tasks.append(tasks)
         all_tasks = []
@@ -379,8 +380,8 @@ class MetaCTgraph(BaseTask):
         self.envs = envs
         self.tasks = all_tasks
         self.env = None
-
-        # task label config
+        
+        '''# task label config
         self.task_label_dim = env_meta_config['label_dim']
         self.one_hot_labels = env_meta_config['one_hot']
 
@@ -394,7 +395,8 @@ class MetaCTgraph(BaseTask):
             labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
             labels = labels.astype(np.float32) 
             for idx in range(len(self.tasks)):
-                self.tasks[idx]['task_label'] = labels[idx]
+                self.tasks[idx]['task_label'] = labels[idx]'''
+
         # set default task
         self.set_task(self.tasks[0])
 
