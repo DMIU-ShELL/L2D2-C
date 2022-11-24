@@ -512,6 +512,7 @@ ShELL distributed trainer using multiprocessing communication. Multiprocessing a
 added in the future.
 '''
 import multiprocessing as mp
+import multiprocessing.dummy as mpd
 from colorama import Fore
 
 def shell_dist_train_mp(agent, comm, agent_id, num_agents):
@@ -597,11 +598,12 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     task_times = []
     task_times.append([0, shell_iterations, np.argmax(shell_tasks[0]['task_label'], axis=0), time.time()])
 
-    while True:
-        #if num_agents > 1:
-        try:
-            mask, best_agent_rw, best_agent_id, received_label = queue_mask.get_nowait()
-            print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
+
+    # Communication module interaction handlers
+    def mask_handler():
+        while True:
+            mask, best_agent_rw, best_agent_id, received_label = queue_mask.get()
+            print(Fore.BLUE + f'Agent received mask from comm for query: {type(mask)} {mask}', flush=True)
                 
             if mask is not None:
                 #if shell_iterations % mask_interval == 0:
@@ -609,7 +611,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 knowledge_base.update(best_agent_rw)
                 # Update the network with the mask
                 agent.distil_task_knowledge_single(mask, received_label)
-                print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
+                print(Fore.BLUE + 'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
 
                 _tempknowledgebase = {}
                 for key, val in knowledge_base.items():
@@ -618,31 +620,18 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 exchanges.append([shell_iterations, best_agent_id, np.argmax(received_label, axis=0), _tempknowledgebase, len(mask), mask])
                 np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
 
-        except Empty:
-            print('No mask in this iteration')
-            pass
+    def conv_handler():
+        while True:
+            convert = queue_label_send.get()
+            convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
+            queue_mask_recv.put((convert))
 
+    t_mask = mpd.Pool(processes=1)
+    t_conv = mpd.Pool(processes=1)
+    t_mask.apply_async(mask_handler)
+    t_conv.apply_async(conv_handler)
 
-
-        # Check if the communication module has sent a label to be converted to a mask
-        # convert it and send it back to the agent
-        '''try:
-            #print(Fore.BLUE + 'Agent checking for any label conversion req')
-            to_convert = queue_label_send.get_nowait()
-            _conversions = []
-            for dst_agent_id, comm_label in to_convert.items():
-                _comm_label = comm_label.detach().cpu().numpy()
-                d = {}
-                d['dst_agent_id'] = dst_agent_id
-                d['label'] = comm_label
-                d['mask'] = agent.label_to_mask(_comm_label)
-                _conversions.append(d)
-            queue_mask_recv.put((_conversions))
-        except Empty:
-            print(Fore.BLUE + 'No label to convert to mask')
-            pass'''
-
-
+    while True:
         queue_loop.put((shell_iterations))
         queue_label.put(msg)
 
