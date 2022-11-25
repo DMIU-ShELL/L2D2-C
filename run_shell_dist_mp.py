@@ -46,6 +46,8 @@ from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
 import argparse
 import torch
 import random
+from deep_rl.shell_modules.detect.detect import Detect
+#vfrom ..detect import Detect
 
 
 
@@ -157,6 +159,15 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     config.emb_dist_threshold = config_emb_dist_threshold
 
+    #Create a Refernce for the Wasserstain Embeddings
+    torch.manual_seed(98)
+    reference = torch.rand(500, self.task.state_dim)
+    #Creatting a Detect Module Object
+    detect_module = Detect(reference, one_hot=False, normalized=False, num_samples=100)
+
+    #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
+    config.detect = detect_module
+
     config.seed = config_seed       # Chris
 
     agent = ShellAgent_DP(config)
@@ -164,6 +175,10 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     #for k, v in agent.network.named_parameters():       # Chris
     #    print(k, " : ", v)
+
+    
+
+   
 
 
     mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
@@ -174,7 +189,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval)
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
+    shell_dist_train_mp(agent, comm, detect_module, args.agent_id, args.num_agents)
 
 def shell_dist_mctgraph_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path
@@ -593,10 +608,10 @@ if __name__ == '__main__':
             random.shuffle(shell_config['curriculum']['task_ids'])
 
         shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
-        del shell_config['agents'][args.agent_id]
+        #del shell_config['agents'][args.agent_id]
 
         shell_config['emb_dist_threshold'] = shell_config['emb_dist_threshold'][args.agent_id]      # Chris
-        #del shell_config['agents'][args.agent_id]
+        del shell_config['agents'][args.agent_id]
 
     if shell_config['env']['env_name'] == 'minigrid':
         name = Config.ENV_MINIGRID

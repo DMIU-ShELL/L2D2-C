@@ -32,7 +32,7 @@ from ..network.network_bodies import FCBody_SS, DummyBody_CL
 from ..utils.torch_utils import random_seed, select_device, tensor
 from ..utils.misc import Batcher
 from ..component.replay import Replay
-from ..detect import Detect
+#from ..detect import Detect
 
 
 class PPOAgent(BaseAgent):
@@ -132,17 +132,17 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         tasks = [tasks_[task_id] for task_id in config.task_ids]
         del tasks_
         self.config.cl_tasks_info = tasks
-        label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label'])
+        label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label']) #CHANGE THAT FOR THE
         self.task_label_dim = label_dim
 
         self.emb_dist_threshold = config.emb_dist_threshold
 
-        #Create a Refernce for the Wasserstain Embeddings
-        torch.manual_seed(98)
-        reference = torch.rand(500, self.task.state_dim)
 
         #Assing a detect Component to the Agent upon initialisation
-        self.detect = Detect(reference, one_hot=False, normalized=False, num_samples=100)
+        self.detect = config.detect
+
+        #Viriable for saving the size of the task embedding that the detect module has produced.
+        self.task_emb_size  = 0
 
         #Create a list for saving the calculated embeddings
         self.encounterd_task_embs = []
@@ -352,7 +352,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             next_states = config.state_normalizer(next_states)
 
             # save data to buffer for the detect module
-            self.data_buffer.feed_batch([states, actions, rewards, terminals, next_states])
+            self.data_buffer.feed_batch([states, actions.cpu(), rewards, terminals, next_states])
 
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
@@ -365,18 +365,69 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         return states, rollout
 
-    def asign_task_emb(self, a_new_emb, emb_distance):
-        '''It asigns the most up to date embedding to the current task based
-        basd on the embedding distance thershold. 
-            If the distance is smaller smaller than the treshold it means that
+    
+    def sar_data_extraction(self):
+        '''Function for extracting the SAR data from the Replay
+        Buffer in order to feed the Detect Module'''
+
+        buffer_data = self.data_buffer.sample()
+        sar_data = []
+        for tpl in buffer_data:
+            sar_data.append(tpl[:3])
+        return sar_data
+
+    def compute_task_embedding(self, some_sar_data):
+        '''Function for computing the task embedding based on the current
+        batch of SAR data derived from the replay buffer.'''
+
+        task_embedding = self.detect.lwe(some_sar_data)
+        self.task_emb_size = len(task_embedding)
+        return task_embedding
+
+
+    def get_task_emb_size(self):
+        '''''A getter method for retreiving the task embedding size'''
+        return self.task_emb_size
+
+    def assign_task_emb(self, a_new_emb, emb_distance):
+        '''It assigns the most up to date embedding to the current task based
+        on the embedding distance thershold. 
+            If the distance is smaller than the treshold it means that
         the agent is stil working at the same task. Hence we update the embeding
         by averaging the old ebedding, that the agent already has for that task,
         with the new embedding caluclated the detect module.o
             If the distance is bigger than the threshold then the agent encounters
         a  new task so we update the attribute 'emb' of the coresponding of the
         list of dictionaries that our agent poseses'''
-        if emb_distance < 
-        return     
+
+        #Temp varible for checking if there is a key-value pair created in the info_dict of the current task
+        #the agent tries to solve.
+        key_to_check = 'task_emb'
+
+        #Message String that indicates if the detecte module has spotted a task change or not.
+        str_task_chng_msg = ''
+
+        #Flag for task change detected by the detect module (True if task change happend, False otherwise).
+        task_chng_flag = None
+
+        #if the pair does not exist, the agent encounters this task for the first time, we create the pair
+        #and we assing as an embedding value a torch.Tensor of zeros of the same size as the embedding the
+        #detect module has calculatd.
+        if not key_to_check in self.task.get_task():
+            self.task.get_task()['task_emb'] = torch.zeros(self.get_task_emb_size())
+
+        if emb_distance < self.emb_dist_threshold:
+             self.task.get_task()['task_emb'] = (self.task.get_task()['task_emb'] + a_new_emb) / 2
+             str_task_chng_msg = "TASK CHNAGE NNNNOOOOTTTTT DETECTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+             task_chng_flag = False
+        else:
+            self.task.get_task()['task_emb'] = a_new_emb
+            str_task_chng_msg = "TASK CHNAGE DETECTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            task_chng_flag = True
+
+        return str_task_chng_msg, task_chng_flag
+
+
     def _avg_episodic_perf(self, running_perf):
         if len(running_perf) == 0: return 0.
         else: return np.mean(running_perf)

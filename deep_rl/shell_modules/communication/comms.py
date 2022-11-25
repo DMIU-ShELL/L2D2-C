@@ -1036,7 +1036,7 @@ class ParallelCommEval(object):
                 mask_reward =req_dict['mask_reward']
                 distance = req_dict['dist']
                 distance = np.float64(distance)
-                emb_label = req_dict['resp_task_label']
+                emb_label = req_dict['resp_task_label'] #MAKE WORK WITH EMBEDDINGS!!!!!!!!!!!
 
                 #print(dst_agent_id, mask_reward, distance, emb_label)
                 #print(type(dst_agent_id), type(mask_reward), type(distance), type(emb_label))

@@ -514,7 +514,7 @@ added in the future.
 import multiprocess as mp
 from colorama import Fore, Back, Style
 
-def shell_dist_train_mp(agent, comm, agent_id, num_agents):
+def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
     logger = agent.config.logger
     #print()
 
@@ -585,6 +585,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     # Put in the initial data into the loop queue so that the comm module is not blocking the agent
     # from running.
     queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response, shell_iterations))
+
+    pdetect = detect_module
 
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
@@ -821,7 +823,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                         .format(agent_id))
 
                     # Update the msg, track_tasks dict for this agent and reset await_responses for new task
-                    msg = None#shell_tasks[task_counter_]['task_label'] #CHANGE THIS WITH THE CALUCLATED EMBEDDING OR NONE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    msg = shell_tasks[task_counter_]['task_label'] #CHANGE THIS WITH THE CALUCLATED EMBEDDING OR NONE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     track_tasks[agent_id] = torch.from_numpy(msg)       # remove later
                     await_response = [True,] * num_agents
                     del states_
@@ -923,7 +925,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     # Set msg to first task. The agents will then request knowledge on the first task.
     # this will ensure that other agents are aware that this agent is now working this task
     # until a task change happens.
-    msg = _tasks[0]['task_label']
+    msg = _tasks[0]['task_label'] #Change with EMbeddings!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
     # Not sure we will need this anymore but might be useful to track what knowledge the eval agent has
@@ -954,7 +956,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
     # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check)
+    pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check) # CHNEGE WITH EMBEDDINGS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
     #for item in _tasks:
@@ -967,7 +969,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
         while True:
             if not pcomm.is_alive():
                 pcomm.kill()    # Kill the old process and start a new one
-                pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check)
+                pcomm = comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check) #CHNEGE WITH EMBEDDINGS!!!!!!!!!!!!!!!!!!!
 
             print()
             print(shell_iterations, shell_task_counter, agent.total_steps, agent.config.max_steps, task_steps_limit)
@@ -989,21 +991,21 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
             # Agent communication code block. All communication module related interactions are in here
             if num_agents > 1:
                 try:
-                    mask, track_tasks_temp, await_response, best_agent_rw, best_agent_id, received_label = queue_mask.get_nowait()
+                    mask, track_tasks_temp, await_response, best_agent_rw, best_agent_id, received_label = queue_mask.get_nowait() #CHANGE WITH EMBEDDINGS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     print(Fore.BLUE + 'Agent received mask from comm for query:', type(mask), mask, flush=True)
                     
                     if mask is not None:
                         # Update the knowledge base with the expected reward
                         mask_rewards_dict.update(best_agent_rw)
                         # Update the network with the mask
-                        agent.distil_task_knowledge_single_eval(mask, received_label)
+                        agent.distil_task_knowledge_single_eval(mask, received_label)#CHANGE WITH EMBEDDINGS!!!!!!!!!!!!!!!!!!!!!!!!
                         print(Fore.BLUE+'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
 
                         _tempknowledgebase = {}
                         for key, val in mask_rewards_dict.items():
                             _tempknowledgebase[np.argmax(key, axis=0)] = val
 
-                        exchanges.append([shell_iterations, best_agent_id, np.argmax(received_label, axis=0), _tempknowledgebase, len(mask), mask])
+                        exchanges.append([shell_iterations, best_agent_id, np.argmax(received_label, axis=0), _tempknowledgebase, len(mask), mask])#CHANGE  WITH EMBEDDINGS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                         np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
                         #del mask
 
@@ -1027,7 +1029,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
                 
                 # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
                 # the communication module will do its thing.
-                msg = _tasks[shell_task_counter]['task_label']
+                msg = _tasks[shell_task_counter]['task_label'] #CHANGE WITH EMBEDDINGS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 #agent.curr_eval_task_label = msg
                 queue_label.put_nowait(msg)
 
