@@ -603,7 +603,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     def mask_handler():
         while True:
             mask, best_agent_rw, best_agent_id, received_label = queue_mask.get()
-            print(Fore.BLUE + f'Agent received mask from comm for query: {type(mask)} {mask}', flush=True)
+            logger.info(Fore.WHITE + f'\nAgent received from comm: \nMask:{mask}\nReward:{best_agent_rw}\nSrc:{best_agent_id}\nEmbedding:{received_label}')
                 
             if mask is not None:
                 #if shell_iterations % mask_interval == 0:
@@ -611,7 +611,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 knowledge_base.update(best_agent_rw)
                 # Update the network with the mask
                 agent.distil_task_knowledge_single(mask, received_label)
-                print(Fore.BLUE + 'KNOWLEDGE DISTILLED TO NETWORK!', flush=True)
+                logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
 
                 _tempknowledgebase = {}
                 for key, val in knowledge_base.items():

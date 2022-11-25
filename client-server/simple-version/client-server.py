@@ -2,7 +2,7 @@ import multiprocessing as mp
 import multiprocessing.dummy as mpd
 import pickle
 import socket
-from torch import tensor
+from torch import tensor, rand
 import argparse
 from time import sleep
 import struct
@@ -14,6 +14,7 @@ from colorama import Fore
 
 HOST = 'lnx-grid-19.lboro.ac.uk'
 OTHER_PORTS = [29500+i for i in range(0, 5)]
+
 
 # TCP + TLS v2
 class TCP_TLSv2:
@@ -30,10 +31,33 @@ class TCP_TLSv2:
         except:
             return None, None, None, None, None
 
+    def send_msg(self, sock, msg):
+        # Prefix each message with a 4-byte length (network byte order)
+        msg = struct.pack('>I', len(msg)) + msg
+        sock.sendall(msg)
+
+    def recv_msg(self, sock):
+        # Read message length and unpack it into an integer
+        raw_msglen = self.recvall(sock, 4)
+        if not raw_msglen: return None
+        msglen = struct.unpack('>I', raw_msglen)[0]
+        print(msglen)
+        # Read the message data
+        return self.recvall(sock, msglen)
+
+    def recvall(self, sock, n):
+        # Helper function to recv n bytes or return None if EOF is hit
+        data = bytearray()
+        while len(data) < n:
+            packet = sock.recv(n - len(data))
+            if not packet: return None
+            data.extend(packet)
+        return data
+
     def server(self, port):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server = ssl.wrap_socket(server, server_side=True, keyfile="key.pem", certfile="certificate.pem")
+        #server = ssl.wrap_socket(server, server_side=True, keyfile="key.pem", certfile="certificate.pem")
 
         server.bind((HOST, port))
         server.listen(0)
@@ -44,14 +68,16 @@ class TCP_TLSv2:
                 print(Fore.CYAN + f"\nConnected by {addr}")
                 while True:
                     try:
-                        data = conn.recv(4096)
+                        data = self.recv_msg(conn)
                         if not data: break
 
-                        #data = pickle.loads(data)
-                        data = list(struct.unpack('11d', data))
-                        _address, _port, _msg_type, _msg_data, _embedding = self.unpack(data)
+                        data = pickle.loads(data)
+                        #data = list(struct.unpack('11d', data))
+                        #_address, _port, _msg_type, _msg_data, _embedding = self.unpack(data)
                         print(Fore.CYAN + f"Received{data!r}. Time taken: {(time.time()-data[-1])*(10**3):.3f}µs")
-                        print(Fore.CYAN + f"Address: {_address} \nPort: {_port} \nType: {_msg_type} \nData: {_msg_data} \nEmbedding: {_embedding}")
+                        print(Fore.CYAN + f"Address: {data[0]} \nPort: {data[1]} \nType: {data[2]} \nData: {data[3]} \nMask: {data[4]} \nEmbedding: {data[5]}")
+                    
+                        #print(Fore.CYAN + f"Address: {_address} \nPort: {_port} \nType: {_msg_type} \nData: {_msg_data} \nEmbedding: {_embedding}")
                     except socket.error as e:
                         if e.errno != ECONNRESET: raise
                         print(Fore.RED + f'Error raised while attempting to receive data from {addr}')
@@ -60,17 +86,17 @@ class TCP_TLSv2:
     def client(self, port, buffer):
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        client = ssl.wrap_socket(client, keyfile="key.pem", certfile="certificate.pem")
+        #client = ssl.wrap_socket(client, keyfile="key.pem", certfile="certificate.pem")
 
-        #buffer = pickle.dumps(buffer)
-        buffer = struct.pack('11d', *buffer)
+        buffer = pickle.dumps(buffer)
+        #print(buffer)
+        #buffer = struct.pack('11d', *buffer)
         try:
             client.connect((HOST, port))
-            client.sendall(buffer)
+            self.send_msg(client, buffer)
             client.close()
 
-        except:
-            pass
+        except: pass
 
 
 # HTTPS + TLS
@@ -188,19 +214,24 @@ if __name__ == '__main__':
 
     TL = TCP_TLSv2()
 
-    p_server = mp.Process(target=TL.server, args=(args.port,))
-    p_server.start()
+    if args.port == 29500:
+        p_server = mp.Process(target=TL.server, args=(args.port,))
+        p_server.start()
 
     #client(b'')
 
     #if args.port == 29500:
-    count = 0
-    while True:
-        count += 1
-        print(Fore.GREEN + f'\n\nIteration: {count}')
-        for port in OTHER_PORTS:
-            print(Fore.GREEN + f'Attempting to send to port: {port}')
-            TL.client(port, [127, 0, 0, 1, args.port, 2, 1, 1, 0, 0, time.time()])
+    else:
+        count = 0
+        while True:
+            count += 1
+            print(Fore.GREEN + f'\n\nIteration: {count}')
+            for port in OTHER_PORTS:
+                print(Fore.GREEN + f'Attempting to send to port: {port}')
+                #TL.client(port, [127, 0, 0, 1, args.port, 2, 1, 1, 0, 0, time.time()])
+                TL.client(port, ['127.0.0.1', args.port, 4, 4, rand(110800), rand(3), time.time()])
+                #TL.client(port, ['127.0.0.1', args.port, 4, 4, rand(3), time.time()])
+                #TL.client(port, 'hello world')
 
-        sleep(3)
+            sleep(3)
         

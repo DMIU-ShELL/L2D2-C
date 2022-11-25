@@ -18,6 +18,7 @@ import os
 import pickle
 import socket
 import ssl
+import struct
 import time
 from errno import ECONNRESET
 from queue import Empty
@@ -114,24 +115,21 @@ class ParallelComm(object):
         Client implementation. Begins a TCP connection secured using SSL/TLS implementation to a trusted server host-port. Attempts to send the data.
         '''
         attempts = 0
-        while attempts < ParallelComm.TRIES:        # Attempt to send the data a number of times. If successful, do not attempt to send again.
+        _data = pickle.dumps(data, protocol=5)
+
+        # Attempt to send the data a number of times. If successful do not attempt to send again.
+        while attempts < ParallelComm.TRIES:        
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s = ssl.wrap_socket(s, keyfile="key.pem", certfile="certificate.pem")
-            data = pickle.dumps(data)
+            #s = ssl.wrap_socket(s, keyfile="key.pem", certfile="certificate.pem")      # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
             try:
                 s.connect((address, port))
-                s.sendall(data)
+                _data = struct.pack('>I', len(_data)) + _data
+                s.sendall(_data)
+                self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
                 attempts += 1
-                self.logger.info(Fore.MAGENTA + f'Sending {data} to {address}:{port}')
-                #self.logger.info(Fore.MAGENTA + f'Success!')
-
-            except:
-                attempts += 1
-                #self.logger.info(Fore.MAGENTA + f'Failed. Retrying...')
-
-            finally:
-                s.close()
+            except: attempts += 1
+            finally: s.close()
 
     # Methods for agents joining a network
     def send_join_net(self):
@@ -414,6 +412,7 @@ class ParallelComm(object):
             dst_port = int(mask_resp['sender_port'])
             embedding = mask_resp.get('embedding', None)
             mask = mask_resp.get('mask', None)
+            print(mask.dtype)
 
             data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_MASK]
 
@@ -434,17 +433,19 @@ class ParallelComm(object):
         received_mask = None
         received_label = None
 
+        print()
+        print(buffer)
+        print(best_agent_id)
+
         if buffer[ParallelComm.META_INF_IDX_MSG_DATA] == torch.inf:
             pass
 
         elif buffer[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_MSK:
-            if buffer[ParallelComm.META_INF_IDX_ADDRESS] + ':' + str(buffer[ParallelComm.META_INF_IDX_PORT]) == best_agent_id:
+            if {buffer[ParallelComm.META_INF_IDX_ADDRESS]: buffer[ParallelComm.META_INF_IDX_PORT]} == best_agent_id:
                 received_mask = buffer[4]
                 received_label = buffer[5]
         else:
             pass
-
-            
 
         return received_mask, received_label
 
@@ -483,16 +484,31 @@ class ParallelComm(object):
         mask_req = self.recv_mask_req(data)
         mask_resp = self.proc_mask(mask_req, queue_label_send, queue_mask_recv)
         self.send_mask(mask_resp)
-    
+
+    # Listening server
     def server(self, knowledge_base, queue_mask, queue_mask_recv, queue_label_send, world_size):
         '''
         Server implementation. Binds a socket to a specified port and listens for incoming communication requests. If the connection is accepted using SSL/TLS handshake
         then the connection is secured and data is transferred. Once the data is recevied, an event is triggered based on the contents of the deserialised data.
         '''
+        def _recvall(conn, n):
+            data = bytearray()
+            while len(data) < n:
+                packet = conn.recv(n - len(data))
+                if not packet: return None
+                data.extend(packet)
+            return data
+
+        def recv_msg(conn):
+            msg_length = _recvall(conn, 4)
+            if not msg_length: return None
+            msg = struct.unpack('>I', msg_length)[0]
+            return _recvall(conn, msg)
+
         # Initialise a socket and wrap it with SSL
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s = ssl.wrap_socket(s, server_side=True, keyfile='key.pem', certfile='certificate.pem')
+        #s = ssl.wrap_socket(s, server_side=True, keyfile='key.pem', certfile='certificate.pem')    # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
 
         # Bind the socket to the chosen address-port and start listening for connections
         s.bind((self.init_address, self.init_port))
@@ -500,12 +516,12 @@ class ParallelComm(object):
 
         metadata = {}
 
-        while True:
-            recv_mask = None
-            best_agent_rw = None
-            best_agent_id = None
-            recv_embedding = None
 
+        recv_mask = None
+        best_agent_rw = None
+        best_agent_id = None
+        recv_embedding = None
+        while True:
             # Accept the connection
             conn, addr = s.accept()
             with conn:
@@ -513,7 +529,7 @@ class ParallelComm(object):
                 while True:
                     try:
                         # Receive the data onto a buffer
-                        data = conn.recv(8096)
+                        data = recv_msg(conn)
                         if not data: break
                         # Deseralize the data
                         data = pickle.loads(data)
@@ -576,12 +592,20 @@ class ParallelComm(object):
                             del t_req
 
                         # Another agent is sending a mask to this agent
-                        #elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_MASK:
-                        #    self.logger.info(Fore.CYAN + f'Data is a mask')
-                        #    with mpd.Pool(processes=1) as t_msk:
-                        #        recv_mask, recv_embedding = t_msk.apply_async(self.recv_mask, (data, best_agent_id)).get()
-                        #        best_agent_id = None
-                        #    del t_msk
+                        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_MASK:
+                            self.logger.info(Fore.CYAN + f'Data is a mask')
+                            with mpd.Pool(processes=1) as t_msk:
+                                recv_mask, recv_embedding = t_msk.apply_async(self.recv_mask, (data, best_agent_id)).get()
+                            del t_msk
+                            self.logger.info(f'\n{Fore.WHITE}Mask: {recv_mask}\nReward: {best_agent_rw}\nSrc: {best_agent_id}\nEmbedding: {recv_embedding}\n')
+                            # Send knowledge to the agent if anything is available otherwise do nothing.
+                            if recv_mask is not None and best_agent_rw is not None and best_agent_id is not None and recv_embedding is not None:
+                                print('SENDING DATA TO AGENT')
+                                queue_mask.put((recv_mask, best_agent_rw, best_agent_id, recv_embedding))
+                                recv_mask = None
+                                best_agent_rw = None
+                                best_agent_id = None
+                                recv_embedding = None
 
                     # Handles a connection reset by peer error that I've noticed when running the code. For now it just catches 
                     # the exception and moves on to the next connection.
@@ -589,10 +613,6 @@ class ParallelComm(object):
                         if e.errno != ECONNRESET: raise
                         print(Fore.RED + f'Error raised while attempting to receive data from {addr}')
                         pass
-                        
-            # Send knowledge to the agent if anything is available otherwise do nothing.
-            if recv_mask is not None and best_agent_rw is not None and best_agent_id is not None and recv_embedding is not None:
-                queue_mask.put((recv_mask, best_agent_rw, best_agent_id, recv_embedding))
     
     # Main loop + listening server initialisation
     def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base, world_size):
@@ -622,7 +642,7 @@ class ParallelComm(object):
             try:
                 msg = queue_label.get_nowait()
                 # Send out a query when shell iterations matches mask interval if the agent is working on a task
-                if world_size.value > 1 and shell_iterations % 1 == 0:
+                if world_size.value > 1 and shell_iterations % self.mask_interval == 0:
                     #self.logger.info(Fore.MAGENTA + f'Sending msg to other servers')
                     self.send_query(msg)
 
