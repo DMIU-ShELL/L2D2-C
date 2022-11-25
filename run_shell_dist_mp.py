@@ -516,6 +516,12 @@ def shell_dist_continualworld_eval(name, args, shell_config):
     # set seed
     config.seed = config_seed
 
+    #set embedding distance threshold.
+    config.emb_dist_threshold = shell_config['emb_dist_threshold']
+
+    #set detect module activation frequency
+    config.detect_module_activation_frequncy = shell_config['detect_module_activation_frequency']
+
     #config.state_normalizer = RescaleNormalizer(1.) # no rescaling
     config.state_normalizer = RunningStatsNormalizer()
     config.reward_normalizer = RewardRunningStatsNormalizer()
@@ -609,6 +615,8 @@ if __name__ == '__main__':
 
         shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
         #del shell_config['agents'][args.agent_id]
+
+        shell_config['detect_module_activation_frequency'] = shell_config['detect_module_activation_frequency'][args.agent_id] #Chris
 
         shell_config['emb_dist_threshold'] = shell_config['emb_dist_threshold'][args.agent_id]      # Chris
         del shell_config['agents'][args.agent_id]

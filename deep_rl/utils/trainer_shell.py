@@ -727,6 +727,8 @@ def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
             shell_iterations += 1
 
 
+
+
             ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING
             '''
             Logs metrics to tensorboard log file and updates the embedding, reward pair in this cycle for a particular task
@@ -1119,3 +1121,21 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
 
         agent.close()
         return
+
+
+#########################################################################################################################################
+########################################  U T I L I T Y      F U N C T I O N S  #########################################################
+#########################################################################################################################################
+
+
+def detect_module_activationn_check(shell_training_iterations, detect_module_activation_frequncy):
+    '''Utility function for checking wheter the Detect Module should be activated or not based on the
+    shell_training_iterations of the agent and the activation frequncy given from the configuration file.'''
+    
+    pass
+
+def run_detect_module():
+    '''Uitility function for running all the necassery methods and function for the detect module
+    so the approprate embeddings are generated for each batch of SAR data'''
+    
+    pass
