@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 #   _________                                           .__                  __   .__                 
 #   \_   ___ \   ____    _____    _____   __ __   ____  |__|  ____  _____  _/  |_ |__|  ____    ____  
 #   /    \  \/  /  _ \  /     \  /     \ |  |  \ /    \ |  |_/ ___\ \__  \ \   __\|  | /  _ \  /    \ 
@@ -7,7 +6,7 @@
 #    \______  / \____/ |__|_|  /|__|_|  /|____/ |___|  /|__| \___  >(____  /|__|  |__| \____/ |___|  /
 #           \/               \/       \/             \/          \/      \/                        \/ 
 #
-#                          Now featuring shared memory variables. Have fun tracking those :)
+#                                       Now featuring shared memory variables.
 #                                                 (╯°□°)╯︵ ┻━┻
 from colorama import Fore
 import copy
@@ -27,11 +26,15 @@ import numpy as np
 import torch
 
 '''
-Revise communication class. Contains the new implementation of the communication module
-Improves on the bandwidth efficiency by some margin by reducing the amount of masks
-that are communicated over the network, but will likely take longer to complete
+Revised communication class. Contains the new implementation of the communication module
+Improves on the bandwidth efficiency by reducing the amount of mask transfers. Performance 
+improved using concurrency implemented using multiprocessing/multithreading.
 
-Is currently the communication method is used in the parallelisation wrapper
+SSL/TLS is implemented but disabled currently, as it unfortunately causes issues with the mask
+transfer for the moment.
+
+Further changes have been made to implement a client-server event-based architecture which 
+improves the flexibility of the system.
 
 TODO: Implement a protocol to work without a look-up table.
       Standardise the communication buffer.
@@ -39,7 +42,7 @@ TODO: Implement a protocol to work without a look-up table.
 class ParallelComm(object):
     # DETECT MODULE CONSTANTS
     # Threshold for embedding/tasklabel distance (similarity)
-    # This should be taken from the detect module probably
+    # This should be taken from the detect module eventually
     THRESHOLD = 0.0
 
     # buffer indexes
@@ -103,6 +106,16 @@ class ParallelComm(object):
         print('embedding size:', self.embd_dim)
 
     def _null_message(self, msg):
+        """
+        Checks if a message contains null i.e, no data.
+
+        Args:
+            msg: A list received from another agent.
+
+        Returns:
+            A boolean indicating whether A list contains null data.
+        """
+
         # check whether message sent denotes or is none.
         if bool(msg[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_NULL):
             return True
@@ -111,9 +124,15 @@ class ParallelComm(object):
             return False
 
     def client(self, data, address, port):
-        '''
-        Client implementation. Begins a TCP connection secured using SSL/TLS implementation to a trusted server host-port. Attempts to send the data.
-        '''
+        """
+        Client implementation. Begins a TCP connection secured using SSL/TLS to a trusted server ip-port. Attempts to send the serialized bytes.
+        
+        Args:
+            data: A list to be sent to another agent.
+            address: The ip of the destination.
+            port: The port of the destination.
+        """
+
         attempts = 0
         _data = pickle.dumps(data, protocol=5)
 
@@ -131,20 +150,28 @@ class ParallelComm(object):
             except: attempts += 1
             finally: s.close()
 
-    # Methods for agents joining a network
+
+    ### Methods for agents joining a network
     def send_join_net(self):
-        '''
-        Sends a join request to agents in an existing network
-        '''
+        """
+        Sends a join request to agents in an existing network.
+        """
+
         data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_JOIN]
 
         for i in range(len(self.other_address)):
             if self.other_address[i] == self.init_address and self.other_ports[i] == self.init_port: continue
             self.client(data, self.other_address[i], self.other_ports[i])
+    
     def recv_join_net(self, data, world_size):
-        '''
-        If this agent receives data that states a new agent is joining the network. Update known peers and update the world size
-        '''
+        """
+        Updates the known peers and world size if a network join request is received from another agent.
+
+        Args:
+            data: A list received from another agent.
+            world_size: A shared memory variable of type int() used to keep track of the size of the fully connected network.
+        """
+
         # In dynaminc implementation this will be updated to the trusted connections after some validation.
         address = data[0]           # new peer address
         port = data[1]              # new peer port
@@ -156,20 +183,28 @@ class ParallelComm(object):
 
         self.client(data, address, port)
 
-    # Methods for agents leaving a network
+
+    ### Methods for agents leaving a network
     def send_exit_net(self):
-        '''
-        Tells all other known agents in the network that this agent is about to leave
-        '''
+        """
+        Sends a leave notification to all other known agents in the network.
+        """
+
         data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_LEAVE]
 
         for i in range(len(self.other_address)):
             if self.other_address[i] == self.init_address and self.other_ports[i] == self.init_port: continue
             self.client(data, self.other_address[i], self.other_ports[i])
+    
     def recv_exit_net(self, data, world_size):
-        '''
-        If this agent receives data that states an agent is leaving the network. Update the known peers and update the world size
-        '''
+        """
+        Updates the known peers and world size if a network leave notification is recieved from another agent.
+        
+        Args:
+            data: A list received from another agent.
+            world_size: A shared memory variable of type int() used to keep track of the size of the fully connected network.
+        """
+
         # In dynamic implementation the known peers will be updated to remove the leaving agent
         address = data[0]           # leaving peer address
         port = data[1]              # leaving peer port
@@ -177,8 +212,15 @@ class ParallelComm(object):
         # Update the world size
         world_size.value -= 1
 
-    # Query send and recv functions
+    ### Query send and recv functions
     def send_query(self, embedding):
+        """
+        Sends a query for knowledge for a given embedding to other agents known to this agent.
+        
+        Args:
+            embedding: A torch tensor containing an embedding
+        """
+
         if isinstance(embedding, np.ndarray):
             embedding = torch.tensor(embedding, dtype=torch.float32)
             
@@ -195,7 +237,18 @@ class ParallelComm(object):
             for i in range(len(self.other_address)):
                 if self.other_address[i] == self.init_address and self.other_ports[i] == self.init_port: continue
                 self.client(data, self.other_address[i], self.other_ports[i])
+
     def recv_query(self, buffer):
+        """
+        Unpacks the data buffer received from another agent for a query.
+        
+        Args:
+            buffer: A list received from another agent.
+            
+        Returns:
+            ret: A dictionary containing the unpacked data.
+        """
+
         ret = {}
         if self._null_message(buffer):
             ret = None
@@ -209,8 +262,20 @@ class ParallelComm(object):
 
         return ret
     
-    # Metadata pre-processing, send and recv functions
+
+    ### Metadata pre-processing, send and recv functions
     def proc_meta(self, other_agent_req, knowledge_base):
+        """
+        Processes a query for an embedding and produces a response to send back to the requesting agent.
+        
+        Args:
+            other_agent_req: A dictionary containing the information for the query request.
+            knowledge_base: A shared memory variable consisting of a dictionary to store the task embeddings and rewards accumulated.
+        
+        Returns:
+            meta_response: A dictionary containing the response information.
+        """
+
         meta_response = {}
         # if populated prepare metadata responses
         if other_agent_req is not None:
@@ -244,7 +309,15 @@ class ParallelComm(object):
             meta_response['resp_embedding'] = None
 
         return meta_response
+    
     def send_meta(self, meta_response):
+        """
+        Sends a response to a query with the distance, reward and this agent's embedding to the requesting agent.
+        
+        Args:
+            meta_response: A dictionary containing the response information.
+        """
+
         data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_META]
 
         if meta_response:
@@ -269,7 +342,20 @@ class ParallelComm(object):
             if dst_address in self.other_address and dst_port in self.other_ports:
                 #if self.other_address.index(dst_address) == self.other_ports.index(dst_port):      # Comment out for localhost
                 self.client(data, dst_address, dst_port)
+
     def recv_meta(self, buffer):
+        """
+        Unpacks a response containing the distance, mask reward and an embedding from another agent.
+
+        Args:
+            buffer: A list received from another agent.
+
+        Returns:
+            ret: A dictionary containing the unpacked information. Default {None, None, 0.0, torch.inf, None}
+            ret['address']: A string indicating the ip address of the sending agent.
+            ret['port']: An integer indicating the port of the sending agent.
+        """
+
         ret = {'address': None, 'port': None, 'mask_reward': 0.0, 'dist': torch.inf, 'embedding': None}
         if self._null_message(buffer):
             pass
@@ -287,8 +373,22 @@ class ParallelComm(object):
 
         return ret, ret['address'], ret['port']
 
-    # Mask request pre-processing, send and recv functions
+
+    ### Mask request pre-processing, send and recv functions
     def proc_mask_req(self, metadata, knowledge_base):
+        """
+        Processes a response to any received distance, mask reward, embedding information.
+        
+        Args:
+            metadata: A dictionary containing the unpacked information from another agent.
+            knowledge_base: A shared memory variable containing a dictionary which consists of all the task embeddings and corresponding reward.
+
+        Returns:
+            send_msk_requests: A dictionary containing the response to the information received.
+            best_agent_id: A dictionary containing the ip-port pair for the selected agent.
+            best_agent_rw: A dictionary containing the embedding-reward pair from the information received.
+        """
+
         send_msk_requests = []
         best_agent_id = None
         best_agent_rw = {}
@@ -350,7 +450,15 @@ class ParallelComm(object):
                                 break
 
         return send_msk_requests, best_agent_id, best_agent_rw
+    
     def send_mask_req(self, send_msk_requests):
+        """
+        Sends a request for a specific mask to a specific agent.
+        
+        Args:
+            send_msk_requests: A dictionary containing the information required send a request to an agent.
+        """
+
         print(Fore.YELLOW + f'SEND_MSK_REQ: {send_msk_requests}', flush=True)
         if send_msk_requests:
             for data_dict in send_msk_requests:
@@ -378,10 +486,18 @@ class ParallelComm(object):
                 if dst_address in self.other_address and dst_port in self.other_ports:
                     #if self.other_address.index(dst_address) == self.other_ports.index(dst_port):
                     self.client(data, dst_address, dst_port)
+
     def recv_mask_req(self, buffer):
-        '''
-        Unpacks the received mask request into a dictionary
-        '''
+        """
+        Unpacks a mask request data buffer received from another agent.
+        
+        Args:
+            buffer: A list received from another agent.
+
+        Returns:
+            ret: A dictionary containing the unpacked mask request from another agent.
+        """
+
         ret = {}
         if self._null_message(buffer):
             pass
@@ -399,14 +515,32 @@ class ParallelComm(object):
         return ret
 
 
-    # Mask response processing, send and recv functions
+    ### Mask response processing, send and recv functions
     def proc_mask(self, mask_req, queue_label_send, queue_mask_recv):
+        """
+        Processes the mask response to send to another agent.
+        
+        Args:
+            mask_req: A dictionary consisting of the response information to send to a specific agent.
+            queue_label_send: A shared memory queue to send an embedding to be converted by the agent module.
+            queue_mask_recv: A shared memory queue to receive a converted mask from the agent module.
+
+        Returns:
+            The mask_req dictionary with the converted mask now included. 
+        """
         print(f'\n{Fore.CYAN} Inside proc_mask()')
         if mask_req:
             print(Fore.CYAN + f'Mask request: {mask_req}', flush=True)
             queue_label_send.put((mask_req))
             return queue_mask_recv.get()
+    
     def send_mask(self, mask_resp):
+        """
+        Sends a mask response to a specific agent.
+        
+        Args:
+            mask_resp: A dictionary consisting of the information to send to a specific agent.    
+        """
         if mask_resp:
             dst_address = str(mask_resp['sender_address'])
             dst_port = int(mask_resp['sender_port'])
@@ -429,7 +563,20 @@ class ParallelComm(object):
             if dst_address in self.other_address and dst_port in self.other_ports:
                 #if self.other_address.index(dst_address) == self.other_ports.index(dst_port):
                 self.client(data, dst_address, dst_port)
+    
     def recv_mask(self, buffer, best_agent_id):
+        """
+        Unpacks a received mask response from another agent.
+        
+        Args:
+            buffer: A list received from another agent.
+            best_agent_id: A shared memory variable of type dict() containing a ip-port pair for the best agent.
+            
+        Returns:
+            received_mask: A torch tensor containing the continous mask parameters.
+            received_label: A torch tensor containing the embedding.
+        """
+        
         received_mask = None
         received_label = None
 
@@ -452,45 +599,85 @@ class ParallelComm(object):
 
     # Event handler wrappers. This is done so the various functions for each event can be run in a single thread.
     def query(self, data, knowledge_base):
-        '''
-        Event handler for receiving a query from another agent. Unpacks the data buffer, processes the response and sends some response if necessary.
-        '''
+        """
+        Event handler for receiving a query from another agent. Unpacks the buffer received from another agent, processes the request and sends some response if necessary.
+        
+        Args:
+            data: A list received from another agent.
+            knowledge_base: A shared memory variable of type dict() containing embedding-reward pairs for task embeddings observed by the agent.    
+        """
+
         other_agent_req = self.recv_query(data)
         self.logger.info(Fore.GREEN + f'other agent request: {other_agent_req}')
         meta_response = self.proc_meta(other_agent_req, knowledge_base)
         self.send_meta(meta_response)
+    
     def add_meta(self, data, metadata):
-        '''
-        Event handler for receiving some metadata. Appends some new metadata to the collection.
-        '''
+        """
+        Event handler for receving some distance, mask reward and embedding information. Appends the data to a collection of data received from all other agents.
+
+        Args:
+            data: A list received from another agent.
+            metadata: A list to store responses from all known agents.
+        """
+
         other_agent_meta, address, port = self.recv_meta(data)
         if address is not None and port is not None:
             metadata[address + ':' + str(port)] = other_agent_meta
 
         self.logger.info(Fore.YELLOW + f'Metadata collected: {metadata}')
+    
     def pick_meta(self, metadata, knowledge_base):
-        '''
-        Event handler for picking the best agent based on whatever metadata it has collected.
-        '''
+        """
+        Event handler to pick a best agent from the information it has collected at this point. Resets the metadata list.
+        
+        Args:
+            metadata: A list containing the responses to a query from all other agents.
+            knowledge_base: A shared memory dictionary containing the embedding-reward pairs for all observed task embeddings.
+            
+        Returns:
+            best_agent_id: A dictionary containing a ip-port pair for the selected agent.
+            best_agent_rw: A dictionary containing an embedding-reward pair from the selected agent.
+        """
+        
         self.logger.info(Fore.YELLOW + f'Time to select best agent!! :DDD')
         mask_req, best_agent_id, best_agent_rw = self.proc_mask_req(metadata, knowledge_base)
         metadata.clear() #reset metadata dictionary
         self.send_mask_req(mask_req)
         return best_agent_id, best_agent_rw 
+    
     def req(self, data, queue_label_send, queue_mask_recv):
         '''
         Event handler for mask requests. Unpacks the data buffer, processes the response and sends mask.
         '''
+        """
+        Event hander for mask requests. Unpacks the data buffer, processes the response and sends a mask.
+        
+        Args:
+            data: A list received from another agent.
+            queue_label_send: A shared memory queue to send an embedding to be converted by the agent module.
+            queue_mask_recv: A shared memory queue to received a mask from the agent module.
+        """
+
         mask_req = self.recv_mask_req(data)
         mask_resp = self.proc_mask(mask_req, queue_label_send, queue_mask_recv)
         self.send_mask(mask_resp)
 
+
     # Listening server
     def server(self, knowledge_base, queue_mask, queue_mask_recv, queue_label_send, world_size):
-        '''
-        Server implementation. Binds a socket to a specified port and listens for incoming communication requests. If the connection is accepted using SSL/TLS handshake
-        then the connection is secured and data is transferred. Once the data is recevied, an event is triggered based on the contents of the deserialised data.
-        '''
+        """
+        Implementation of the listening server. Binds a socket to a specified port and listens for incoming communication requests. If the connection is accepted using SSL/TLS handshake
+        then the connection is secured and data is transferred. Once the data is received, an event is triggered based on the contents of the deserialised data.
+
+        Args:
+            knowledge_base: A shared memory dictionary containing the embedding-reward pairs for all observed tasks embeddings.
+            queue_mask: A shared memory queue to send received masks to the agent module.
+            queue_mask_recv: A shared memory queue to receive masks from the agent module.
+            queue_label_send: A shared memory queue to send embeddings to be converted by the agent module.
+            world_size: A shared memory variable indicating the size of the network in terms of how many nodes there are.
+        """
+
         def _recvall(conn, n):
             data = bytearray()
             while len(data) < n:
@@ -619,6 +806,19 @@ class ParallelComm(object):
         '''
         Main communication function. Sets up the server and client. Distributes queues for interactions between the communication and agent processes.
         '''
+        """
+        Main communication loop. Sets up the server process, sends out a join request to a known network and begins sending queries to agents in the network.
+        Distributes queues for interactions between the communication and agent modules.
+        
+        Args:
+            queue_label:
+            queue_mask:
+            queue_label_send:
+            queue_loop:
+            knowledge_base:
+            world_size:
+        """
+
         # Initialise the listening server
         self.logger.info('Starting the server...')
         p_server = mp.Process(target=self.server, args=(knowledge_base, queue_mask, queue_mask_recv, queue_label_send, world_size))
@@ -898,11 +1098,15 @@ class ParallelComm(object):
     '''
 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base, world_size):
-        '''
-        Parallelisation function for communication loop.
-        '''
+        """
+        Parallelisation method for starting the communication loop inside a seperate process.
+        """
+
         p_client = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base, world_size))
         p_client.start()
+
+        #return p_client # consider returning the process object
+
 
 '''
 Evaluation variation of the standard communication module.
@@ -912,6 +1116,7 @@ TODO: Implement the evaluation variation of the module.
 class ParallelCommEval(object):
     def __init__(self):
         pass
+
 
 '''
 Omniscent agent variation of the standard communication module
