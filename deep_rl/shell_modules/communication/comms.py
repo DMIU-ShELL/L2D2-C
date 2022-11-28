@@ -6,7 +6,7 @@
 #    \______  / \____/ |__|_|  /|__|_|  /|____/ |___|  /|__| \___  >(____  /|__|  |__| \____/ |___|  /
 #           \/               \/       \/             \/          \/      \/                        \/ 
 #
-#                                       Now featuring shared memory variables.
+#                                      Now featuring shared memory variables.
 #                                                 (╯°□°)╯︵ ┻━┻
 from colorama import Fore
 import copy
@@ -38,6 +38,10 @@ improves the flexibility of the system.
 
 TODO: Implement a protocol to work without a look-up table.
       Standardise the communication buffer.
+      Figure out how to re-introduce SSL/TLS without compromising mask transfer.
+      Can probably reduce alot of the code in terms of memory consumption by reusing 
+       alot of the lists instead of creating new dictionaries everywhere, although 
+       it is more readable that way.
 '''
 class ParallelComm(object):
     # DETECT MODULE CONSTANTS
@@ -749,41 +753,54 @@ class ParallelComm(object):
 
                         # Agent is sending a query
                         elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_QUERY:
-                            with mpd.Pool(processes=1) as t_query:
-                                t_query.apply_async(self.query, (data, knowledge_base))
-                                self.logger.info(Fore.CYAN + f'Data is a query')
-                            del t_query
+                            #with mpd.Pool(processes=1) as t_query:
+                            #    t_query.apply_async(self.query, (data, knowledge_base))
+                            #    self.logger.info(Fore.CYAN + f'Data is a query')
+                            #del t_query
+
+                            self.query(data, knowledge_base)
+                            self.logger.info(Fore.CYAN + f'Data is a query')
 
                         # Agent is sending some task distance and reward information
                         elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_META:
                             # Update the list of data
-                            with mpd.Pool(processes=1) as t_meta:
-                                t_meta.apply_async(self.add_meta, (data, metadata))
-                                self.logger.info(Fore.CYAN + f'Data is metadata')
-                            del t_meta
+                            #with mpd.Pool(processes=1) as t_meta:
+                            #    t_meta.apply_async(self.add_meta, (data, metadata))
+                            #    self.logger.info(Fore.CYAN + f'Data is metadata')
+                            #del t_meta
+
+                            self.add_meta(data, metadata)
+                            self.logger.info(Fore.CYAN + f'Data is metadata')
+
 
                             # Select best agent to get mask from
                             if len(metadata) == world_size.value - 1:
-                                with mpd.Pool(processes=1) as t_pick:
-                                    best_agent_id, best_agent_rw = t_pick.apply_async(self.pick_meta, (metadata, knowledge_base)).get()
-                                del t_pick
+                                #with mpd.Pool(processes=1) as t_pick:
+                                #    best_agent_id, best_agent_rw = t_pick.apply_async(self.pick_meta, (metadata, knowledge_base)).get()
+                                #del t_pick
 
+                                best_agent_id, best_agent_rw = self.pick_meta(metadata, knowledge_base)
                                 print(Fore.CYAN + f'State after picking best agent {metadata}')
 
 
                         # Agent is sending a direct request for a mask
                         elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_REQ:
-                            with mpd.Pool(processes=1) as t_req:
-                                t_req.apply_async(self.req, (data, queue_label_send, queue_mask_recv))
-                                self.logger.info(Fore.CYAN + f'Data is a mask req')
-                            del t_req
+                            #with mpd.Pool(processes=1) as t_req:
+                            #    t_req.apply_async(self.req, (data, queue_label_send, queue_mask_recv))
+                            #    self.logger.info(Fore.CYAN + f'Data is a mask req')
+                            #del t_req
+                            
+                            self.req(data, queue_label_send, queue_mask_recv)
+                            self.logger.info(Fore.CYAN + f'Data is a mask req')
 
                         # Another agent is sending a mask to this agent
                         elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_MASK:
                             self.logger.info(Fore.CYAN + f'Data is a mask')
-                            with mpd.Pool(processes=1) as t_msk:
-                                recv_mask, recv_embedding = t_msk.apply_async(self.recv_mask, (data, best_agent_id)).get()
-                            del t_msk
+                            #with mpd.Pool(processes=1) as t_msk:
+                            #    recv_mask, recv_embedding = t_msk.apply_async(self.recv_mask, (data, best_agent_id)).get()
+                            #del t_msk
+                            recv_mask, recv_embedding = self.recv_mask(data, best_agent_id)
+
                             self.logger.info(f'\n{Fore.WHITE}Mask: {recv_mask}\nReward: {best_agent_rw}\nSrc: {best_agent_id}\nEmbedding: {recv_embedding}\n')
                             # Send knowledge to the agent if anything is available otherwise do nothing.
                             if recv_mask is not None and best_agent_rw is not None and best_agent_id is not None and recv_embedding is not None:
@@ -811,12 +828,12 @@ class ParallelComm(object):
         Distributes queues for interactions between the communication and agent modules.
         
         Args:
-            queue_label:
-            queue_mask:
-            queue_label_send:
-            queue_loop:
-            knowledge_base:
-            world_size:
+            queue_label: A shared memory queue to send embeddings from the agent module to the communication module.
+            queue_mask: A shared memory queue to send masks from the communication module to the agent module.
+            queue_label_send: A shared memory queue to send embeddings from the communication module to the agent module for conversion.
+            queue_loop: A shared memory queue to send iteration state variables from the communication module to the agent module. Currently the only variable that is sent over the queue is the agent module's iteration value.
+            knowledge_base: A shared memory dictionary containing embedding-reward pairs for all observed tasks.
+            world_size: A shared memory integer with value of the number of known agents in the network.
         """
 
         # Initialise the listening server
@@ -825,7 +842,7 @@ class ParallelComm(object):
         p_server.start()
 
         # Attempt to join an existing network.
-        #self.logger.info('Attempting to join an existing network...')
+        #self.logger.info('Attempting to join an existing network...')          # Uncomment to for the join/leave protocol
         #self.send_join_net()
 
         # Initialise the client loop
@@ -849,7 +866,7 @@ class ParallelComm(object):
             except Empty: continue
 
             # Handles the agent crashing or stopping or whatever. Not sure if this is the right way to do this. Come back to this later.
-            #except (SystemExit, KeyboardInterrupt) as e:
+            #except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
             #    pass
             #    self.send_exit_net()
             
