@@ -12,8 +12,10 @@ import ssl
 from errno import ECONNRESET
 from colorama import Fore
 
-HOST = 'lnx-grid-19.lboro.ac.uk'
-OTHER_PORTS = [29500+i for i in range(0, 5)]
+HOST = 'sci-gpu.lboro.ac.uk' #'lnx-grid-19.lboro.ac.uk'
+
+OTHER_DST = {'lnx-grid-19.lboro.ac.uk': 29500, 'sci-gpu.lboro.ac.uk': 29501}
+#OTHER_PORTS = [29500+i for i in range(0, 5)]
 
 
 # TCP + TLS v2
@@ -83,7 +85,7 @@ class TCP_TLSv2:
                         print(Fore.RED + f'Error raised while attempting to receive data from {addr}')
                         pass
 
-    def client(self, port, buffer):
+    def client(self, address, port, buffer):
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         #client = ssl.wrap_socket(client, keyfile="key.pem", certfile="certificate.pem")
@@ -92,7 +94,7 @@ class TCP_TLSv2:
         #print(buffer)
         #buffer = struct.pack('11d', *buffer)
         try:
-            client.connect((HOST, port))
+            client.connect((address, port))
             self.send_msg(client, buffer)
             client.close()
 
@@ -209,29 +211,29 @@ if __name__ == '__main__':
     parser.add_argument('port', help='port for this agent', type=int)
     #parser.add_argument('link', help='address of an agent in the network', type=int)
     args = parser.parse_args()
-    OTHER_PORTS.remove(args.port)
-    print(OTHER_PORTS)
+
+    del OTHER_DST[HOST]
 
     TL = TCP_TLSv2()
 
-    if args.port == 29500:
-        p_server = mp.Process(target=TL.server, args=(args.port,))
-        p_server.start()
+    #if args.port == 29500:
+    p_server = mp.Process(target=TL.server, args=(args.port,))
+    p_server.start()
 
     #client(b'')
 
     #if args.port == 29500:
-    else:
-        count = 0
-        while True:
-            count += 1
-            print(Fore.GREEN + f'\n\nIteration: {count}')
-            for port in OTHER_PORTS:
-                print(Fore.GREEN + f'Attempting to send to port: {port}')
-                #TL.client(port, [127, 0, 0, 1, args.port, 2, 1, 1, 0, 0, time.time()])
-                TL.client(port, ['127.0.0.1', args.port, 4, 4, rand(110800), rand(3), time.time()])
-                #TL.client(port, ['127.0.0.1', args.port, 4, 4, rand(3), time.time()])
-                #TL.client(port, 'hello world')
+    #else:
+    count = 0
+    while True:
+        count += 1
+        print(Fore.GREEN + f'\n\nIteration: {count}')
+        for address, port in OTHER_DST.items():
+            print(Fore.GREEN + f'Attempting to send to port: {address}:{port}')
+            #TL.client(port, [127, 0, 0, 1, args.port, 2, 1, 1, 0, 0, time.time()])
+            TL.client(address, port, ['127.0.0.1', args.port, 4, 4, rand(110800), rand(3), time.time()])
+            #TL.client(port, ['127.0.0.1', args.port, 4, 4, rand(3), time.time()])
+            #TL.client(port, 'hello world')
 
-            sleep(3)
+        sleep(3)
         
