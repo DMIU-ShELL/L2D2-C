@@ -15,111 +15,111 @@
         },
         {
             "task_ids": [0, 1, 2],
-            "max_steps": 102400
+            "max_steps": 25600
         }, 
         {
             "task_ids": [1, 2, 0],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [2, 0, 1],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [0, 1, 2],
-            "max_steps": 102400
+            "max_steps": 25600
         }, 
         {
             "task_ids": [1, 2, 0],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [2, 0, 1],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [0, 1, 2],
-            "max_steps": 102400
+            "max_steps": 25600
         }, 
         {
             "task_ids": [1, 2, 0],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [2, 0, 1],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [0, 1, 2],
-            "max_steps": 102400
+            "max_steps": 25600
         }, 
         {
             "task_ids": [1, 2, 0],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [2, 0, 1],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [0, 1, 2],
-            "max_steps": 102400
+            "max_steps": 25600
         }, 
         {
             "task_ids": [1, 2, 0],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [2, 0, 1],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [0, 1, 2],
-            "max_steps": 102400
+            "max_steps": 25600
         }, 
         {
             "task_ids": [1, 2, 0],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [2, 0, 1],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [0, 1, 2],
-            "max_steps": 102400
+            "max_steps": 25600
         }, 
         {
             "task_ids": [1, 2, 0],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [2, 0, 1],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [0, 1, 2],
-            "max_steps": 102400
+            "max_steps": 25600
         }, 
         {
             "task_ids": [1, 2, 0],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [2, 0, 1],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [0, 1, 2],
-            "max_steps": 102400
+            "max_steps": 25600
         }, 
         {
             "task_ids": [1, 2, 0],
-            "max_steps": 102400
+            "max_steps": 25600
         },
         {
             "task_ids": [2, 0, 1],
-            "max_steps": 102400
+            "max_steps": 25600
         }
     ],
     "env": {
@@ -129,7 +129,7 @@
     },
     "dist_only": {
         "init_address": "127.0.0.1",
-        "init_port": "29505"
+        "init_port": "29500"
     }
     }
 

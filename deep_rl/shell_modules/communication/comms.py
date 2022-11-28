@@ -360,12 +360,16 @@ class ParallelComm(object):
             ret['port']: An integer indicating the port of the sending agent.
         """
 
-        ret = {'address': None, 'port': None, 'mask_reward': 0.0, 'dist': torch.inf, 'embedding': None}
+        ret = {}
         if self._null_message(buffer):
-            pass
+            ret['address'] = str(buffer[ParallelComm.META_INF_IDX_ADDRESS])
+            ret['port'] = int(buffer[ParallelComm.META_INF_IDX_PORT])
+            ret['mask_reward'] = 0.0
+            ret['dist'] = torch.inf
+            ret['embedding'] = None
         
         elif buffer[ParallelComm.META_INF_IDX_MSG_DATA] == torch.inf:
-            # Code should never reach this point
+            # Code should never reach this point. If it does then reality has broken.
             pass
 
         elif buffer[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_META:
@@ -851,7 +855,7 @@ class ParallelComm(object):
             #try:
             print()
             # Do some checks on the agent/communication interaction queues and perform actions based on those
-            shell_iterations = queue_loop.get()     # This makes the communication module synchronised to the agent. If we remove this the communication module will be on speed. Nobody knows what will happen if this is removed. Do not remove... or maybe do. Idk. Users discretion. Good luck.
+            shell_iterations = queue_loop.get() # Synchronises the querying client with the agent module.
             self.logger.info(Fore.GREEN + f'Knowledge base in this iteration: {knowledge_base}')
             self.logger.info(Fore.GREEN + f'World size in this iteration: {world_size.value}')
 

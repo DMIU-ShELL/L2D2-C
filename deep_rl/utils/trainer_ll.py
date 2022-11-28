@@ -468,7 +468,7 @@ def run_iterations_wo_oracle(agent, tasks_info):
 # modules off: detect and resource manager
 # MULTIPROCESS
 
-import multiprocess as mp
+import multiprocessing as mp
 #from multiprocessing.manager import BaseManager
 
 #class MyManager(mp.managers.BaseManager):

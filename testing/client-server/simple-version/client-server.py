@@ -12,9 +12,9 @@ import ssl
 from errno import ECONNRESET
 from colorama import Fore
 
-HOST = 'sci-gpu.lboro.ac.uk' #'lnx-grid-19.lboro.ac.uk'
+HOST = '158.125.168.72'
 
-OTHER_DST = {'lnx-grid-19.lboro.ac.uk': 29500, 'sci-gpu.lboro.ac.uk': 29501}
+OTHER_DST = {'158.125.168.72': 29500, '152.125.88.110': 29501}
 #OTHER_PORTS = [29500+i for i in range(0, 5)]
 
 

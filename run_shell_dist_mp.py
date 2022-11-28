@@ -338,7 +338,7 @@ def shell_dist_minigrid_mp(name, args, shell_config):
 
     addresses = []
     ports = []
-    file1 = open('./addresses2.csv', 'r')
+    file1 = open('./addresses.csv', 'r')
     lines = file1.readlines()
     for line in lines:
         line = line.strip('\n')
@@ -597,15 +597,15 @@ if __name__ == '__main__':
     mp.set_start_method('fork', force=True)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int, default=0)      # Not required in deployment
-    parser.add_argument('--num_agents', help='world: total number of agents', type=int, default=1)                      # Not required in deployment
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')                             # Required
+    parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int, default=0)        # Not necessary but useful. Used only for the logs filepath.
+    parser.add_argument('num_agents', help='world: total number of agents', type=int, default=1)                        # Required for the moment.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')                             # Change the default so you don't have to type it every time. Required.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
-        'up structured directory of experiment results/data', default='upz', type=str)                                  # Not required in deployment
-    parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)                                # Not required in deployment
-    parser.add_argument('--port', help='port to use for this agent', type=int, default=29500)                           # Required
-    parser.add_argument('--ip', help='ip address to use for this agent', type=str, default='127.0.0.1')                 # Required
-    parser.add_argument('--shuffle', help='randomise the task curriculum', type=int, default=0)                         # Not required in deployment
+        'up structured directory of experiment results/data', default='upz', type=str)                                  # Not required
+    parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)                                # Don/t change. Default value of 0 is the only one that is implemented at the moment.
+    parser.add_argument('--port', help='port to use for this agent', type=int, default=29500)                           # Required. Port for the listening server.
+    parser.add_argument('--ip', help='ip address to use for this agent', type=str, default='127.0.0.1')                 # Required. IP for the listening server. Default is localhost.
+    parser.add_argument('--shuffle', help='randomise the task curriculum', type=int, default=0)                         # Not required. If you want to randomise the order of tasks in the curriculum then you can change to 1
     args = parser.parse_args()
 
     print(args)
