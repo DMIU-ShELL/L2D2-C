@@ -20,25 +20,13 @@ Sample environments: [Minigrid](https://github.com/Farama-Foundation/gym-minigri
 
 ## Usage
 Note: Example commands below using [Minigrid](https://github.com/Farama-Foundation/gym-minigrid) environment.
-To run a baseline agent, use the command below:
+To run an independent ShELL agent use the following command:
 ```
-python run_ll.py baseline --env_name minigrid --env_config_path ./env_configs/minigrid_sc_3.json --max_steps 102400
+python run_shell_dist_mp.py <agent id> <number of agents in the network> --ip <ip address> --port <port value>
 ```
-
-To run a single lifelong learner agent, use the command below:
-```
-python run_ll.py supermask --env_name minigrid --env_config_path ./env_configs/minigrid_sc_3.json --max_steps 102400
-```
-
-To run a ShELL (multi lifelong learner agents) in a single process (sequential executions per shell train step), use the command below:
-```
-python run_shell.py --shell_config_path ./shell.json
-```
-
-To run a ShELL (multi lifelong learner agents) across multiple processes (concurrent executions per shell train step) in a single machine, use the command below:
-```
-python run_shell_dist.py --shell_config_path ./shell.json
-```
+- The agent id is only really used for logging purposes so it is not vital to the operation of the system but can be useful for logging multiple agents on a single machine.
+- The number of agents in the network indicates the maximum number of peers in the network. Simply put a value that matches to however many peers you would like to run in a network.
+- IP and port are necessary for the listening server portion of the system. IP address is localhost by default. Port must be specified and should ideally not be a privileged port. Currently the system has not been tested using privileged ports such as 443 (https).
 
 Note: Minigrid (with 3 simple crossing tasks) is specified as the default environment/tasks in `shell.json`. To run CT-graph experiments, update `shell.json` as shown below.
 ```

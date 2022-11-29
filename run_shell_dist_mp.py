@@ -244,13 +244,23 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
-    for k, v in agent.network.named_parameters():       # Chris
-        print(k, " : ", v)
+    #for k, v in agent.network.named_parameters():       # Chris
+    #    print(k, " : ", v)
+
+    addresses = []
+    ports = []
+    file1 = open('./addresses_eval.csv', 'r')
+    lines = file1.readlines()
+    for line in lines:
+        line = line.strip('\n')
+        line = line.split(', ')
+        addresses.append(line[0])
+        ports.append(int(line[1]))
 
     # set up communication (transfer module)
     mode = 'ondemand'
     comm = ParallelCommEval(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode)
+        agent.model_mask_dim, logger, init_address, init_port, mode, ports)
 
     # start training
     shell_dist_eval_mp(agent, comm, args.agent_id, args.num_agents)
@@ -415,12 +425,22 @@ def shell_dist_minigrid_eval(name, args, shell_config):
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
     
-    for k, v in agent.network.named_parameters():       # Chris
-        print(k, " : ", v)
+    #for k, v in agent.network.named_parameters():       # Chris
+    #    print(k, " : ", v)
+
+    addresses = []
+    ports = []
+    file1 = open('./addresses_eval.csv', 'r')
+    lines = file1.readlines()
+    for line in lines:
+        line = line.strip('\n')
+        line = line.split(', ')
+        addresses.append(line[0])
+        ports.append(int(line[1]))
 
     mode = 'ondemand'
     comm = ParallelCommEval(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode)
+        agent.model_mask_dim, logger, init_address, init_port, mode, ports)
 
 
     # start evaluation on curriculum
