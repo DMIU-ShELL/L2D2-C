@@ -25,7 +25,6 @@ https://arxiv.org/abs/2006.14769
 '''
 
 import json
-import copy
 import shutil
 import matplotlib
 matplotlib.use("Pdf")
@@ -42,7 +41,6 @@ from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelComm
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
-#from deep_rl import *
 import argparse
 import torch
 import random
