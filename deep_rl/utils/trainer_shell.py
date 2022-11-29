@@ -586,7 +586,7 @@ def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
     # from running.
     queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response, shell_iterations))
 
-    pdetect = detect_module
+    detect = detect_module
 
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
@@ -1128,14 +1128,28 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
 #########################################################################################################################################
 
 
-def detect_module_activationn_check(shell_training_iterations, detect_module_activation_frequncy):
+def detect_module_activation_check(shell_training_iterations, detect_module_activation_frequncy):
     '''Utility function for checking wheter the Detect Module should be activated or not based on the
     shell_training_iterations of the agent and the activation frequncy given from the configuration file.'''
     
-    pass
+    if shell_training_iterations >= detect_module_activation_frequncy:
+        return True
+    else:
+        return False
+        
 
-def run_detect_module():
+def run_detect_module(an_agent, activation_check_flag):
     '''Uitility function for running all the necassery methods and function for the detect module
     so the approprate embeddings are generated for each batch of SAR data'''
     
-    pass
+    #Initilize the retun varibles with None values in the case of the detect module not being appropriate to run.
+    str_task_chng_msg, task_change_flag, new_emb = None
+    
+    if activation_check_flag:
+        sar_data = an_agent.sar_data_extraction()
+        new_emb = an_agent.compute_task_embedding(sar_data)
+        emb_dist = an_agent.calculate_emb_distance(new_emb)
+        emb_dist_thrshld = an_agent.get_emb_dist_threshold()
+        str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
+
+    return str_task_chng_msg, task_change_flag, new_emb

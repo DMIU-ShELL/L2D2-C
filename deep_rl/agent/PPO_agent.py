@@ -135,14 +135,15 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label']) #CHANGE THAT FOR THE
         self.task_label_dim = label_dim
 
+        #Varible for checking for dishiding wether the agent has encountered a new task or not.
         self.emb_dist_threshold = config.emb_dist_threshold
 
 
         #Assing a detect Component to the Agent upon initialisation
         self.detect = config.detect
 
-        #Viriable for saving the size of the task embedding that the detect module has produced.
-        self.task_emb_size  = 0
+        #Variable for saving the size of the task embedding that the detect module has produced.
+        self.task_emb_size  = 0.0
 
         #Create a list for saving the calculated embeddings
         self.encounterd_task_embs = []
@@ -386,10 +387,33 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
 
     def get_task_emb_size(self):
-        '''''A getter method for retreiving the task embedding size'''
+        '''''A getter method for retreiving the task embedding size.'''
         return self.task_emb_size
 
-    def assign_task_emb(self, a_new_emb, emb_distance):
+    def set_task_emb_size(self, an_emb_size):
+        '''A setter for dynamically setting the mebedding size.'''
+        self.task_emb_size = an_emb_size
+
+
+    def get_emb_dist_threshold(self):
+        '''A getter method for reteiving the distnce threshold for the embeddings.'''
+        return self.emb_dist_threshold
+
+    def set_emb_dist_threshold(self, a_distance_threshold):
+        '''A setter for dynamically setting the distance threshold of the embeddings.'''
+        self.emb_dist_threshold = a_distance_threshold
+
+
+    def calculate_emb_distance(self, a_new_embedding):
+        '''Method that calculates the distance of the newlly computed task embedding and
+        compered to the existing one by calling the distance method of the agent's detect
+        module.'''
+        emb_dist = self.detect.dist(a_new_embedding)
+        
+        return emb_dist
+
+
+    def assign_task_emb(self, a_new_emb, emb_distance, an_emb_dist_threshold):
         '''It assigns the most up to date embedding to the current task based
         on the embedding distance thershold. 
             If the distance is smaller than the treshold it means that
@@ -416,7 +440,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         if not key_to_check in self.task.get_task():
             self.task.get_task()['task_emb'] = torch.zeros(self.get_task_emb_size())
 
-        if emb_distance < self.emb_dist_threshold:
+        if emb_distance < an_emb_dist_threshold:
              self.task.get_task()['task_emb'] = (self.task.get_task()['task_emb'] + a_new_emb) / 2
              str_task_chng_msg = "TASK CHNAGE NNNNOOOOTTTTT DETECTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
              task_chng_flag = False
