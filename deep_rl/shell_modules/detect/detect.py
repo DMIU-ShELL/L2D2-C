@@ -73,7 +73,7 @@ class Detect:
     return eu_dist
 
   def pwdist(self, tasks_dict):
-    '''Computes the Distance of the Ebeddings of Different Taks'''
+    '''Computes the Distance of the Ebeddings of Different Taks & create a similarity Matrix for all different Tasks'''
     num_tasks = len(tasks_dict)
     tasks = tasks_dict.values()
     task_ids = list(tasks_dict.keys())
@@ -100,22 +100,14 @@ class Detect:
         for j in range(i+1,num_tasks):
             dist[i,j]+=torch.linalg.vector_norm(task_vecs_[i]-task_vecs_[j])/2.
 
-    #Filling in the lower triangle of the matrix
-    for i in range(1, num_tasks):
-      for j in range(i):
-        dist[i,j] = dist[j,i]
 
-    if self.demo:
-      fig, ax = plt.subplots(figsize=(num_tasks+2, num_tasks+2))
+def distance(self, current_embedding, new_calculated_embedding):
+    '''Computes the Distance of the newlly calculated embedding and the one that is 
+    stored for the current task the agent is solving.'''
 
-      im, cbar = heatmap(self.title, dist, task_ids, task_ids, ax=ax,
-                    cmap="RdPu")
-      texts = annotate_heatmap(im, valfmt="{x:.1f}", fontsize=18)
 
-      fig.tight_layout()
-      plt.show()
-      fig.savefig(self.title, format='png', dpi=1000)
+    distance  = torch.linalg.vector_norm(current_embedding - new_calculated_embedding)
 
-    return dist
+    return distance
 
     
