@@ -33,13 +33,14 @@ python run_shell_dist_mp.py <agent id> <number of agents in the network> --ip <i
 
 To run multiple agents on localhost, first check that the addresses.csv file contains the IPs and ports for your agents. By default this should look like:
 
+```
 127.0.0.1, 29500
 127.0.0.1, 29501
 127.0.0.1, 29502
 127.0.0.1, 29503
 127.0.0.1, 29504
 127.0.0.1, 29505
-
+```
 To run two agents on localhost simply run the following commands on two seperate terminals:
 ```
 python run_shell_dist_mp.py 0 2 --port 29500
@@ -47,10 +48,10 @@ python run_shell_dist_mp.py 1 2 --port 29501
 ```
 
 To run multiple agents on seperate devices, please update the addresses.csv file to contain the IPs and ports for ALL of your devices. For example:
-
+```
 xxx.xxx.0.1, 29500
 xxx.xxx.0.2, 29501
-
+```
 To then run two agents on two different devices simply run the following commands:
 ```
 Device 1:
