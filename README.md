@@ -14,7 +14,7 @@ Agent-based (reinforcement) learning. The DMIU code is built on top of existing 
 Sample environments: [Minigrid](https://github.com/Farama-Foundation/gym-minigrid), [CT-graph](https://github.com/soltoggio/CT-graph)
 
 ## Requirements
-Please take a look at the envrionment.yml/environment_mac.yml to check the packages requirements for your conda environment.
+Please take a look at the envrionment.yml/environment_mac.yml to check the packages requirements for your conda environment. Important packages to look out for are the versions for Minigrid=1.1.0 and Gym=0.24.0.
 
 - Same as the requirements of the [DeepRL](https://github.com/ShangtongZhang/DeepRL) repository.
 - [Minigrid](https://github.com/Farama-Foundation/gym-minigrid) if running minigrid experiments.
