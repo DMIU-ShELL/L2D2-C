@@ -43,7 +43,10 @@ To run multiple agents on localhost, first check that the addresses.csv file con
 ```
 To run two agents on localhost simply run the following commands on two seperate terminals:
 ```
+Terminal 1:
 python run_shell_dist_mp.py 0 2 --port 29500
+
+Terminal 2:
 python run_shell_dist_mp.py 1 2 --port 29501
 ```
 
