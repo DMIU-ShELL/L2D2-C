@@ -12,9 +12,9 @@ import ssl
 from errno import ECONNRESET
 from colorama import Fore
 
-HOST = '158.125.168.72'
+HOST = ''
 
-OTHER_DST = {'158.125.168.72': 29500, '152.125.88.110': 29501}
+OTHER_DST = {'158.125.170.88': 29501}
 #OTHER_PORTS = [29500+i for i in range(0, 5)]
 
 
@@ -212,13 +212,13 @@ if __name__ == '__main__':
     #parser.add_argument('link', help='address of an agent in the network', type=int)
     args = parser.parse_args()
 
-    del OTHER_DST[HOST]
+    #del OTHER_DST[HOST]
 
     TL = TCP_TLSv2()
 
     #if args.port == 29500:
-    p_server = mp.Process(target=TL.server, args=(args.port,))
-    p_server.start()
+    #p_server = mp.Process(target=TL.server, args=(args.port,))
+    #p_server.start()
 
     #client(b'')
 

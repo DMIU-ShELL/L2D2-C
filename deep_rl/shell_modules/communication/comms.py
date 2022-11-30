@@ -104,6 +104,9 @@ class ParallelComm(object):
         self.other_ports = ports
 
         # Debugging prints
+        print(f'listening server params ->\naddress: {self.init_address}\nport: {self.init_port}\n')
+
+
         print('ports:', self.other_ports)
         print('addresses:', self.other_address)
         print('mask size:', self.mask_dim)
@@ -143,6 +146,7 @@ class ParallelComm(object):
         # Attempt to send the data a number of times. If successful do not attempt to send again.
         while attempts < ParallelComm.TRIES:        
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            #s.settimeout(1.0)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             #s = ssl.wrap_socket(s, keyfile="key.pem", certfile="certificate.pem")      # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
             try:
@@ -812,9 +816,6 @@ class ParallelComm(object):
     
     # Main loop + listening server initialisation
     def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base, world_size):
-        '''
-        Main communication function. Sets up the server and client. Distributes queues for interactions between the communication and agent processes.
-        '''
         """
         Main communication loop. Sets up the server process, sends out a join request to a known network and begins sending queries to agents in the network.
         Distributes queues for interactions between the communication and agent modules.
