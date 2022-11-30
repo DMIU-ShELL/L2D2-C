@@ -30,6 +30,8 @@ python run_shell_dist_mp.py <agent id> <number of agents in the network> --ip <i
 - The number of agents in the network indicates the maximum number of peers in the network. Simply put a value that matches to however many peers you would like to run in a network.
 - IP and port are necessary for the listening server portion of the system. IP address is localhost by default but should be changed to the device IP if performing cross device experiments. Port must be specified and should ideally not be a privileged port. Currently the system has not been tested using privileged ports such as 443 (https).
 
+There are some additional arguments available in the code, details of which can be found in the run_shell_dist_mp.py file.
+
 
 To run multiple agents on localhost, first check that the addresses.csv file contains the IPs and ports for your agents. By default this should look like:
 
