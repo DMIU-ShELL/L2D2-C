@@ -101,13 +101,12 @@ class Detect:
             dist[i,j]+=torch.linalg.vector_norm(task_vecs_[i]-task_vecs_[j])/2.
 
 
-def distance(self, current_embedding, new_calculated_embedding):
-    '''Computes the Distance of the newlly calculated embedding and the one that is 
-    stored for the current task the agent is solving.'''
+  def emb_distance(self, current_embedding, new_calculated_embedding):
+      '''Computes the Distance of the newlly calculated embedding and the one that is 
+      stored for the current task the agent is solving.'''
 
+      distance  = torch.linalg.vector_norm(current_embedding - new_calculated_embedding)
 
-    distance  = torch.linalg.vector_norm(current_embedding - new_calculated_embedding)
-
-    return distance
+      return distance
 
     

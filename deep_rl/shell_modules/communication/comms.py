@@ -193,7 +193,7 @@ class ParallelComm(object):
                 d = {}
                 d['sender_agent_id'] = int(buff[ParallelComm.META_INF_IDX_PROC_ID])
                 d['msg_type'] = int(buff[ParallelComm.META_INF_IDX_MSG_TYPE])
-                d['msg_data'] = int(buff[ParallelComm.META_INF_IDX_MSG_DATA])
+                #d['msg_data'] = int(buff[ParallelComm.META_INF_IDX_MSG_DATA])
                 d['task_label'] = buff[ParallelComm.META_INF_IDX_TASK_SZ : ]
                 ret.append(d)
         return ret

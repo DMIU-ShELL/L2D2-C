@@ -595,6 +595,7 @@ def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
 
     exchanges = []
     task_times = []
+    #What is this for? NO NEED TO CHANGE, WAS FOR LOGGIN.
     task_times.append([0, shell_iterations, np.argmax(shell_tasks[0]['task_label'], axis=0), time.time()]) # CHNAGE THIS FORM LABEL TO EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     check = queue_check.get()
@@ -727,6 +728,11 @@ def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
             shell_iterations += 1
 
 
+            daf = agent.get_
+
+
+
+            detect_module_activation_check(shell_iterations, detect_module_activation_frequncy)
 
 
             ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING
@@ -801,7 +807,7 @@ def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
                 #print()
                 task_counter_ = shell_task_counter
                 logger.info('*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
-                agent.task_train_end()
+                #MOVE TO PPOagent.task_train_end()
 
                 task_counter_ += 1
                 shell_task_counter = task_counter_
@@ -816,7 +822,7 @@ def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
                     logger.info('task_label: {0}'.format(shell_tasks[task_counter_]['task_label'])) #CHANGE TO WORK WITH EMBEDDING!!!!!!!!!!!!!!
                     states_ = agent.task.reset_task(shell_tasks[task_counter_]) # set new task
                     agent.states = agent.config.state_normalizer(states_)
-                    agent.task_train_start(shell_tasks[task_counter_]['task_label'])# CHANGE TO WORK WITH EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!!
+                    # SHOULD MOVE TO PPO agent.task_train_start(shell_tasks[task_counter_]['task_label'])# CHANGE TO WORK WITH EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!!
 
                     # set message (task_label) that will be sent to other agent as a request for
                     # task knowledge (mask) about current task. this will be sent in the next

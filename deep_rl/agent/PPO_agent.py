@@ -145,8 +145,14 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         #Variable for saving the size of the task embedding that the detect module has produced.
         self.task_emb_size  = 0.0
 
+        #Variable for storing the frequency of the detect module activation.
+        self.detect_module_activation_frequency = config.detect_module_activation_frequncy
+
         #Create a list for saving the calculated embeddings
         self.encounterd_task_embs = []
+
+        #Varible for storing the current embedding label as an attribute of the agent itself.
+        self.current_task_emb =  None #self.task.get_task()['task_emb']
 
         # set seed before creating network to ensure network parameters are
         # same across all shell agents
@@ -386,6 +392,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         return task_embedding
 
 
+
     def get_task_emb_size(self):
         '''''A getter method for retreiving the task embedding size.'''
         return self.task_emb_size
@@ -404,11 +411,29 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.emb_dist_threshold = a_distance_threshold
 
 
+    def get_detect_module_activation_frequency(seflf):
+        '''A getteer for the detect module activation frequency'''
+        return self.detect_module_activation_frequency
+
+    def set_detect_module_activation_frequency():
+        pass
+
+
+    def get_current_task_embedding(self):
+        '''A getter method for retreiving the current task embedding.'''
+        return self.get_current_task_embedding
+
+    def set_current_task_embedding(self, new_current_task_embedding):
+        '''A setter method for updating the current task embedding with the new
+        more acurate estimate of the embedding produced by the detect module.'''
+        self.current_task_emb = new_current_task_embedding
+
+
     def calculate_emb_distance(self, a_new_embedding):
         '''Method that calculates the distance of the newlly computed task embedding and
         compered to the existing one by calling the distance method of the agent's detect
         module.'''
-        emb_dist = self.detect.dist(a_new_embedding)
+        emb_dist = self.detect.emb_dist(a_new_embedding)
         
         return emb_dist
 
@@ -442,10 +467,13 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         if emb_distance < an_emb_dist_threshold:
              self.task.get_task()['task_emb'] = (self.task.get_task()['task_emb'] + a_new_emb) / 2
+             self.set_current_task_embedding(self.task.get_task()['task_emb'])#saving the updated embedding value to the agent cur_emb attribute as well
+             self.seen_tasks
              str_task_chng_msg = "TASK CHNAGE NNNNOOOOTTTTT DETECTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
              task_chng_flag = False
         else:
             self.task.get_task()['task_emb'] = a_new_emb
+            self.set_current_task_embedding(self.task.get_task()['task_emb'])#saving the updated embedding value to the agent cur_emb attribute as well
             str_task_chng_msg = "TASK CHNAGE DETECTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
             task_chng_flag = True
 
