@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 
 class Detect:
-  def __init__(self, reference, device, title = '', num_samples=16384, input_dim=144, num_iter=10, one_hot=True, normalized=True, demo=True):
+  def __init__(self, device, reference=200, title = '', num_samples=16384, input_dim=144, num_iter=10, one_hot=True, normalized=True, demo=True):
     assert reference is not None, f'Reference not found.'
     self.ref = reference
     self.device = device
@@ -18,6 +18,18 @@ class Detect:
     self.demo = demo
     self.title = title
     self.input_dim = input_dim
+
+
+  def set_reference(self, a_reference):
+    '''A setter method, for manually setting and updating the reference for calculating
+    the tasks embeddings.'''
+    self.ref = a_reference
+
+  def get_reference(self):
+    '''A getter method for accessing the reference which is used to calculate the task
+    embeddings'''
+    return self.ref
+
 
   def preprocess_dataset(self, X):
     '''Function that preprpcess the Data-Batch of SAR before calcuting the embedding'''

@@ -135,6 +135,10 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label']) #CHANGE THAT FOR THE
         self.task_label_dim = label_dim
 
+        #Create a Refernce for the Wasserstain Embeddings
+        torch.manual_seed(98)
+        reference = torch.rand(500, self.task.state_dim)
+
         #Varible for checking for dishiding wether the agent has encountered a new task or not.
         self.emb_dist_threshold = config.emb_dist_threshold
 
@@ -201,6 +205,106 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
     def iteration(self):
         '''This function performs the training iteration.
         It is where the learner of the agent (the neural network) is being optimized'''
+        config = self.config
+        rollout = []
+        states = self.states
+        if self.curr_train_task_label is not None:
+            task_label = self.curr_train_task_label
+        else:
+            task_label = self.task.get_task()['task_label']
+            assert False, 'manually set (temporary) breakpoint. code should not get here.'
+
+        task_label = tensor(task_label)
+        batch_dim = config.num_workers
+        if batch_dim == 1:
+            batch_task_label = task_label.reshape(1, -1)
+        else:
+            batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
+
+        states, rollout = self._rollout_fn(states, batch_task_label)
+
+        self.states = states
+        pending_value = self.network.predict(states, task_label=batch_task_label)[-2]
+        rollout.append([states, pending_value, None, None, None, None])
+        processed_rollout = [None] * (len(rollout) - 1)
+        advantages = tensor(np.zeros((config.num_workers, 1)))
+        returns = pending_value.detach()
+        for i in reversed(range(len(rollout) - 1)):
+            states, value, actions, log_probs, rewards, terminals = rollout[i]
+            terminals = tensor(terminals).unsqueeze(1)
+            rewards = tensor(rewards).unsqueeze(1)
+            actions = tensor(actions)
+            states = tensor(states)
+            next_value = rollout[i + 1][1]
+            returns = rewards + config.discount * terminals * returns
+            if not config.use_gae:
+                advantages = returns - value.detach()
+            else:
+                td_error = rewards + config.discount*terminals*next_value.detach() - value.detach()
+                advantages = advantages * config.gae_tau * config.discount * terminals + td_error
+            processed_rollout[i] = [states, actions, log_probs, returns, advantages]
+
+        states, actions, log_probs_old, returns, advantages = map(lambda x: torch.cat(x, dim=0), \
+            zip(*processed_rollout))
+        eps = 1e-6
+        advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
+
+        grad_norm_log = []
+        policy_loss_log = []
+        value_loss_log = []
+        log_probs_log = []
+        entropy_log = []
+        ratio_log = []
+        batcher = Batcher(states.size(0) // config.num_mini_batches, [np.arange(states.size(0))])
+        for _ in range(config.optimization_epochs):
+            batcher.shuffle()
+            while not batcher.end():
+                batch_indices = batcher.next_batch()[0]
+                batch_indices = tensor(batch_indices).long()
+                sampled_states = states[batch_indices]
+                sampled_actions = actions[batch_indices]
+                sampled_log_probs_old = log_probs_old[batch_indices]
+                sampled_returns = returns[batch_indices]
+                sampled_advantages = advantages[batch_indices]
+
+                batch_dim = sampled_states.shape[0]
+                batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, \
+                    dim=0)
+                _, _, log_probs, entropy_loss, values, outs = self.network.predict(sampled_states, \
+                    sampled_actions, task_label=batch_task_label, return_layer_output=True)
+                ratio = (log_probs - sampled_log_probs_old).exp()
+                obj = ratio * sampled_advantages
+                obj_clipped = ratio.clamp(1.0 - self.config.ppo_ratio_clip,
+                                          1.0 + self.config.ppo_ratio_clip) * sampled_advantages
+                policy_loss = -torch.min(obj, obj_clipped).mean(0) \
+                    - config.entropy_weight * entropy_loss.mean()
+
+                value_loss = 0.5 * (sampled_returns - values).pow(2).mean()
+
+                log_probs_log.append(log_probs.detach().cpu().numpy().mean())
+                entropy_log.append(entropy_loss.detach().cpu().numpy().mean())
+                ratio_log.append(ratio.detach().cpu().numpy().mean())
+                policy_loss_log.append(policy_loss.detach().cpu().numpy())
+                value_loss_log.append(value_loss.detach().cpu().numpy())
+
+                self.opt.zero_grad()
+                (policy_loss + value_loss).backward()
+                norm_ = nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
+                grad_norm_log.append(norm_.detach().cpu().numpy())
+                self.opt.step()
+
+        steps = config.rollout_length * config.num_workers
+        self.total_steps += steps
+        self.layers_output = outs
+        return {'grad_norm': grad_norm_log, 'policy_loss': policy_loss_log, \
+            'value_loss': value_loss_log, 'log_prob': log_probs_log, 'entropy': entropy_log, \
+            'ppo_ratio': ratio_log}
+
+
+    def iteration_emb(self):
+        '''This function performs the training iteration.
+        It is where the learner of the agent (the neural network) is being optimized.
+        This method is using task embeddings instead of task labels.'''
         config = self.config
         rollout = []
         states = self.states
@@ -415,13 +519,14 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         '''A getteer for the detect module activation frequency'''
         return self.detect_module_activation_frequency
 
-    def set_detect_module_activation_frequency():
-        pass
+    def set_detect_module_activation_frequency(self, some_activation_frequncy):
+        '''A setter method for manually setting the detect module activation frequnecy.'''
+        self.detect_module_activation_frequncy = some_activation_frequncy
 
 
     def get_current_task_embedding(self):
         '''A getter method for retreiving the current task embedding.'''
-        return self.get_current_task_embedding
+        return self.current_task_emb
 
     def set_current_task_embedding(self, new_current_task_embedding):
         '''A setter method for updating the current task embedding with the new
@@ -468,13 +573,16 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         if emb_distance < an_emb_dist_threshold:
              self.task.get_task()['task_emb'] = (self.task.get_task()['task_emb'] + a_new_emb) / 2
              self.set_current_task_embedding(self.task.get_task()['task_emb'])#saving the updated embedding value to the agent cur_emb attribute as well
-             self.seen_tasks
+             current_task_idx = self._embedding_to_idx(self.get_current_task_embedding(), self.get_emb_dist_threshold())
+             self.seen_tasks[current_task_idx] = self.get_current_task_embedding()
              str_task_chng_msg = "TASK CHNAGE NNNNOOOOTTTTT DETECTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
              task_chng_flag = False
         else:
             self.task.get_task()['task_emb'] = a_new_emb
             self.set_current_task_embedding(self.task.get_task()['task_emb'])#saving the updated embedding value to the agent cur_emb attribute as well
+            self.task_train_end_emb()
             str_task_chng_msg = "TASK CHNAGE DETECTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            self.task_train_start_emb(a_new_emb, an_emb_dist_threshold)
             task_chng_flag = True
 
         return str_task_chng_msg, task_chng_flag
@@ -523,23 +631,48 @@ class LLAgent(PPOContinualLearnerAgent):
     '''
     def __init__(self, config):
         PPOContinualLearnerAgent.__init__(self, config)
-        self.seen_tasks = {} # contains task labels that agent has experienced so far.
+        self.seen_tasks = {} # contains task labels / embeddings that agent has experienced so far.
         self.new_task = False
         self.curr_train_task_label = None
         self.curr_eval_task_label = None
+        #Varibles for tracking the current task embedding, influenced by the two varibles above, and working at a same fashion.
+        self.curr_train_task_emb = None
+        self.curr_eval_task_emb = None
 
     def _label_to_idx(self, task_label):
         eps = 1e-5
         found_task_idx = None
         for task_idx, seen_task_label in self.seen_tasks.items():
-            if np.linalg.norm((task_label - seen_task_label), ord=2) < eps:
+            if np.linalg.norm((task_label - seen_task_label), ord=2) < eps:#Chnage this with the embedding distance threshold Perhaps.
                 found_task_idx = task_idx
                 break
         return found_task_idx
+
+    def _embedding_to_idx(self, a_task_embedding, an_embedding_embedding_distance_threshold):
+        '''Private method that checks wether the agent has already seen the task with the
+        embedding given before or not. It checks this by searching the dictionary of seen
+        tasks and compering the given embedding with the stored emebddings of each stored
+        task. If an an embedding with high similarity (based on the distance threshold) is
+        found then it return the index of the task for this embedding.
+        
+        Important NOTE: The index for each of the seen tasks that the agent has encountered
+        is different from the original index that the tasks already have in their info 
+        dictonary which is being set upon their creation (from the task class). When a task
+        is registered in the seen_tasks dictonary of the agent the agent automatically creates
+        an unique index for this specific task, which is based on which turn the agent first
+        encounters this specific task.'''
+
+        found_task_idx = None
+        for task_idx, seen_task_embedding in self.seen_tasks.items():
+            if np.linalg.norm((a_task_embedding - seen_task_embedding), ord=2) < an_embedding_embedding_distance_threshold:
+                found_task_idx = task_idx
+                break
+        return found_task_idx
+
         
     def task_train_start(self, task_label):
 
-        '''Function for starting the new <<Detected>> task. It takes as an argument the tasklabel given by the 
+        '''Method for starting the new <<Detected>> task. It takes as an argument the tasklabel given by the 
         the "trainer_shell" from the "shell_tasks" list of dictionaries.'''
 
         task_idx = self._label_to_idx(task_label)
@@ -554,12 +687,46 @@ class LLAgent(PPOContinualLearnerAgent):
         self.curr_train_task_label = task_label
         return
 
+
+    def task_train_start_emb(self,a_task_embedding, an_embedding_embedding_distance_threshold):
+        '''Method for starting the training procedure upon a new Detected task form the Detect Module.
+        It is based on the "task_train_start()" method.'''
+
+        task_idx = self._embedding_to_idx(a_task_embedding, an_embedding_embedding_distance_threshold)
+        if task_idx is None:
+            # new task. add it to the agent's seen_tasks dictionary
+            task_idx = len(self.seen_tasks) # generate an internal task index for new task
+            self.seen_tasks[task_idx] = a_task_embedding
+            self.new_task = True
+            set_model_task(self.network, task_idx, new_task=True)
+        else:
+            set_model_task(self.network, task_idx)
+            self.current_task_emb = a_task_embedding
+        return
+
     def task_train_end(self):
         # NOTE, comment/uncomment alongside a block of code in `_forward_mask_lnear_comb` method in
         # MultitaskMaskLinear and MultiMaskLinearSparse classes
         consolidate_mask(self.network)
 
         self.curr_train_task_label = None
+        cache_masks(self.network)
+        if self.new_task:
+            set_num_tasks_learned(self.network, len(self.seen_tasks))
+        self.new_task = False # reset flag
+        return
+
+
+    def task_train_end_emb(self):
+        '''Method for stopping the training upon a specific task. It is being used when
+        the Detect Module perceives a task change, in order to stop training for the old
+        task and start training for the new one. Inspired from the original "task_train_end()"
+        to work with embeddings instead of labels.'''
+        # NOTE, comment/uncomment alongside a block of code in `_forward_mask_lnear_comb` method in
+        # MultitaskMaskLinear and MultiMaskLinearSparse classes
+        consolidate_mask(self.network)
+
+        self.current_task_emb = None
         cache_masks(self.network)
         if self.new_task:
             set_num_tasks_learned(self.network, len(self.seen_tasks))

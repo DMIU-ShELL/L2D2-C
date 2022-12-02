@@ -732,7 +732,7 @@ def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
 
 
 
-            detect_module_activation_check(shell_iterations, detect_module_activation_frequncy)
+            detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequncy())
 
 
             ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING
