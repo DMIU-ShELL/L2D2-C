@@ -163,7 +163,10 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     torch.manual_seed(98)
     reference = torch.rand(500, self.task.state_dim)
     #Creatting a Detect Module Object
-    detect_module = Detect(reference, one_hot=False, normalized=False, num_samples=100)
+    #NOTE: It can not work here because we do not know before hand the task
+    #obs size. Hence We will make it using a lmbda expration and pass it that
+    #to the agent.
+    detect_module = Detect(one_hot=False, normalized=False, num_samples=100)
 
     #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
     config.detect = detect_module
