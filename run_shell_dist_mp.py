@@ -342,7 +342,7 @@ def shell_dist_minigrid_mp(name, args, shell_config):
 
     # For optimal performance the mask interval should be divisible by the number of iterations per task
     # i..e, set max_steps to multiple of 512
-    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
+    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 1
 
     addresses = []
     ports = []
@@ -617,7 +617,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int, default=0)        # Not necessary but useful. Used only for the logs filepath.
     parser.add_argument('num_agents', help='world: total number of agents', type=int, default=1)                        # Required for the moment.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')                             # Change the default so you don't have to type it every time. Required.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_4x4.json')                             # Change the default so you don't have to type it every time. Required.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Not required
     parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)                                # Don/t change. Default value of 0 is the only one that is implemented at the moment.

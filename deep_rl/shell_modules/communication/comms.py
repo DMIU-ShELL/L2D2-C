@@ -49,6 +49,10 @@ class ParallelComm(object):
     # This should be taken from the detect module eventually
     THRESHOLD = 0.0
 
+    # SSL/TLS Parameters
+    CERTPATH = 'certificates/certificate.pem'
+    KEYPATH = 'certificates/key.pem'
+
     # buffer indexes
     META_INF_IDX_ADDRESS = 0
     META_INF_IDX_PORT = 1
@@ -146,9 +150,9 @@ class ParallelComm(object):
         # Attempt to send the data a number of times. If successful do not attempt to send again.
         while attempts < ParallelComm.TRIES:        
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            #s.settimeout(1.0)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            #s = ssl.wrap_socket(s, keyfile="key.pem", certfile="certificate.pem")      # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
+            #s.settimeout(2.0)
+            #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s = ssl.wrap_socket(s, keyfile=ParallelComm.KEYPATH, certfile=ParallelComm.CERTPATH, ssl_version=ssl.PROTOCOL_TLSv1_2)      # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
             try:
                 s.connect((address, port))
                 _data = struct.pack('>I', len(_data)) + _data
@@ -236,7 +240,7 @@ class ParallelComm(object):
             data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_QUERY, ParallelComm.MSG_DATA_NULL]
 
         else:
-            data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_QUERY, ParallelComm.MSG_DATA_QUERY, embedding]
+            data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_QUERY, ParallelComm.MSG_DATA_QUERY, np.array(embedding)]
 
         # Try to send a query to all known destinations. Skip the ones that don't work
         if len(self.other_address) == len(self.other_ports):
@@ -263,7 +267,7 @@ class ParallelComm(object):
             ret['sender_port'] = int(buffer[ParallelComm.META_INF_IDX_PORT])
             ret['msg_type'] = int(buffer[ParallelComm.META_INF_IDX_MSG_TYPE])
             ret['msg_data'] = int(buffer[ParallelComm.META_INF_IDX_MSG_DATA])
-            ret['embedding'] = buffer[ParallelComm.META_INF_IDX_TASK_SZ]
+            ret['embedding'] = torch.tensor(buffer[ParallelComm.META_INF_IDX_TASK_SZ])
 
         return ret
     
@@ -341,7 +345,7 @@ class ParallelComm(object):
                 data.append(ParallelComm.MSG_DATA_META)
                 data.append(mask_reward)
                 data.append(distance)
-                data.append(embedding)
+                data.append(np.array(embedding))
 
             if dst_address in self.other_address and dst_port in self.other_ports:
                 #if self.other_address.index(dst_address) == self.other_ports.index(dst_port):      # Comment out for localhost
@@ -376,7 +380,7 @@ class ParallelComm(object):
             ret['port'] = int(buffer[ParallelComm.META_INF_IDX_PORT])
             ret['mask_reward'] = float(buffer[ParallelComm.META_INF_IDX_MSK_RW])
             ret['dist'] = float(buffer[ParallelComm.META_INF_IDX_DIST])
-            ret['embedding'] = buffer[ParallelComm.META_INF_IDX_TASK_SZ_].detach().cpu().numpy()
+            ret['embedding'] = buffer[ParallelComm.META_INF_IDX_TASK_SZ_]   # This is an np array
 
         return ret, ret['address'], ret['port']
 
@@ -485,7 +489,7 @@ class ParallelComm(object):
                 else:
                     # Otherwise we want the agent's mask
                     data.append(ParallelComm.MSG_DATA_MSK_REQ)
-                    data.append(embedding) # NOTE deepcopy?
+                    data.append(np.array(embedding)) # NOTE deepcopy?
 
                 print(Fore.YELLOW + f'Buffer to send: {data}')
                 # Send out the mask request or rejection to each agent that sent metadata
@@ -515,7 +519,7 @@ class ParallelComm(object):
             ret['sender_port'] = int(buffer[ParallelComm.META_INF_IDX_PORT])
             ret['msg_type'] = int(buffer[ParallelComm.META_INF_IDX_MSG_TYPE])
             ret['msg_data'] = int(buffer[ParallelComm.META_INF_IDX_MSG_DATA])
-            ret['embedding'] = buffer[ParallelComm.META_INF_IDX_TASK_SZ]
+            ret['embedding'] = torch.tensor(buffer[ParallelComm.META_INF_IDX_TASK_SZ])
 
         return ret
 
@@ -559,8 +563,8 @@ class ParallelComm(object):
 
             else:
                 data.append(ParallelComm.MSG_DATA_MSK)
-                data.append(mask)
-                data.append(embedding)
+                data.append(np.array(mask))
+                data.append(np.array(embedding))
 
             print(f'{Fore.CYAN}Mask buffer to send: {data}')
             
@@ -592,8 +596,8 @@ class ParallelComm(object):
 
         elif buffer[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_MSK:
             if {buffer[ParallelComm.META_INF_IDX_ADDRESS]: buffer[ParallelComm.META_INF_IDX_PORT]} == best_agent_id:
-                received_mask = buffer[4]
-                received_label = buffer[5]
+                received_mask = torch.tensor(buffer[4])
+                received_label = torch.tensor(buffer[5])
         else:
             pass
 
@@ -614,7 +618,7 @@ class ParallelComm(object):
         self.logger.info(Fore.GREEN + f'other agent request: {other_agent_req}')
         meta_response = self.proc_meta(other_agent_req, knowledge_base)
         self.send_meta(meta_response)
-    def add_meta(self, data, metadata):
+    def add_meta(self, data, metadata, world_size, knowledge_base):
         """
         Event handler for receving some distance, mask reward and embedding information. Appends the data to a collection of data received from all other agents.
 
@@ -628,6 +632,18 @@ class ParallelComm(object):
             metadata[address + ':' + str(port)] = other_agent_meta
 
         self.logger.info(Fore.YELLOW + f'Metadata collected: {metadata}')
+
+        # Select best agent to get mask from
+        if len(metadata) == world_size.value - 1:
+            t_pick = mpd.Pool(processes=1)
+            best_agent_id, best_agent_rw = t_pick.apply_async(self.pick_meta, (metadata, knowledge_base)).get()
+            t_pick.close()
+            del t_pick
+
+            print(Fore.CYAN + f'State after picking best agent {metadata}')
+            return best_agent_id, best_agent_rw
+        
+        return None, None
     def pick_meta(self, metadata, knowledge_base):
         """
         Event handler to pick a best agent from the information it has collected at this point. Resets the metadata list.
@@ -694,11 +710,11 @@ class ParallelComm(object):
 
         # Initialise a socket and wrap it with SSL
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #s = ssl.wrap_socket(s, server_side=True, keyfile='key.pem', certfile='certificate.pem')    # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
+        #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s = ssl.wrap_socket(s, server_side=True, keyfile=ParallelComm.KEYPATH, certfile=ParallelComm.CERTPATH, ssl_version=ssl.PROTOCOL_TLSv1_2)    # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
 
         # Bind the socket to the chosen address-port and start listening for connections
-        s.bind((self.init_address, self.init_port))
+        s.bind(('', self.init_port))
         s.listen(1)
 
         metadata = {}
@@ -725,77 +741,52 @@ class ParallelComm(object):
                         ### EVENT HANDLING
                         # Agent attempting to join the network
                         if data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_JOIN:
-                            self.logger.info(Fore.CYAN + f'Data is a join req')
-                            #with mpd.Pool(processes=1) as t_validation:
-                            #    t_validation.apply_async(self.recv_join_net, (data, world_size))       # not sure why this approach doesn't work.
-                            #del t_validation
-
                             t_validation = mpd.Pool(processes=1)
                             t_validation.apply_async(self.recv_join_net, (data, world_size))
+                            self.logger.info(Fore.CYAN + f'Data is a join req')
                             t_validation.close()
                             del t_validation
 
                         # Agent is leaving the network
                         elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_LEAVE:
-                            self.logger.info(Fore.CYAN + f'Data is a leave req')
-                            #with mpd.Pool(processes=1) as t_leave:
-                            #    t_leave.apply_async(self.recv_exit_net, (data, world_size))            # same deal here.
-                            #del t_leave
-
                             t_leave = mpd.Pool(processes=1)
                             t_leave.apply_async(self.recv_exit_net, (data, world_size))
+                            self.logger.info(Fore.CYAN + f'Data is a leave req')
                             t_leave.close()
                             del t_leave
 
                         # Agent is sending a query
                         elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_QUERY:
-                            #with mpd.Pool(processes=1) as t_query:
-                            #    t_query.apply_async(self.query, (data, knowledge_base))
-                            #    self.logger.info(Fore.CYAN + f'Data is a query')
-                            #del t_query
-
-                            self.query(data, knowledge_base)
+                            t_query = mpd.Pool(processes=1)
+                            t_query.apply_async(self.query, (data, knowledge_base))
                             self.logger.info(Fore.CYAN + f'Data is a query')
+                            t_query.close()
+                            del t_query
 
                         # Agent is sending some task distance and reward information
                         elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_META:
                             # Update the list of data
-                            #with mpd.Pool(processes=1) as t_meta:
-                            #    t_meta.apply_async(self.add_meta, (data, metadata))
-                            #    self.logger.info(Fore.CYAN + f'Data is metadata')
-                            #del t_meta
-
-                            self.add_meta(data, metadata)
+                            t_meta = mpd.Pool(processes=1)
+                            best_agent_id, best_agent_rw = t_meta.apply_async(self.add_meta, (data, metadata, world_size, knowledge_base)).get()
                             self.logger.info(Fore.CYAN + f'Data is metadata')
-
-
-                            # Select best agent to get mask from
-                            if len(metadata) == world_size.value - 1:
-                                #with mpd.Pool(processes=1) as t_pick:
-                                #    best_agent_id, best_agent_rw = t_pick.apply_async(self.pick_meta, (metadata, knowledge_base)).get()
-                                #del t_pick
-
-                                best_agent_id, best_agent_rw = self.pick_meta(metadata, knowledge_base)
-                                print(Fore.CYAN + f'State after picking best agent {metadata}')
-
+                            t_meta.close()
+                            del t_meta
 
                         # Agent is sending a direct request for a mask
                         elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_REQ:
-                            #with mpd.Pool(processes=1) as t_req:
-                            #    t_req.apply_async(self.req, (data, queue_label_send, queue_mask_recv))
-                            #    self.logger.info(Fore.CYAN + f'Data is a mask req')
-                            #del t_req
-                            
-                            self.req(data, queue_label_send, queue_mask_recv)
+                            t_req = mpd.Pool(processes=1)
+                            t_req.apply_async(self.req, (data, queue_label_send, queue_mask_recv))
                             self.logger.info(Fore.CYAN + f'Data is a mask req')
+                            t_req.close()
+                            del t_req
 
                         # Another agent is sending a mask to this agent
                         elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_MASK:
+                            t_msk = mpd.Pool(processes=1)
+                            recv_mask, recv_embedding = t_msk.apply_async(self.recv_mask, (data, best_agent_id)).get()
                             self.logger.info(Fore.CYAN + f'Data is a mask')
-                            #with mpd.Pool(processes=1) as t_msk:
-                            #    recv_mask, recv_embedding = t_msk.apply_async(self.recv_mask, (data, best_agent_id)).get()
-                            #del t_msk
-                            recv_mask, recv_embedding = self.recv_mask(data, best_agent_id)
+                            t_msk.close()
+                            del t_msk
 
                             self.logger.info(f'\n{Fore.WHITE}Mask: {recv_mask}\nReward: {best_agent_rw}\nSrc: {best_agent_id}\nEmbedding: {recv_embedding}\n')
                             # Send knowledge to the agent if anything is available otherwise do nothing.

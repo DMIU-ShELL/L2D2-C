@@ -6,7 +6,7 @@
             "max_steps": 25600
         },
         {
-            "task_ids": [0, 1, 2, 3],
+            "task_ids": [3, 2, 1, 0],
             "max_steps": 25600
         },
         {

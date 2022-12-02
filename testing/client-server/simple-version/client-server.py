@@ -8,18 +8,51 @@ from time import sleep
 import struct
 import time
 import ssl
+import socketserver
+import sys
 
 from errno import ECONNRESET
 from colorama import Fore
 
 HOST = ''
 
-OTHER_DST = {'158.125.170.88': 29501}
-#OTHER_PORTS = [29500+i for i in range(0, 5)]
+OTHER_DST = {29500: 'lnx-grid-19.lboro.ac.uk', 29501: 'lnx-grid-19.lboro.ac.uk'}
 
 
-# TCP + TLS v2
-class TCP_TLSv2:
+
+# SOCKET SERVER IMPLEMENTATION
+class SS_HANDLER(socketserver.BaseRequestHandler):
+    def handle(self):
+        self.data = self.request.recv(400000).strip()
+        print("{} wrote:".format(self.client_address[0]))
+        print(self.data)
+        self.request.sendall(self.data.upper())
+
+class SS_SERVER:
+    def server(self, port):
+        print(f'Attempting to make server on {HOST}, {port}')
+        with socketserver.TCPServer((HOST, port), SS_HANDLER) as s:
+            s.serve_forever()
+
+    def client(self, address, port, data):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as c:
+            try:
+                c.connect((address, port))
+                c.sendall(bytes(data + '\n', 'utf-8'))
+
+                received = str(c.recv(400000), 'utf-8')
+
+                print("Sent:     {}".format(data))
+                print("Received: {}".format(received))
+                
+            except:
+                print('failed')
+
+
+
+
+# TCP + TLS v3
+class TCP_TLSv3:
     def unpack(self, data):
         emb_sz = 3
         try:
@@ -57,19 +90,31 @@ class TCP_TLSv2:
         return data
 
     def server(self, port):
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #server = ssl.wrap_socket(server, server_side=True, keyfile="key.pem", certfile="certificate.pem")
+        print(f'Attempting to start server on port {port}')
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.verify_mode = ssl.CERT_REQUIRED
+        context.load_cert_chain(certfile='certificates/certificate.pem', keyfile='certificates/key.pem')
+        context.load_verify_locations('certificates/certificate.pem')
+        
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind(('', port))
+        server_socket.listen(0)
 
-        server.bind((HOST, port))
-        server.listen(0)
+        #server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #server = ssl.wrap_socket(server, server_side=True, keyfile="certificates/key.pem", certfile="certificates/certificate.pem", ssl_version=ssl.PROTOCOL_TLS_SERVER)
+
+        #server.bind((HOST, port))
+        #server.listen(0)
 
         while True:
-            conn, addr = server.accept()
-            with conn:
+            conn, addr = server_socket.accept()
+            with context.wrap_socket(conn, server_side=True) as conn:
                 print(Fore.CYAN + f"\nConnected by {addr}")
+                #print(f'Peer cert: {conn.getpeercert()}')
                 while True:
-                    try:
+                    #try:
+                        #data = conn.recv(400000)
                         data = self.recv_msg(conn)
                         if not data: break
 
@@ -80,25 +125,39 @@ class TCP_TLSv2:
                         print(Fore.CYAN + f"Address: {data[0]} \nPort: {data[1]} \nType: {data[2]} \nData: {data[3]} \nMask: {data[4]} \nEmbedding: {data[5]}")
                     
                         #print(Fore.CYAN + f"Address: {_address} \nPort: {_port} \nType: {_msg_type} \nData: {_msg_data} \nEmbedding: {_embedding}")
-                    except socket.error as e:
-                        if e.errno != ECONNRESET: raise
-                        print(Fore.RED + f'Error raised while attempting to receive data from {addr}')
-                        pass
+                    #except socket.error as e:
+                        #if e.errno != ECONNRESET: raise
+                        #print(Fore.RED + f'Error raised while attempting to receive data from {addr}')
+                        #pass
 
     def client(self, address, port, buffer):
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #client = ssl.wrap_socket(client, keyfile="key.pem", certfile="certificate.pem")
+        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+        context.load_cert_chain(certfile='certificates/certificate.pem', keyfile='certificates/key.pem')
+        context.verify_mode = ssl.CERT_REQUIRED
+        context.check_hostname = True
+        context.load_verify_locations('certificates/certificate.pem')
+        client_socket = context.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM), server_hostname=address)
+
+
+        #client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #client = ssl.wrap_socket(client, keyfile="certificates/key.pem", certfile="certificates/certificate.pem", ssl_version=ssl.PROTOCOL_TLS_CLIENT)
 
         buffer = pickle.dumps(buffer)
         #print(buffer)
         #buffer = struct.pack('11d', *buffer)
         try:
-            client.connect((address, port))
-            self.send_msg(client, buffer)
-            client.close()
+            client_socket.connect((address, port))
+            #client_socket.sendall(buffer)
+            self.send_msg(client_socket, buffer)
+            #print(f'Peer cert: {client_socket.getpeercert()}')
+            client_socket.shutdown(socket.SHUT_RDWR)
 
-        except: pass
+        except:
+            print('Failed :(')
+
+        finally:
+            client_socket.close()
 
 
 # HTTPS + TLS
@@ -212,13 +271,15 @@ if __name__ == '__main__':
     #parser.add_argument('link', help='address of an agent in the network', type=int)
     args = parser.parse_args()
 
-    #del OTHER_DST[HOST]
+    print(args.port)
 
-    TL = TCP_TLSv2()
+    del OTHER_DST[args.port]
+
+    TL = SS_SERVER()
 
     #if args.port == 29500:
-    #p_server = mp.Process(target=TL.server, args=(args.port,))
-    #p_server.start()
+    p_server = mp.Process(target=TL.server, args=(args.port,))
+    p_server.start()
 
     #client(b'')
 
@@ -228,12 +289,13 @@ if __name__ == '__main__':
     while True:
         count += 1
         print(Fore.GREEN + f'\n\nIteration: {count}')
-        for address, port in OTHER_DST.items():
+        for port, address in OTHER_DST.items():
             print(Fore.GREEN + f'Attempting to send to port: {address}:{port}')
+            #TL.client(address, port, ['hello'])
             #TL.client(port, [127, 0, 0, 1, args.port, 2, 1, 1, 0, 0, time.time()])
-            TL.client(address, port, ['127.0.0.1', args.port, 4, 4, rand(110800), rand(3), time.time()])
+            #TL.client(address, port, ['lnx-grid-19.lboro.ac.uk', args.port, 4, 4, rand(110800), rand(3), time.time()])
             #TL.client(port, ['127.0.0.1', args.port, 4, 4, rand(3), time.time()])
-            #TL.client(port, 'hello world')
+            TL.client(address, port, 'hello world')
 
         sleep(3)
         
