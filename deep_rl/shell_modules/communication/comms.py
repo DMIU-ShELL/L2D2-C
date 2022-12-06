@@ -1559,10 +1559,6 @@ class ParallelCommEval(object):
                         # Agent attempting to join the network
                         if data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_JOIN:
                             self.logger.info(Fore.CYAN + f'Data is a join req')
-                            #with mpd.Pool(processes=1) as t_validation:
-                            #    t_validation.apply_async(self.recv_join_net, (data, world_size))       # not sure why this approach doesn't work.
-                            #del t_validation
-
                             t_validation = mpd.Pool(processes=1)
                             t_validation.apply_async(self.recv_join_net, (data, world_size))
                             t_validation.close()
@@ -1571,9 +1567,6 @@ class ParallelCommEval(object):
                         # Agent is leaving the network
                         elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_LEAVE:
                             self.logger.info(Fore.CYAN + f'Data is a leave req')
-                            #with mpd.Pool(processes=1) as t_leave:
-                            #    t_leave.apply_async(self.recv_exit_net, (data, world_size))            # same deal here.
-                            #del t_leave
 
                             t_leave = mpd.Pool(processes=1)
                             t_leave.apply_async(self.recv_exit_net, (data, world_size))
@@ -1581,46 +1574,26 @@ class ParallelCommEval(object):
                             del t_leave
 
                         # Agent is sending a query
-                        #elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_QUERY:
-                        #    #with mpd.Pool(processes=1) as t_query:
-                        #    #    t_query.apply_async(self.query, (data, knowledge_base))
-                        #    #    self.logger.info(Fore.CYAN + f'Data is a query')
-                        #    #del t_query
-
-                        #    self.query(data, knowledge_base)
-                        #    self.logger.info(Fore.CYAN + f'Data is a query')
+                        elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_QUERY:
+                            self.query(data, knowledge_base)
+                            self.logger.info(Fore.CYAN + f'Data is a query')
 
                         # Agent is sending some task distance and reward information
                         elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_META:
-                            # Update the list of data
-                            #with mpd.Pool(processes=1) as t_meta:
-                            #    t_meta.apply_async(self.add_meta, (data, metadata))
-                            #    self.logger.info(Fore.CYAN + f'Data is metadata')
-                            #del t_meta
-
                             self.add_meta(data, metadata)
                             self.logger.info(Fore.CYAN + f'Data is metadata')
 
 
                             # Select best agent to get mask from
                             if len(metadata) == world_size.value - 1:
-                                #with mpd.Pool(processes=1) as t_pick:
-                                #    best_agent_id, best_agent_rw = t_pick.apply_async(self.pick_meta, (metadata, knowledge_base)).get()
-                                #del t_pick
-
                                 best_agent_id, best_agent_rw = self.pick_meta(metadata, knowledge_base)
                                 print(Fore.CYAN + f'State after picking best agent {metadata}')
 
 
                         # Agent is sending a direct request for a mask
-                        #elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_REQ:
-                        #    #with mpd.Pool(processes=1) as t_req:
-                        #    #    t_req.apply_async(self.req, (data, queue_label_send, queue_mask_recv))
-                        #    #    self.logger.info(Fore.CYAN + f'Data is a mask req')
-                        #    #del t_req
-                        #    
-                        #    self.req(data, queue_label_send, queue_mask_recv)
-                        #    self.logger.info(Fore.CYAN + f'Data is a mask req')
+                        elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_REQ:
+                            self.req(data, queue_label_send, queue_mask_recv)
+                            self.logger.info(Fore.CYAN + f'Data is a mask req')
 
                         # Another agent is sending a mask to this agent
                         elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_MASK:
