@@ -698,7 +698,10 @@ class ParallelComm(object):
         #s = ssl.wrap_socket(s, server_side=True, keyfile='key.pem', certfile='certificate.pem')    # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
 
         # Bind the socket to the chosen address-port and start listening for connections
-        s.bind((self.init_address, self.init_port))
+        if self.init_address == '127.0.0.1':
+            s.bind(('127.0.0.1', self.init_port))
+        else:
+            s.bind(('', self.init_port))
         s.listen(1)
 
         metadata = {}
@@ -825,3 +828,8 @@ class ParallelComm(object):
         p_client.start()
 
         #return p_client # consider returning the process object
+
+
+class ParallelCommEval(object):
+    def __init__(self):
+        pass
