@@ -135,19 +135,15 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label']) #CHANGE THAT FOR THE
         self.task_label_dim = label_dim
 
-        #Create a Refernce for the Wasserstain Embeddings
+        '''#Create a Refernce for the Wasserstain Embeddings
         torch.manual_seed(98)
-        reference = torch.rand(500, self.task.state_dim)
+        reference = torch.rand(500, self.task.state_dim)'''
+
+        #Variable for storing the detect reference number.
+        self.detect_reference_num = config.reference_num
 
         #Varible for checking for dishiding wether the agent has encountered a new task or not.
         self.emb_dist_threshold = config.emb_dist_threshold
-
-
-        #Assing a detect Component to the Agent upon initialisation
-        self.detect = config.detect
-
-        #Variable for saving the size of the task embedding that the detect module has produced.
-        self.task_emb_size  = 0.0
 
         #Variable for storing the frequency of the detect module activation.
         self.detect_module_activation_frequency = config.detect_module_activation_frequncy
@@ -164,7 +160,21 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         
         random_seed(9157)   # Chris
 
-        self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)
+        #Precalculate the embedding size based on the reference and the network observation size.
+        tmp_state_obs  = self.task.reset()
+        tmp_state_obs = config.state_normalizer(self.states)
+        observation_size = len(tmp_state_obs)
+
+        #Assing a detect Component to the Agent upon initialisation
+        self.detect = config.detect_fn(self.detect_reference_num, observation_size)
+
+
+        #Variable for saving the size of the task embedding that the detect module has produced.
+        #Initially we store the precalculated embedding size
+        self.task_emb_size  = self.detect.precalculate_embedding_size(self.detect_reference_num, observation_size)
+
+        #Ihave changed the bellow commande by substitue the label dim with embedding dim
+        self.network = config.network_fn(self.task.state_dim, self.task.action_dim, self.task_emb_size)
         _params = list(self.network.parameters())
         self.opt = config.optimizer_fn(_params, config.lr)
         self.total_steps = 0
@@ -181,6 +191,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         self.states = self.task.reset()
         self.states = config.state_normalizer(self.states)
+
+        
         self.layers_output = None
         self.data_buffer = Replay(memory_size=int(1e4), batch_size=256)
 

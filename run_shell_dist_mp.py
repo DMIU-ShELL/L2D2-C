@@ -97,7 +97,9 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
+    config_detect_reference_num = shell_config['detect_reference_num']
     config_emb_dist_threshold = shell_config['emb_dist_threshold']
+    config_detect_module_activation_frequency = shell_config['detect_module_activation_frequncy']
     # address and port number of the master/first agent (rank/id 0) in the pool of agents
     init_address = shell_config['dist_only']['init_address']
     init_port = shell_config['dist_only']['init_port']
@@ -109,6 +111,11 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     # set seed
     config.seed = 9157#config_seed              # Chris
+
+    #set varibles for the detect module in the config object.
+    config.detect_reference_num = config_detect_reference_num
+    config.emb_dist_threshold = config_emb_dist_threshold
+    config.detect_module_activation_frequency = config_detect_module_activation_frequency
     
     # set up logging system
     #exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
@@ -143,10 +150,26 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
 
-    #task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    
+
+    #Creating function Pointers for the Constractors of the Task objects so they can be
+    #called later, so the objects are created after the execution of the run file.
     task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)          # Chris
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
     #eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+
+
+    #Creating function Pointers for the Constractors of the Detect Module object so it can be
+    #called later, so the object is created after the execution of the run file.
+    #Creatting a Detect Module Object
+    #NOTE: It can not work here because we do not know before hand the task
+    #obs size. Hence We will make it using a lmbda expration and pass it that
+    #to the agent.
+    #detect_module = Detect(one_hot=False, normalized=False, num_samples=100)
+
+    #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
+    config.detect_fn = lambda reference_num : Detect(reference_num, one_hot=False, normalized=False, num_samples=100)
+
     eval_task_fn= lambda log_dir: MetaCTgraphFlatObs(name, env_config_path,log_dir)            # Chris
     config.eval_task_fn = eval_task_fn
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
@@ -157,19 +180,11 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         critic_body=DummyBody_CL(200),
         num_tasks=num_tasks)
 
-    config.emb_dist_threshold = config_emb_dist_threshold
+    
 
-    #Create a Refernce for the Wasserstain Embeddings
+    '''#Create a Refernce for the Wasserstain Embeddings
     torch.manual_seed(98)
-    reference = torch.rand(500, self.task.state_dim)
-    #Creatting a Detect Module Object
-    #NOTE: It can not work here because we do not know before hand the task
-    #obs size. Hence We will make it using a lmbda expration and pass it that
-    #to the agent.
-    detect_module = Detect(one_hot=False, normalized=False, num_samples=100)
-
-    #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
-    config.detect = detect_module
+    reference = torch.rand(500, self.task.state_dim)'''
 
     config.seed = config_seed       # Chris
 
@@ -618,10 +633,11 @@ if __name__ == '__main__':
 
         shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
         #del shell_config['agents'][args.agent_id]
+        shell_config['detect_reference_num'] = shell_config['detect_reference_num'][args.agent_id]#Chris
+        
+        shell_config['emb_dist_threshold'] = shell_config['emb_dist_threshold'][args.agent_id]# Chris
 
         shell_config['detect_module_activation_frequency'] = shell_config['detect_module_activation_frequency'][args.agent_id] #Chris
-
-        shell_config['emb_dist_threshold'] = shell_config['emb_dist_threshold'][args.agent_id]      # Chris
         del shell_config['agents'][args.agent_id]
 
     if shell_config['env']['env_name'] == 'minigrid':

@@ -381,7 +381,7 @@ class MetaCTgraph(BaseTask):
         self.tasks = all_tasks
         self.env = None
         
-        '''# task label config
+        # task label config
         self.task_label_dim = env_meta_config['label_dim']
         self.one_hot_labels = env_meta_config['one_hot']
 
@@ -395,7 +395,7 @@ class MetaCTgraph(BaseTask):
             labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
             labels = labels.astype(np.float32) 
             for idx in range(len(self.tasks)):
-                self.tasks[idx]['task_label'] = labels[idx]'''
+                self.tasks[idx]['task_label'] = labels[idx]
 
         # set default task
         self.set_task(self.tasks[0])

@@ -7,9 +7,9 @@ from tqdm import tqdm
 
 
 class Detect:
-  def __init__(self, device, reference=200, title = '', num_samples=16384, input_dim=144, num_iter=10, one_hot=True, normalized=True, demo=True):
+  def __init__(self, reference_num, reference=200,  device='cpu',title = '', num_samples=16384, input_dim=144, num_iter=10, one_hot=True, normalized=True, demo=True):
     assert reference is not None, f'Reference not found.'
-    self.ref = reference
+    self.ref = None
     self.device = device
     self.num_samples = num_samples
     self.num_iter = num_iter
@@ -18,18 +18,36 @@ class Detect:
     self.demo = demo
     self.title = title
     self.input_dim = input_dim
+    self.reference_num = reference_num
 
 
-  def set_reference(self, a_reference):
+  def set_input_dim(self, an_input_dim):
+    '''A setter method, for manually setting and setting the input dimensionality of the detect
+    module.'''
+    self.input_dim = an_input_dim
+
+  def get_input_dim(self):
+    '''A getter method for accessing the input dimensionality of the detect module.'''
+    return self.input_dim
+
+
+  def set_reference(self, a_task_observation_dim, some_reference_num):
     '''A setter method, for manually setting and updating the reference for calculating
     the tasks embeddings.'''
-    self.ref = a_reference
+    torch.manual_seed(98)
+    reference = torch.rand(some_reference_num, a_task_observation_dim)
+    self.ref = reference
 
   def get_reference(self):
     '''A getter method for accessing the reference which is used to calculate the task
     embeddings'''
     return self.ref
 
+
+  def precalculate_embedding_size(self, a_reference_num, an_inputdim):
+    '''A method for calculating the embedding dimension '''
+    pre_calc_embedding_size = a_reference_num * an_inputdim
+    return pre_calc_embedding_size
 
   def preprocess_dataset(self, X):
     '''Function that preprpcess the Data-Batch of SAR before calcuting the embedding'''
