@@ -346,7 +346,7 @@ def shell_dist_minigrid_mp(name, args, shell_config):
 
     addresses = []
     ports = []
-    file1 = open('./addresses.csv', 'r')
+    file1 = open('./reference.csv', 'r')
     lines = file1.readlines()
     for line in lines:
         line = line.strip('\n')
