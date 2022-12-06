@@ -2,7 +2,7 @@
     "config_paths": ["ctgraph_d2_imgseed1.json", "ctgraph_d2_imgseed2.json", "ctgraph_d2_imgseed3.json", "ctgraph_d2_imgseed4.json", "ctgraph_d2_imgseed5.json", "ctgraph_d2_imgseed6.json", "ctgraph_d2_imgseed7.json", "ctgraph_d2_imgseed8.json"],
     "task_order": "default",
     "one_hot": true,
-    "label_dim": 32,
+    "label_dim": 72000,
     "num_tasks": 32
     }
     

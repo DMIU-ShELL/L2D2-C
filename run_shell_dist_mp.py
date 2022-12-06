@@ -204,7 +204,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     # set up communication (transfer module)
     mode = 'ondemand'
     comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval)
+        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, config_emb_dist_threshold, )
 
     # start training
     shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)

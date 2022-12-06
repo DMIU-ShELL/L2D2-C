@@ -562,7 +562,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     # Set msg to first task. The agents will then request knowledge on the first task.
     # this will ensure that other agents are aware that this agent is now working this task
     # until a task change happens.
-    msg = np.zeros(agent.get_task_emb_size)#shell_tasks[0]['task_label']
+    #msg = np.zeros(agent.get_task_emb_size)#shell_tasks[0]['task_label']
+    msg = None
     
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
     mask_rewards_dict = dict()
@@ -570,7 +571,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     # Track which agents are working which tasks. This will be resized every time a new agent is added
     # to the network. Every time there is a communication step 1, we will check if it is none otherwise update
     # this dictionary
-    track_tasks = {agent_id: torch.from_numpy(msg)}
+    track_tasks = {}#{agent_id: torch.from_numpy(msg)}
 
 
     # Agent-Communication interaction queues
@@ -698,7 +699,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 
                 # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
                 # the communication module will do its thing.
-                queue_label.put_nowait(msg)
+                if msg is not None:
+                    queue_label.put_nowait(msg)
                 #print(Fore.BLUE + "Agent requesting mask for label: ", msg)
                 #print()
 
@@ -732,7 +734,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
 
 
-            activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequncy())
+            activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency())
             run_detect_module(agent, activation_flag)
 
 
@@ -1150,7 +1152,7 @@ def run_detect_module(an_agent, activation_check_flag):
     so the approprate embeddings are generated for each batch of SAR data'''
     
     #Initilize the retun varibles with None values in the case of the detect module not being appropriate to run.
-    str_task_chng_msg, task_change_flag, new_emb = None
+    str_task_chng_msg, task_change_flag, new_emb = None, None, None
     
     if activation_check_flag:
         sar_data = an_agent.sar_data_extraction()

@@ -70,7 +70,7 @@ class ParallelComm(object):
     SLEEP_DURATION = 1
 
     # Task label size can be replaced with the embedding size.
-    def __init__(self, agent_id, num_agents, emb_label_sz, mask_sz, logger, init_address, init_port, mode, mask_interval):
+    def __init__(self, agent_id, num_agents, emb_label_sz, mask_sz, logger, init_address, init_port, mode, mask_interval, threshold):
         super(ParallelComm, self).__init__()
         self.agent_id = agent_id
         self.num_agents = num_agents
@@ -79,6 +79,7 @@ class ParallelComm(object):
         self.logger = logger
         self.mode = mode
         self.mask_interval = mask_interval
+        self.threshold = threshold
 
         print('MASK SIZE IS: ', self.mask_sz)
         
@@ -634,8 +635,8 @@ class ParallelComm(object):
                     for tlabel, treward in mask_rewards_dict.items():
                         if treward != np.around(0.0, decimals=6):
                             print(np.asarray(tlabel), treward)
-                            distance = np.sum(abs(np.subtract(req_label_as_np, np.asarray(tlabel))))
-                            if distance <= 0.0:
+                            distance = torch.linalg.vector_norm(req['task_label'] - torch.tensor(tlabel))
+                            if distance < self.threshold:
                                 d['dst_agent_id'] = req['sender_agent_id']
                                 d['mask_reward'] = treward
                                 d['dist'] = distance
@@ -709,7 +710,7 @@ class ParallelComm(object):
 
                         # If the recv_dist is lower or equal to the threshold and a best agent
                         # hasn't been selected yet then continue
-                        if recv_dist <= ParallelComm.THRESHOLD and selected == False:
+                        if recv_dist <= self.threshold and selected == False:
                             # Check if the reward is greater than the current reward for the task
                             # or if the knowledge even exists.
                             if tuple(msg) in mask_rewards_dict.keys():

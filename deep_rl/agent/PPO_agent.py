@@ -163,7 +163,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         #Precalculate the embedding size based on the reference and the network observation size.
         tmp_state_obs  = self.task.reset()
         tmp_state_obs = config.state_normalizer(tmp_state_obs)
-        observation_size = len(tmp_state_obs)
+        observation_size = tmp_state_obs.shape[1]
 
         #Assing a detect Component to the Agent upon initialisation
         self.detect = config.detect_fn(self.detect_reference_num, observation_size)
@@ -171,8 +171,10 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         #Variable for saving the size of the task embedding that the detect module has produced.
         #Initially we store the precalculated embedding size
-        self.task_emb_size  = self.detect.precalculate_embedding_size(self.detect_reference_num, observation_size)
+        self.detect.set_reference(observation_size, self.detect_reference_num)
 
+        self.task_emb_size  = self.detect.precalculate_embedding_size(self.detect_reference_num, observation_size)
+        print("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII:", observation_size, self.task_emb_size)
         #Ihave changed the bellow commande by substitue the label dim with embedding dim
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, self.task_emb_size)
         _params = list(self.network.parameters())
@@ -233,6 +235,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         else:
             batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
 
+        print(batch_task_label.shape)
         states, rollout = self._rollout_fn(states, batch_task_label)
 
         self.states = states
@@ -434,7 +437,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             next_states = config.state_normalizer(next_states)
 
             # save data to buffer for the detect module
-            self.data_buffer.feed_batch([states, actions, rewards, terminals, next_states])
+            self.data_buffer.feed_batch([states, actions.cpu(), rewards, terminals, next_states])
 
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
@@ -527,7 +530,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.emb_dist_threshold = a_distance_threshold
 
 
-    def get_detect_module_activation_frequency(seflf):
+    def get_detect_module_activation_frequency(self):
         '''A getteer for the detect module activation frequency'''
         return self.detect_module_activation_frequency
 
