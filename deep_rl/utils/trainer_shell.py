@@ -556,13 +556,13 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     del states_
 
 
-
+    
 
     # Msg can be embedding or task label.
     # Set msg to first task. The agents will then request knowledge on the first task.
     # this will ensure that other agents are aware that this agent is now working this task
     # until a task change happens.
-    msg = None#shell_tasks[0]['task_label']
+    msg = np.zeros(agent.get_task_emb_size)#shell_tasks[0]['task_label']
     
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
     mask_rewards_dict = dict()
