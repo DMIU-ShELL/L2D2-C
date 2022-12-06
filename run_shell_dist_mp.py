@@ -99,7 +99,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     config_seed = shell_config['seed']
     config_detect_reference_num = shell_config['detect_reference_num']
     config_emb_dist_threshold = shell_config['emb_dist_threshold']
-    config_detect_module_activation_frequency = shell_config['detect_module_activation_frequncy']
+    config_detect_module_activation_frequency = shell_config['detect_module_activation_frequency']
     # address and port number of the master/first agent (rank/id 0) in the pool of agents
     init_address = shell_config['dist_only']['init_address']
     init_port = shell_config['dist_only']['init_port']
@@ -168,7 +168,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     #detect_module = Detect(one_hot=False, normalized=False, num_samples=100)
 
     #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
-    config.detect_fn = lambda reference_num : Detect(reference_num, one_hot=False, normalized=False, num_samples=100)
+    config.detect_fn = lambda reference_num, input_dim: Detect(reference_num, input_dim, one_hot=False, normalized=False, num_samples=100)
 
     eval_task_fn= lambda log_dir: MetaCTgraphFlatObs(name, env_config_path,log_dir)            # Chris
     config.eval_task_fn = eval_task_fn
@@ -207,7 +207,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval)
 
     # start training
-    shell_dist_train_mp(agent, comm, detect_module, args.agent_id, args.num_agents)
+    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
 
 def shell_dist_mctgraph_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path
@@ -633,11 +633,11 @@ if __name__ == '__main__':
 
         shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
         #del shell_config['agents'][args.agent_id]
-        shell_config['detect_reference_num'] = shell_config['detect_reference_num'][args.agent_id]#Chris
+        shell_config['detect_reference_num'] = shell_config['detect_reference_num']#[args.agent_id]#Chris
         
-        shell_config['emb_dist_threshold'] = shell_config['emb_dist_threshold'][args.agent_id]# Chris
+        shell_config['emb_dist_threshold'] = shell_config['emb_dist_threshold']#[args.agent_id]# Chris
 
-        shell_config['detect_module_activation_frequency'] = shell_config['detect_module_activation_frequency'][args.agent_id] #Chris
+        shell_config['detect_module_activation_frequency'] = shell_config['detect_module_activation_frequency']#[args.agent_id] #Chris
         del shell_config['agents'][args.agent_id]
 
     if shell_config['env']['env_name'] == 'minigrid':

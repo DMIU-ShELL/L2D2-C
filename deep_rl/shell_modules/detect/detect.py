@@ -1,7 +1,7 @@
 import numpy as np
 import ot
 import torch
-from plotting import *
+#from plotting import *
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from tqdm import tqdm
 

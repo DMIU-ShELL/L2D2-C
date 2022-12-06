@@ -514,7 +514,7 @@ added in the future.
 import multiprocess as mp
 from colorama import Fore, Back, Style
 
-def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
+def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     logger = agent.config.logger
     #print()
 
@@ -586,7 +586,7 @@ def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
     # from running.
     queue_loop.put_nowait((track_tasks, mask_rewards_dict, await_response, shell_iterations))
 
-    detect = detect_module
+    #detect = detect_module
 
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
@@ -728,11 +728,12 @@ def shell_dist_train_mp(agent, comm, detect_module, agent_id, num_agents):
             shell_iterations += 1
 
 
-            daf = agent.get_
+            #daf = agent.get_
 
 
 
-            detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequncy())
+            activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequncy())
+            run_detect_module(agent, activation_flag)
 
 
             ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING
