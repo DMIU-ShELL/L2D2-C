@@ -167,7 +167,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     addresses = []
     ports = []
-    file1 = open('./addresses.csv', 'r')
+    file1 = open('./reference.csv', 'r')
     lines = file1.readlines()
     for line in lines:
         line = line.strip('\n')
@@ -175,11 +175,18 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         addresses.append(line[0])
         ports.append(int(line[1]))
 
+    # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
+    manager = mp.Manager()
+    knowledge_base = manager.dict()
+    world_size = manager.Value('i', num_agents)
+    query_table = manager.list()
+    reference_table = manager.list()
+
     mode = 'ondemand'
-    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports)
+    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports, knowledge_base, world_size, query_table, reference_table)
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
+    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base)
 
 def shell_dist_mctgraph_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path
@@ -616,7 +623,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int, default=0)        # Not necessary but useful. Used only for the logs filepath.
-    parser.add_argument('num_agents', help='world: total number of agents', type=int, default=1)                        # Required for the moment.
+    parser.add_argument('--num_agents', help='world: total number of agents', type=int, default=1)                        # Required for the moment.
     parser.add_argument('--shell_config_path', help='shell config', default='./shell_4x4.json')                             # Change the default so you don't have to type it every time. Required.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Not required

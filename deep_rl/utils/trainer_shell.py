@@ -515,7 +515,7 @@ import multiprocessing as mp
 import multiprocessing.dummy as mpd
 from colorama import Fore
 
-def shell_dist_train_mp(agent, comm, agent_id, num_agents):
+def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base):
     logger = agent.config.logger
     #print()
 
@@ -572,18 +572,11 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
 
     # Agent-Communication interaction queues
-    manager = mp.Manager()
     queue_mask = manager.Queue()
     queue_label = manager.Queue()
     queue_label_send = manager.Queue()  # Used to send label from comm to agent to convert to mask
     queue_mask_recv = manager.Queue()   # Used to send mask from agent to comm after conversion from label
     queue_loop = manager.Queue()
-
-    # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
-    knowledge_base = manager.dict()
-    world_size = manager.Value('i', num_agents)
-    #metadata = manager.dict()
-    #shell_iterations = manager.Value('i', 0)
 
     # Put in the initial data into the loop queue so that the comm module is not blocking the agent
     # from running.
@@ -592,7 +585,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
     # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base, world_size)
+    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
 
     exchanges = []
     task_times = []

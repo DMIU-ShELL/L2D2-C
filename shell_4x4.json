@@ -6,15 +6,15 @@
             "max_steps": 25600
         },
         {
-            "task_ids": [3, 2, 1, 0],
-            "max_steps": 25600
-        },
-        {
-            "task_ids": [3, 0, 1, 2],
+            "task_ids": [1, 2, 3, 0],
             "max_steps": 25600
         },
         {
             "task_ids": [2, 3, 0, 1],
+            "max_steps": 25600
+        },
+        {
+            "task_ids": [3, 0, 1, 2],
             "max_steps": 25600
         },
         {
