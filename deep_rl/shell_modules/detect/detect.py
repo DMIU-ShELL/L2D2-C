@@ -21,6 +21,7 @@ class Detect:
     self.reference_num = reference_num
 
 
+
   def set_input_dim(self, an_input_dim):
     '''A setter method, for manually setting and setting the input dimensionality of the detect
     module.'''
@@ -31,11 +32,11 @@ class Detect:
     return self.input_dim
 
 
-  def set_reference(self, a_task_observation_dim, some_reference_num):
+  def set_reference(self, a_task_observation_dim, some_reference_num, some_action_dim):
     '''A setter method, for manually setting and updating the reference for calculating
     the tasks embeddings.'''
     torch.manual_seed(98)
-    reference = torch.rand(some_reference_num, a_task_observation_dim)
+    reference = torch.rand(some_reference_num, (a_task_observation_dim + some_action_dim + 1))#Plus one which is the reward.
     self.ref = reference
 
   def get_reference(self):
@@ -43,10 +44,18 @@ class Detect:
     embeddings'''
     return self.ref
 
+  def set_num_samples(self, a_num_samples):
+    '''A setter method for manually setting the num of samples'''
+    self.num_samples = a_num_samples
 
-  def precalculate_embedding_size(self, a_reference_num, an_inputdim):
+  def get_num_samples(self):
+    '''A getter method for retreiving the detect sample size.'''
+    return self.num_samples
+
+
+  def precalculate_embedding_size(self, a_reference_num, an_inputdim, some_action_dim):
     '''A method for calculating the embedding dimension '''
-    pre_calc_embedding_size = a_reference_num * an_inputdim
+    pre_calc_embedding_size = a_reference_num * (an_inputdim + some_action_dim + 1)#Plus one which is the reward.
     return pre_calc_embedding_size
 
   def preprocess_dataset(self, X):
@@ -73,14 +82,14 @@ class Detect:
       mean = torch.mean(img.float())
       std = torch.std(img.float())
       img = (img.float()-mean)/std
-    # if not self.oh:
-    #   act_oh = torch.zeros((X.shape[0],len(torch.unique(act))))
-    #   for i in range(act.shape[0]):
-    #     act_oh [i,int(act[i])]=1
-    #   act = act_oh.to(self.device)
-    #   # lb = preprocessing.LabelBinarizer()
-    #   # lb.fit(act_.cpu())
-    #   # act = lb.transform(act_.cpu())
+    if not self.oh:
+       act_oh = torch.zeros((X.shape[0],len(torch.unique(act))))
+       for i in range(act.shape[0]):
+         act_oh [i,int(act[i])]=1
+       act = act_oh.to(self.device)
+       # lb = preprocessing.LabelBinarizer()
+       # lb.fit(act_.cpu())
+       # act = lb.transform(act_.cpu())
     return torch.cat((img, act, reward), dim=1).float()
     # return X.float()
 

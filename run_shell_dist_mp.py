@@ -168,7 +168,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     #detect_module = Detect(one_hot=False, normalized=False, num_samples=100)
 
     #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
-    config.detect_fn = lambda reference_num, input_dim: Detect(reference_num, input_dim, one_hot=False, normalized=False, num_samples=100)
+    config.detect_fn = lambda reference_num, input_dim: Detect(reference_num, input_dim, one_hot=False, normalized=False, num_samples=4)
 
     eval_task_fn= lambda log_dir: MetaCTgraphFlatObs(name, env_config_path,log_dir)            # Chris
     config.eval_task_fn = eval_task_fn

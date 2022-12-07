@@ -171,9 +171,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         #Variable for saving the size of the task embedding that the detect module has produced.
         #Initially we store the precalculated embedding size
-        self.detect.set_reference(observation_size, self.detect_reference_num)
+        self.detect.set_reference(observation_size, self.detect_reference_num, self.task.action_dim)
 
-        self.task_emb_size  = self.detect.precalculate_embedding_size(self.detect_reference_num, observation_size)
+        self.task_emb_size  = self.detect.precalculate_embedding_size(self.detect_reference_num, observation_size, self.task.action_dim)
         print("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII:", observation_size, self.task_emb_size)
         #Ihave changed the bellow commande by substitue the label dim with embedding dim
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, self.task_emb_size)
@@ -235,7 +235,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         else:
             batch_task_label = torch.repeat_interleave(task_label.reshape(1, -1), batch_dim, dim=0)
 
-        print(batch_task_label.shape)
+        #print(batch_task_label.shape)
         states, rollout = self._rollout_fn(states, batch_task_label)
 
         self.states = states
@@ -497,9 +497,14 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         Buffer in order to feed the Detect Module'''
 
         buffer_data = self.data_buffer.sample()
+        print("RB_DATA:", buffer_data)
+        print("RB_DATA_shape:", len(buffer_data))
         sar_data = []
         for tpl in buffer_data:
             sar_data.append(tpl[:3])
+
+        print("SAR_DATA:", sar_data)
+        sar_data = np.asarray(sar_data, dtype=object)
         return sar_data
 
     def compute_task_embedding(self, some_sar_data):

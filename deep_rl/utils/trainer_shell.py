@@ -729,12 +729,14 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             dict_logs = agent.iteration() #NOTE WE PERFORM THE TRAINING ITERATION HERE, IT IS WHERE OUR REPLAY BUFFER WILL BE FEELED WITH DATA!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             shell_iterations += 1
 
+            print("ITERATION NUMBER:", shell_iterations)
+
 
             #daf = agent.get_
 
 
 
-            activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency())
+            activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency(), agent)
             run_detect_module(agent, activation_flag)
 
 
@@ -1137,11 +1139,12 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
 #########################################################################################################################################
 
 
-def detect_module_activation_check(shell_training_iterations, detect_module_activation_frequncy):
+def detect_module_activation_check(shell_training_iterations, detect_module_activation_frequncy, agent):
     '''Utility function for checking wheter the Detect Module should be activated or not based on the
-    shell_training_iterations of the agent and the activation frequncy given from the configuration file.'''
+    shell_training_iterations of the agent and the activation frequncy given from the configuration file.
+    It makes sure that the data buffer has the ammount of data necassary for the detect module to sample.'''
     
-    if shell_training_iterations >= detect_module_activation_frequncy:
+    if shell_training_iterations >= detect_module_activation_frequncy and agent.data_buffer.size() >= (agent.detect.get_num_samples() - 1):
         return True
     else:
         return False
@@ -1156,6 +1159,8 @@ def run_detect_module(an_agent, activation_check_flag):
     
     if activation_check_flag:
         sar_data = an_agent.sar_data_extraction()
+        print("SAR 0:", sar_data[0])
+        print("SAR SIZE:",sar_data)
         new_emb = an_agent.compute_task_embedding(sar_data)
         emb_dist = an_agent.calculate_emb_distance(new_emb)
         emb_dist_thrshld = an_agent.get_emb_dist_threshold()
