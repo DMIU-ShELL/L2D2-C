@@ -588,6 +588,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.task_emb_size = a_task_emb_size
 
 
+
     def calculate_emb_distance(self, the_current_embedding, a_new_embedding):
         '''Method that calculates the distance of the newlly computed task embedding and
         compered to the existing one by calling the distance method of the agent's detect
@@ -622,9 +623,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         #and we assing as an embedding value a torch.Tensor of zeros of the same size as the embedding the
         #detect module has calculatd.
         if not key_to_check in self.task.get_task().keys():
-            self.task.get_task()['task_emb'] = torch.zeros(self.get_task_emb_size())
+            self.task.set_current_task_info(key_to_check, torch.zeros(self.get_task_emb_size()))
             print("TASK INFO REGISTRY UPDATED WITH EMBEDDING KEY-VALUE PAIR!!!!!!!!!!!!!!!!")
-            print("TASK INFO KEYS:", self.task.get_task())
+        print("TASK INFO KEYS:", self.task.get_task(all_workers=True))
 
         if emb_distance < an_emb_dist_threshold:
              self.task.get_task()['task_emb'] = (self.task.get_task()['task_emb'] + a_new_emb) / 2

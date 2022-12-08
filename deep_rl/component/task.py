@@ -424,6 +424,13 @@ class MetaCTgraph(BaseTask):
     def get_task(self):
         return self.current_task
 
+    def set_current_task_info(self, some_key, some_value):
+        '''A setter method for dynamically updaating the task info dict with new registered values.
+        '''
+        self.current_task.update({some_key: some_value})
+        print("HEEEEEEEEEEEEEEEEEEEEEEYYYYYYYYYYYYYYYYYYYYYYYY from METACT:", self.current_task)
+
+
     def get_all_tasks(self, requires_task_label=True):
         # `requires_task_label` left there for legacy/compatibility reasons to ensure uniformity
         # with other defined environments (e.g., minigrid and dynamic grid)
@@ -778,6 +785,12 @@ class ProcessTask:
     def get_task(self):
         self.pipe.send([ProcessWrapper.GET_TASK, None])
         return self.pipe.recv()
+    
+    def set_current_task_info(self, some_key, some_value):
+        ''''''
+        data_package = [some_key, some_value]
+        self.pipe.send([ProcessWrapper.SET_CURR_TASK_INFO, data_package])
+        print("HIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII form PROCESS TASK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
     def get_all_tasks(self, requires_task_label):
         self.pipe.send([ProcessWrapper.GET_ALL_TASKS, requires_task_label])
@@ -797,6 +810,7 @@ class ProcessWrapper(mp.Process):
     GET_TASK = 6
     GET_ALL_TASKS = 7
     RANDOM_TASKS = 8
+    SET_CURR_TASK_INFO = 10
     def __init__(self, pipe, task_fn, log_dir):
         mp.Process.__init__(self)
         self.pipe = pipe
@@ -836,6 +850,8 @@ class ProcessWrapper(mp.Process):
                 self.pipe.send(task.get_all_tasks(data))
             elif op == self.RANDOM_TASKS:
                 self.pipe.send(task.random_tasks(*data))
+            elif op == self.SET_CURR_TASK_INFO:
+                self.pipe.send(task.set_current_task_info(data[0], data[1]))
             else:
                 raise Exception('Unknown command')
 '''
@@ -968,6 +984,12 @@ class ParallelizedTask:
     def set_task(self, task_info):
         for task in self.tasks:
             task.set_task(task_info)
+
+    def set_current_task_info(self, some_key, some_value):
+        ''''''
+        for task in self.tasks:
+            task.set_current_task_info(some_key, some_value)
+        print("HIIIIIIIIIIIIIIIIIIIIIIIIILLLLLLLLLLLLLLLLLLLLLLLLLLLLOOOOOOOOOOOOOOOOOOOOOOOO form PARALLELIZED TASK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
     def get_task(self, all_workers=False):
         if not all_workers:
