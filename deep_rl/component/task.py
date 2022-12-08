@@ -355,7 +355,7 @@ class MetaCTgraph(BaseTask):
             names = ['ctgraph_d{0}_b{1}_imgseed_{2}_task_{3}'.format(depth, branch, img_seed, j) \
                 for j in range(len(tasks))] 
             #NOTE: tasks Includes the 'task-label' whichh is  a disaprated valvue
-            tasks = [{'name': name, 'task': np.array(task), 'task_label': None, 'task_emb': None, 'env_idx': idx} \
+            tasks = [{'name': name, 'task': np.array(task), 'task_label': None, 'env_idx': idx} \
                 for name, task in zip(names, tasks)]
             _all_tasks.append(tasks)
         all_tasks = []

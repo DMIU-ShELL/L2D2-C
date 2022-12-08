@@ -1160,9 +1160,10 @@ def run_detect_module(an_agent, activation_check_flag):
     if activation_check_flag:
         sar_data = an_agent.sar_data_extraction()
         print("SAR 0:", sar_data[0])
-        print("SAR SIZE:",sar_data)
+        print("SAR SIZE:",sar_data.shape)
         new_emb = an_agent.compute_task_embedding(sar_data)
-        emb_dist = an_agent.calculate_emb_distance(new_emb)
+        current_embedding = an_agent.get_current_task_embedding()
+        emb_dist = an_agent.calculate_emb_distance(current_embedding, new_emb)
         emb_dist_thrshld = an_agent.get_emb_dist_threshold()
         str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
 

@@ -497,21 +497,45 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         Buffer in order to feed the Detect Module'''
 
         buffer_data = self.data_buffer.sample()
-        print("RB_DATA:", buffer_data)
+        print("RB_DATA:", buffer_data[0])
+        print(type(buffer_data[0]))
         print("RB_DATA_shape:", len(buffer_data))
         sar_data = []
+        #ql = []
         for tpl in buffer_data:
-            sar_data.append(tpl[:3])
+            tmp0 = tpl[:3]
+            tmp1 = np.array(tmp0[1])
+            tmp1 = tmp1.reshape(1,)
+            tmp2 = np.array(tmp0[2])
+            tmp2 = tmp2.reshape(1,)
+            tmp3 = np.concatenate([tmp0[0].ravel(), tmp1, tmp2])
+            sar_data.append(tmp3)
 
-        print("SAR_DATA:", sar_data)
-        sar_data = np.asarray(sar_data, dtype=object)
-        return sar_data
+        '''for tpl in sar_data:
+            tmp1 = np.array(tpl[1])
+            tmp1 = tmp1.reshape(1,)
+            tmp2 = np.array(tpl[2])
+            tmp2 = tmp2.reshape(1,)
+            tmp3 = np.concatenate([tpl[0].ravel(), tmp1, tmp2])
+            ql.append(tmp3)'''
+        print("SAR_DATA:", sar_data[0])#sar_data[0])
+        print("SAR_DATA_SHAPE:", sar_data[0].shape)
+        print("SAR_DATA_TYPE:", type(sar_data[0]))
+        print("SAR_DATA_LENGTH:", len(sar_data))
+        sar_data_arr = np.array(sar_data)
+        '''np.savetxt("SAR01.txt", 
+           sar_data_arr,
+           fmt='%d')'''
+        print("SAR_DATA_NP_TYPE:", type(sar_data_arr))
+        return sar_data_arr
 
     def compute_task_embedding(self, some_sar_data):
         '''Function for computing the task embedding based on the current
         batch of SAR data derived from the replay buffer.'''
 
         task_embedding = self.detect.lwe(some_sar_data)
+        self.current_task_emb = task_embedding
+        self.task.get_task()['task_emb'] = task_embedding
         self.task_emb_size = len(task_embedding)
         return task_embedding
 
@@ -564,11 +588,11 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.task_emb_size = a_task_emb_size
 
 
-    def calculate_emb_distance(self, a_new_embedding):
+    def calculate_emb_distance(self, the_current_embedding, a_new_embedding):
         '''Method that calculates the distance of the newlly computed task embedding and
         compered to the existing one by calling the distance method of the agent's detect
         module.'''
-        emb_dist = self.detect.emb_dist(a_new_embedding)
+        emb_dist = self.detect.emb_distance(the_current_embedding, a_new_embedding)
         
         return emb_dist
 
@@ -597,8 +621,10 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         #if the pair does not exist, the agent encounters this task for the first time, we create the pair
         #and we assing as an embedding value a torch.Tensor of zeros of the same size as the embedding the
         #detect module has calculatd.
-        if not key_to_check in self.task.get_task():
+        if not key_to_check in self.task.get_task().keys():
             self.task.get_task()['task_emb'] = torch.zeros(self.get_task_emb_size())
+            print("TASK INFO REGISTRY UPDATED WITH EMBEDDING KEY-VALUE PAIR!!!!!!!!!!!!!!!!")
+            print("TASK INFO KEYS:", self.task.get_task())
 
         if emb_distance < an_emb_dist_threshold:
              self.task.get_task()['task_emb'] = (self.task.get_task()['task_emb'] + a_new_emb) / 2
