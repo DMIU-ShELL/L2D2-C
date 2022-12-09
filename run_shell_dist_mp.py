@@ -61,7 +61,8 @@ def global_config(config, name):
     random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
-    config.num_workers = 4
+
+    config.num_workers = 1
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
@@ -70,7 +71,7 @@ def global_config(config, name):
     config.use_gae = True
     config.gae_tau = 0.99
     config.entropy_weight = 0.1 #0.75
-    config.rollout_length = 128
+    config.rollout_length = 512
     config.optimization_epochs = 8
     config.num_mini_batches = 64
     config.ppo_ratio_clip = 0.1
@@ -155,7 +156,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     #Creating function Pointers for the Constractors of the Task objects so they can be
     #called later, so the objects are created after the execution of the run file.
     task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)          # Chris
-    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
     #eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
 
 

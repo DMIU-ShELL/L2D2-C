@@ -73,6 +73,7 @@ class Detect:
     for batch in loader:
       X.append(batch.squeeze().view(batch.shape[0],-1))
     X = torch.cat(X).to(self.device)
+    print("FIRST X:", X)
 
     img = X[:,:self.input_dim]
     act = X[:,self.input_dim:-1]
@@ -84,12 +85,15 @@ class Detect:
       img = (img.float()-mean)/std
     if not self.oh:
        act_oh = torch.zeros((X.shape[0],len(torch.unique(act))))
+       print("INITIAL ACT_OH:", act_oh)
+       print("act_OH:", act_oh)
        for i in range(act.shape[0]):
-         act_oh [i,int(act[i])]=1
+        print("HI form i:", i)
+        act_oh [i,int(act[i])]=1
        act = act_oh.to(self.device)
-       # lb = preprocessing.LabelBinarizer()
-       # lb.fit(act_.cpu())
-       # act = lb.transform(act_.cpu())
+       #lb = preprocessing.LabelBinarizer()
+       #lb.fit(act_.cpu())
+       #act = lb.transform(act_.cpu())
     return torch.cat((img, act, reward), dim=1).float()
     # return X.float()
 
@@ -97,6 +101,8 @@ class Detect:
     '''Calculates the Embedding for a given Data-Batch of SAR
     Returns a 1D Tensor with the calculated Embedding'''
     X = self.preprocess_dataset(X)
+    print("PrePRocess_SAR_DETECT:", X)
+    print(X.shape)
     ref_size = self.ref.shape[0]
     C = ot.dist(X.cpu(), self.ref).cpu().numpy()
     # Calculating the transport plan

@@ -426,6 +426,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
                 task_label=batch_task_label)
+            
             next_states, rewards, terminals, _ = self.task.step(actions.cpu().detach().numpy())
             self.episode_rewards += rewards
             rewards = config.reward_normalizer(rewards)
@@ -435,7 +436,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                     self.last_episode_rewards[i] = self.episode_rewards[i]
                     self.episode_rewards[i] = 0
             next_states = config.state_normalizer(next_states)
-
+            print(actions.cpu())
             # save data to buffer for the detect module
             self.data_buffer.feed_batch([states, actions.cpu(), rewards, terminals, next_states])
 
@@ -497,9 +498,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         Buffer in order to feed the Detect Module'''
 
         buffer_data = self.data_buffer.sample()
-        print("RB_DATA:", buffer_data[0])
-        print(type(buffer_data[0]))
-        print("RB_DATA_shape:", len(buffer_data))
+        #print("RB_DATA:", buffer_data[0])
+        #print(type(buffer_data[0]))
+        #print("RB_DATA_shape:", len(buffer_data))
         sar_data = []
         #ql = []
         for tpl in buffer_data:
@@ -517,16 +518,17 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             tmp2 = np.array(tpl[2])
             tmp2 = tmp2.reshape(1,)
             tmp3 = np.concatenate([tpl[0].ravel(), tmp1, tmp2])
-            ql.append(tmp3)'''
+            ql.append(tmp3)
         print("SAR_DATA:", sar_data[0])#sar_data[0])
         print("SAR_DATA_SHAPE:", sar_data[0].shape)
         print("SAR_DATA_TYPE:", type(sar_data[0]))
-        print("SAR_DATA_LENGTH:", len(sar_data))
+        print("SAR_DATA_LENGTH:", len(sar_data))'''
         sar_data_arr = np.array(sar_data)
-        '''np.savetxt("SAR01.txt", 
+        np.savetxt("FROM_SAR_WITH_LOVE.txt", 
            sar_data_arr,
-           fmt='%d')'''
+           fmt='%f')
         print("SAR_DATA_NP_TYPE:", type(sar_data_arr))
+        #print("SAR_DATA_NP_ARR:", sar_data_arr)
         return sar_data_arr
 
     def compute_task_embedding(self, some_sar_data):
@@ -535,7 +537,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         task_embedding = self.detect.lwe(some_sar_data)
         self.current_task_emb = task_embedding
-        self.task.get_task()['task_emb'] = task_embedding
+        self.task.set_current_task_info('task_emb', task_embedding)
+        #self.task.get_task()['task_emb'] = task_embedding
         self.task_emb_size = len(task_embedding)
         return task_embedding
 
@@ -626,7 +629,6 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             self.task.set_current_task_info(key_to_check, torch.zeros(self.get_task_emb_size()))
             print("TASK INFO REGISTRY UPDATED WITH EMBEDDING KEY-VALUE PAIR!!!!!!!!!!!!!!!!")
         print("TASK INFO KEYS:", self.task.get_task(all_workers=True))
-
         if emb_distance < an_emb_dist_threshold:
              self.task.get_task()['task_emb'] = (self.task.get_task()['task_emb'] + a_new_emb) / 2
              self.set_current_task_embedding(self.task.get_task()['task_emb'])#saving the updated embedding value to the agent cur_emb attribute as well

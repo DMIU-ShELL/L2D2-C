@@ -422,13 +422,14 @@ class MetaCTgraph(BaseTask):
         self.current_task = taskinfo
 
     def get_task(self):
+        print("HEEEEEEEEEEEEEEEYYYYYYYYYYYYY form the META_CT-Graph GET TASK:", self.current_task)
         return self.current_task
 
     def set_current_task_info(self, some_key, some_value):
         '''A setter method for dynamically updaating the task info dict with new registered values.
         '''
         self.current_task.update({some_key: some_value})
-        print("HEEEEEEEEEEEEEEEEEEEEEEYYYYYYYYYYYYYYYYYYYYYYYY from METACT:", self.current_task)
+        print("HEEEEEEEEEEEEEEEYYYYYYYYYYYYY from META_CT-Graph SET INFO:", self.current_task)
 
 
     def get_all_tasks(self, requires_task_label=True):
@@ -784,6 +785,7 @@ class ProcessTask:
 
     def get_task(self):
         self.pipe.send([ProcessWrapper.GET_TASK, None])
+        print("HI form PROCESSTASK!!!!!!!!!!!!!!!!!!!")
         return self.pipe.recv()
     
     def set_current_task_info(self, some_key, some_value):
@@ -810,7 +812,7 @@ class ProcessWrapper(mp.Process):
     GET_TASK = 6
     GET_ALL_TASKS = 7
     RANDOM_TASKS = 8
-    SET_CURR_TASK_INFO = 10
+    SET_CURR_TASK_INFO = 9
     def __init__(self, pipe, task_fn, log_dir):
         mp.Process.__init__(self)
         self.pipe = pipe
@@ -845,6 +847,7 @@ class ProcessWrapper(mp.Process):
             elif op == self.SET_TASK:
                 self.pipe.send(task.set_task(data))
             elif op == self.GET_TASK:
+                print("HELLO form PROCESSWRAPPER!!!!!!!!!!!!:", task.get_task())
                 self.pipe.send(task.get_task())
             elif op == self.GET_ALL_TASKS:
                 self.pipe.send(task.get_all_tasks(data))
@@ -995,6 +998,7 @@ class ParallelizedTask:
         if not all_workers:
             return self.tasks[0].get_task()
         else:
+            print("Hello form Prallelized Task!!!")
             return [task.get_task() for task in self.tasks]
 
     def get_all_tasks(self, requires_task_label):

@@ -1144,7 +1144,7 @@ def detect_module_activation_check(shell_training_iterations, detect_module_acti
     shell_training_iterations of the agent and the activation frequncy given from the configuration file.
     It makes sure that the data buffer has the ammount of data necassary for the detect module to sample.'''
     
-    if shell_training_iterations >= detect_module_activation_frequncy and agent.data_buffer.size() >= (agent.detect.get_num_samples() - 1):
+    if shell_training_iterations % detect_module_activation_frequncy != 0 and agent.data_buffer.size() >= (agent.detect.get_num_samples() - 1):
         return True
     else:
         return False
@@ -1159,8 +1159,9 @@ def run_detect_module(an_agent, activation_check_flag):
     
     if activation_check_flag:
         sar_data = an_agent.sar_data_extraction()
-        print("SAR 0:", sar_data[0])
+        print("SAR_DATA_ARR:", sar_data)
         print("SAR SIZE:",sar_data.shape)
+        print(sar_data)
         new_emb = an_agent.compute_task_embedding(sar_data)
         current_embedding = an_agent.get_current_task_embedding()
         emb_dist = an_agent.calculate_emb_distance(current_embedding, new_emb)

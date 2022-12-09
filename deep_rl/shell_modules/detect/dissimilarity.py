@@ -6,7 +6,7 @@ import ot
 from plotting import *
 
 class dissimilarity:
-  def __init__(self, reference, device='cpu', num_samples=16384, num_iter=10, one_hot=True, normalized=True, demo=True):
+  def __init__(self, reference, device='cpu', num_samples=256, num_iter=10, one_hot=True, normalized=True, demo=True):
     assert reference is not None, f'Reference not found.'
     self.ref = reference
     self.device = device
@@ -49,6 +49,8 @@ class dissimilarity:
 
   def lwe(self, X):
     X = self.preprocess_dataset(X)
+    print("PrePRocess_SAR_DETECT:", X)
+    print(X.shape)
     ref_size = self.ref.shape[0]
     C = ot.dist(X.cpu(), self.ref).cpu().numpy()
     # Calculating the transport plan
