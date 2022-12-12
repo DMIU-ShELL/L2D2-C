@@ -57,7 +57,7 @@ def global_config(config, name):
     random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
-    config.num_workers = 4
+    config.num_workers = 8
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
@@ -183,10 +183,10 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     reference_table = manager.list()
 
     mode = 'ondemand'
-    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports, knowledge_base, world_size, query_table, reference_table)
+    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, addresses, ports, knowledge_base, world_size, query_table, reference_table)
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base)
+    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, mask_interval)
 
 def shell_dist_mctgraph_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path

@@ -515,7 +515,7 @@ import multiprocessing as mp
 import multiprocessing.dummy as mpd
 from colorama import Fore
 
-def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base):
+def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base, mask_interval):
     logger = agent.config.logger
     #print()
 
@@ -576,16 +576,15 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
     queue_label = manager.Queue()
     queue_label_send = manager.Queue()  # Used to send label from comm to agent to convert to mask
     queue_mask_recv = manager.Queue()   # Used to send mask from agent to comm after conversion from label
-    queue_loop = manager.Queue()
 
     # Put in the initial data into the loop queue so that the comm module is not blocking the agent
     # from running.
-    queue_loop.put_nowait((shell_iterations))
+    #queue_loop.put_nowait((shell_iterations))
 
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
     # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop)
+    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv)
 
     exchanges = []
     task_times = []
@@ -616,6 +615,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
     def conv_handler():
         while True:
             convert = queue_label_send.get()
+            mask_to_send = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
+            print(f'{Fore.RED}Mask type from conversion: {mask_to_send.dtype}, {type(mask_to_send)}')
             convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
             queue_mask_recv.put((convert))
 
@@ -630,8 +631,14 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         iteration logging function, evaluation block, task change function, and the evaluation logging.
         '''
 
-        queue_loop.put((shell_iterations))
-        queue_label.put(msg)
+        #print(f'Knowledge base in agent: {knowledge_base}')
+        print(f'{Fore.RED}World size: {comm.world_size.value}')
+        #for key, val in comm.knowledge_base.items(): print(f'{Fore.RED}Knowledge base: {key}: {val}')
+        for addr in comm.query_list: print(f'{Fore.RED}{addr.inet4}, {addr.port}')
+
+        #queue_loop.put((shell_iterations))
+        if shell_iterations % mask_interval == 0:
+            queue_label.put(msg)
 
         
         ### AGENT ITERATION (training step): collect on policy data and optimise the agent
