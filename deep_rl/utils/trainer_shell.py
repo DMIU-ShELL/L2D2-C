@@ -740,11 +740,12 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
 
             activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency(), agent)
-            str_task_chng_msg, task_change_flag, emb_dist, new_emb = run_detect_module(agent, activation_flag)
+            str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb = run_detect_module(agent, activation_flag)
 
             #Logging of the detect operations!!!
             if activation_flag:
-                detect_module_activations.append([shell_iterations, activation_flag, agent.detect.get_num_samples(), str_task_chng_msg, task_change_flag, emb_dist, new_emb])
+                #print(Fore.GREEN)
+                detect_module_activations.append([shell_iterations, activation_flag, agent.detect.get_num_samples(), str_task_chng_msg, task_change_flag, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool, "HI I AM EMB:", new_emb])
                 np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
 
             ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING
@@ -762,7 +763,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                 # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
                 # logging cycle. Take average of all worker averages as the most recent reward score for a given task
                 mask_rewards_dict[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.around(np.mean(agent.iteration_rewards), decimals=6)#CHANGE TO USE THE EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!
-                print(Fore.BLUE + '', mask_rewards_dict, flush=True)
+                #print(Fore.BLUE + '', mask_rewards_dict, flush=True)
                 #print(track_tasks)
 
                 # Save agent model
@@ -1166,17 +1167,21 @@ def run_detect_module(an_agent, activation_check_flag):
     so the approprate embeddings are generated for each batch of SAR data'''
     
     #Initilize the retun varibles with None values in the case of the detect module not being appropriate to run.
-    str_task_chng_msg, task_change_flag, new_emb = None, None, None
+    str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb = None, None, None, None, None
     
     if activation_check_flag:
         sar_data = an_agent.sar_data_extraction()
         print("SAR_DATA_ARR:", sar_data)
         print("SAR SIZE:",sar_data.shape)
         print(sar_data)
+        #print("CURR_EMB:", current_embedding)
         new_emb = an_agent.compute_task_embedding(sar_data)
         current_embedding = an_agent.get_current_task_embedding()
+        print("CURR_EMB:", current_embedding)
+        print("NEW_EMB:", new_emb)
+        emb_bool = current_embedding == new_emb
         emb_dist = an_agent.calculate_emb_distance(current_embedding, new_emb)
         emb_dist_thrshld = an_agent.get_emb_dist_threshold()
         str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
 
-    return str_task_chng_msg, task_change_flag, emb_dist, new_emb
+    return str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb

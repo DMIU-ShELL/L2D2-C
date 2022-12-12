@@ -157,6 +157,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         #Varible for storing the current embedding label as an attribute of the agent itself.
         self.current_task_emb =  None #self.task.get_task()['task_emb']
 
+        self.new_task_emb = None
+
         # set seed before creating network to ensure network parameters are
         # same across all shell agents
         #torch.manual_seed(config.seed)
@@ -177,6 +179,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.detect.set_reference(observation_size, self.detect_reference_num, self.task.action_dim)
 
         self.task_emb_size  = self.detect.precalculate_embedding_size(self.detect_reference_num, observation_size, self.task.action_dim)
+        self.current_task_emb = torch.zeros(self.get_task_emb_size())
+        self.new_task_emb =  torch.zeros(self.get_task_emb_size())
         print("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII:", observation_size, self.task_emb_size)
         #Ihave changed the bellow commande by substitue the label dim with embedding dim
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, self.task_emb_size)
@@ -539,8 +543,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         batch of SAR data derived from the replay buffer.'''
 
         task_embedding = self.detect.lwe(some_sar_data)
-        self.current_task_emb = task_embedding
-        self.task.set_current_task_info('task_emb', task_embedding)
+        self.new_task_emb = task_embedding
+        #self.current_task_emb = task_embedding
+        #self.task.set_current_task_info('task_emb', task_embedding)
         #self.task.get_task()['task_emb'] = task_embedding
         self.task_emb_size = len(task_embedding)
         return task_embedding
@@ -582,6 +587,15 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         '''A setter method for updating the current task embedding with the new
         more acurate estimate of the embedding produced by the detect module.'''
         self.current_task_emb = new_current_task_embedding
+
+
+    def get_new_task_embedding(self):
+        ''''''
+        return self.new_task_emb
+
+    def set_new_task_emb(self, a_new_emb):
+        ''''''
+        self.new_task_emb = a_new_emb
 
 
     def get_task_emb_size(self):
@@ -642,11 +656,13 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
              str_task_chng_msg = "TASK CHNAGE NNNNOOOOTTTTT DETECTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
              task_chng_flag = False
         else:
-            self.task.get_task()['task_emb'] = a_new_emb
-            self.set_current_task_embedding(self.task.get_task()['task_emb'])#saving the updated embedding value to the agent cur_emb attribute as well
             self.task_train_end_emb()
-            str_task_chng_msg = "TASK CHNAGE DETECTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
             self.task_train_start_emb(a_new_emb, an_emb_dist_threshold)
+            self.task.get_task()['task_emb'] = a_new_emb
+            self.set_current_task_embedding(a_new_emb)#self.task.get_task()['task_emb'])#saving the updated embedding value to the agent cur_emb attribute as well
+            self.set_new_task_emb(a_new_emb)
+            str_task_chng_msg = "TASK CHNAGE DETECTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            
             task_chng_flag = True
 
         return str_task_chng_msg, task_chng_flag
