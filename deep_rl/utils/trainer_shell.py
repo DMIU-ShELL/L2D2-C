@@ -596,6 +596,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
     exchanges = []
     task_times = []
+    detect_module_activations = []
     #What is this for? NO NEED TO CHANGE, WAS FOR LOGGIN.
     task_times.append([0, shell_iterations, np.argmax(shell_tasks[0]['task_label'], axis=0), time.time()]) # CHNAGE THIS FORM LABEL TO EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -646,6 +647,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
                         exchanges.append([shell_iterations, best_agent_id, np.argmax(received_label, axis=0), _tempknowledgebase, len(mask), mask]) #CHANGE TO USE THE EMBEDDING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                         np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
                         #del mask
+
+                        
 
                     if torch.equal(track_tasks_temp[agent_id], track_tasks[agent_id]):
                         track_tasks = track_tasks_temp
@@ -737,8 +740,12 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
 
             activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency(), agent)
-            run_detect_module(agent, activation_flag)
+            str_task_chng_msg, task_change_flag, emb_dist, new_emb = run_detect_module(agent, activation_flag)
 
+            #Logging of the detect operations!!!
+            if activation_flag:
+                detect_module_activations.append([shell_iterations, activation_flag, agent.detect.get_num_samples(), str_task_chng_msg, task_change_flag, emb_dist, new_emb])
+                np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
 
             ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING
             '''
@@ -1172,4 +1179,4 @@ def run_detect_module(an_agent, activation_check_flag):
         emb_dist_thrshld = an_agent.get_emb_dist_threshold()
         str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
 
-    return str_task_chng_msg, task_change_flag, new_emb
+    return str_task_chng_msg, task_change_flag, emb_dist, new_emb

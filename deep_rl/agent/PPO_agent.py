@@ -199,7 +199,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         
         self.layers_output = None
-        self.data_buffer = Replay(memory_size=int(1e4), batch_size=256)
+        self.data_buffer = Replay(memory_size=int(1e4), batch_size=512)
 
         self.curr_train_task_label = None
         self.curr_eval_task_label = None
