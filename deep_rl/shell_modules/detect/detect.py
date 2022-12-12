@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 
 class Detect:
-  def __init__(self, reference_num, reference=200,  device='cpu',title = '', num_samples=16384, input_dim=144, num_iter=10, one_hot=True, normalized=True, demo=True):
+  def __init__(self, reference_num, num_samples, reference=200,  device='cpu',title = '', input_dim=144, num_iter=10, one_hot=True, normalized=True, demo=True):
     assert reference is not None, f'Reference not found.'
     self.ref = None
     self.device = device

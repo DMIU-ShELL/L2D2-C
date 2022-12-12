@@ -142,6 +142,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         #Variable for storing the detect reference number.
         self.detect_reference_num = config.detect_reference_num
 
+        #Variable for storing the number of samples hyperperameter of the detect module.
+        self.detect_num_samples = config.detect_num_samples
+
         #Varible for checking for dishiding wether the agent has encountered a new task or not.
         self.emb_dist_threshold = config.emb_dist_threshold
 
@@ -166,7 +169,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         observation_size = tmp_state_obs.shape[1]
 
         #Assing a detect Component to the Agent upon initialisation
-        self.detect = config.detect_fn(self.detect_reference_num, observation_size)
+        self.detect = config.detect_fn(self.detect_reference_num, observation_size, self.detect_num_samples)
 
 
         #Variable for saving the size of the task embedding that the detect module has produced.
@@ -436,7 +439,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                     self.last_episode_rewards[i] = self.episode_rewards[i]
                     self.episode_rewards[i] = 0
             next_states = config.state_normalizer(next_states)
-            print(actions.cpu())
+            #print(actions.cpu())
             # save data to buffer for the detect module
             self.data_buffer.feed_batch([states, actions.cpu(), rewards, terminals, next_states])
 

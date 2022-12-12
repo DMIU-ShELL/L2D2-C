@@ -1144,7 +1144,11 @@ def detect_module_activation_check(shell_training_iterations, detect_module_acti
     shell_training_iterations of the agent and the activation frequncy given from the configuration file.
     It makes sure that the data buffer has the ammount of data necassary for the detect module to sample.'''
     
-    if shell_training_iterations % detect_module_activation_frequncy != 0 and agent.data_buffer.size() >= (agent.detect.get_num_samples() - 1):
+
+    print("REPAY_BUFFER_SIZE:", agent.data_buffer.size())
+    print("DETECT_MODULE_SAMPLE_SIZE:", agent.detect.get_num_samples())
+    print("ACTUAL_SAMPLES_DETECT_NEEDS:", (agent.detect.get_num_samples() * 64))
+    if shell_training_iterations != 0 and shell_training_iterations % detect_module_activation_frequncy == 0 and agent.data_buffer.size() >= (agent.detect.get_num_samples() * 64):#Times the batch size the Detect Module uses.
         return True
     else:
         return False

@@ -99,6 +99,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
     config_detect_reference_num = shell_config['detect_reference_num']
+    config_detect_num_samples = shell_config['detect_num_samples']
     config_emb_dist_threshold = shell_config['emb_dist_threshold']
     config_detect_module_activation_frequency = shell_config['detect_module_activation_frequency']
     # address and port number of the master/first agent (rank/id 0) in the pool of agents
@@ -115,6 +116,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     #set varibles for the detect module in the config object.
     config.detect_reference_num = config_detect_reference_num
+    config.detect_num_samples = config_detect_num_samples
     config.emb_dist_threshold = config_emb_dist_threshold
     config.detect_module_activation_frequency = config_detect_module_activation_frequency
     
@@ -169,7 +171,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     #detect_module = Detect(one_hot=False, normalized=False, num_samples=100)
 
     #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
-    config.detect_fn = lambda reference_num, input_dim: Detect(reference_num, input_dim, one_hot=False, normalized=False, num_samples=4)
+    config.detect_fn = lambda reference_num, input_dim, num_samples: Detect(reference_num, input_dim, num_samples, one_hot=False, normalized=False)
 
     eval_task_fn= lambda log_dir: MetaCTgraphFlatObs(name, env_config_path,log_dir)            # Chris
     config.eval_task_fn = eval_task_fn
@@ -635,6 +637,8 @@ if __name__ == '__main__':
         shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
         #del shell_config['agents'][args.agent_id]
         shell_config['detect_reference_num'] = shell_config['detect_reference_num']#[args.agent_id]#Chris
+
+        shell_config['detect_num_samples'] = shell_config['detect_num_samples']#Chris
         
         shell_config['emb_dist_threshold'] = shell_config['emb_dist_threshold']#[args.agent_id]# Chris
 
