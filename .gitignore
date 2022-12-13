@@ -15,6 +15,7 @@ Experiments
 test_scripts
 log_temp
 old_logs
+log_offload
 figure
 to_plot
 

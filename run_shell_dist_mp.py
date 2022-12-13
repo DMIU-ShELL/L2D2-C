@@ -65,7 +65,7 @@ def global_config(config, name):
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
-    config.entropy_weight = 0.1 #0.75
+    config.entropy_weight = 0.00015 #0.75
     config.rollout_length = 128
     config.optimization_epochs = 8
     config.num_mini_batches = 64
@@ -140,7 +140,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     #task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
     task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)          # Chris
-    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
     #eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
     eval_task_fn= lambda log_dir: MetaCTgraphFlatObs(name, env_config_path,log_dir)            # Chris
     config.eval_task_fn = eval_task_fn
@@ -161,7 +161,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     #    print(k, " : ", v)
 
 
-    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 1
+    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 2
 
     # set up communication (transfer module)
 

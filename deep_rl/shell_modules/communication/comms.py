@@ -444,8 +444,8 @@ class ParallelComm(object):
         best_agent_id = None
         best_agent_rw = {}
 
-        print(Fore.YELLOW + f'{metadata}')
-        print(Fore.YELLOW + f'{self.knowledge_base}')
+        self.logger.info(Fore.YELLOW + f'{metadata}')
+        self.logger.info(Fore.YELLOW + f'{self.knowledge_base}')
             
         # if not results something bad has happened
         if len(metadata) > 0:
@@ -473,6 +473,8 @@ class ParallelComm(object):
                     recv_msk_rw = data_dict['mask_reward']
                     recv_dist = data_dict['dist']
                     recv_label = data_dict['embedding']
+                    
+                    self.logger.info(Fore.YELLOW + f'{recv_address}\n{recv_port}\n{recv_msk_rw}\n{recv_dist}\n{recv_label}\n')
 
                     # If the recv_dist is lower or equal to the threshold and a best agent
                     # hasn't been selected yet then continue
@@ -481,7 +483,8 @@ class ParallelComm(object):
                             # Check if the reward is greater than the current reward for the task
                             # or if the knowledge even exists.
                             if tuple(recv_label) in self.knowledge_base.keys():
-                                if round(recv_msk_rw, 6) > self.knowledge_base[tuple(recv_label)]:
+                                self.logger.info(f'COMPARISON TAKES PLACE FOR CASE 1: {round(recv_msk_rw, 6)} > {0.75 * self.knowledge_base[tuple(recv_label)]}')
+                                if 0.9 * round(recv_msk_rw, 6) > self.knowledge_base[tuple(recv_label)]:
                                     # Add the agent id and embedding/tasklabel from the agent
                                     # to a dictionary to send requests/rejections to.
                                     send_msk_requests.append(data_dict)
@@ -494,6 +497,7 @@ class ParallelComm(object):
                             # If we don't have any knowledge present for the task then get the mask 
                             # anyway from the best agent.
                             else:
+                                self.logger.info(f'NO COMPARISON. RUNNING CASE 2 AS KNOWLEDGE NOT IN KNOWLEDGE BASE YET')
                                 send_msk_requests.append(data_dict)
                                 best_agent_id = {recv_address: recv_port}
                                 best_agent_rw[tuple(recv_label)] = np.around(recv_msk_rw, 6)

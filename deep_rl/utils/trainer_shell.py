@@ -603,6 +603,12 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
                 knowledge_base.update(best_agent_rw)
                 # Update the network with the mask
                 agent.distil_task_knowledge_single(mask, received_label)
+
+                # Debugging. Reset the environment before using the new mask.
+                #agent.states = agent.task.reset()
+                #agent.states = agent.config.state_normalizer(agent.states)
+
+
                 logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
 
                 _tempknowledgebase = {}
