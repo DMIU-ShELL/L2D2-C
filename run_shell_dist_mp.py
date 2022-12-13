@@ -178,10 +178,10 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
         phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
-        hidden_units=(200, 200, 200), num_tasks=num_tasks),
+        hidden_units=(200, 200, 200), num_tasks=20),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
-        num_tasks=num_tasks)
+        num_tasks=20)
 
     
 

@@ -432,7 +432,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         rollout = []
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states, \
-                task_label=batch_task_label)
+                task_label=batch_task_label) #NOTE HERE WE BREAK in iteration 315!!!!!!!!!!!!!!!!!!!!!!!
             
             next_states, rewards, terminals, _ = self.task.step(actions.cpu().detach().numpy())
             self.episode_rewards += rewards
@@ -541,7 +541,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
     def compute_task_embedding(self, some_sar_data):
         '''Function for computing the task embedding based on the current
         batch of SAR data derived from the replay buffer.'''
-
+        #print("TASK NUM OF ACTIONS:", self.task.action_space.n)
         task_embedding = self.detect.lwe(some_sar_data)
         self.new_task_emb = task_embedding
         #self.current_task_emb = task_embedding

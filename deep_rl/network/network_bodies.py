@@ -150,7 +150,7 @@ class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learn
                 ret_act.append(('{0}.layers.{1}'.format(prefix, i), x))
         else:
             for layer in self.layers:
-                x = self.gate(layer(x))
+                x = self.gate(layer(x))#NOTE Here is where we crash !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         return x, ret_act
 
 class TwoLayerFCBodyWithAction(nn.Module):

@@ -389,7 +389,7 @@ class CategoricalActorCriticNet_SS(nn.Module, BaseNet):
         if task_label is not None and not isinstance(task_label, torch.Tensor):
             task_label = tensor(task_label)
         layers_output = []
-        phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
+        phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')#NOTE Here is where we crash !!!!!!!!!!!!!!!
         layers_output += out
         phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
         layers_output += out

@@ -109,7 +109,7 @@ class MultitaskMaskLinear(nn.Linear):
         else:
             # Subnet forward pass (given task info in self.task)
             #subnet = self._subnet_class.apply(self.scores[self.task])
-            subnet = self._forward_mask()
+            subnet = self._forward_mask()#NOTE Here is where we crash !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         w = self.weight * subnet
         x = F.linear(x, w, self.bias)
         return x

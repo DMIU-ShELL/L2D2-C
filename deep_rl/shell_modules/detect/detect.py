@@ -84,13 +84,14 @@ class Detect:
       std = torch.std(img.float())
       img = (img.float()-mean)/std
     if not self.oh:
-       act_oh = torch.zeros((X.shape[0],len(torch.unique(act))))
+       act_oh = torch.zeros(X.shape[0], 3)
        print("INITIAL ACT_OH:", act_oh)
-       print("act_OH:", act_oh)
+ 
        for i in range(act.shape[0]):
         print("HI form i:", i)
         act_oh [i,int(act[i])]=1
        act = act_oh.to(self.device)
+       print("act_OH:", act_oh)
        #lb = preprocessing.LabelBinarizer()
        #lb.fit(act_.cpu())
        #act = lb.transform(act_.cpu())
