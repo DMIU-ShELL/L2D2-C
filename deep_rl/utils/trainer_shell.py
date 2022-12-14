@@ -517,7 +517,6 @@ from colorama import Fore
 
 def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base, mask_interval):
     logger = agent.config.logger
-    #print()
 
     logger.info(Fore.BLUE + '*****start shell training')
 
@@ -622,7 +621,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         while True:
             convert = queue_label_send.get()
             mask_to_send = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
-            print(f'{Fore.RED}Mask type from conversion: {mask_to_send.dtype}, {type(mask_to_send)}')
+            logger.info(f'{Fore.RED}Mask type from conversion: {mask_to_send.dtype}, {type(mask_to_send)}')
             convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
             queue_mask_recv.put((convert))
 
@@ -636,11 +635,13 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         The main iteration loop. Handles everything from the actual iteration function (data collection/optimisation),
         iteration logging function, evaluation block, task change function, and the evaluation logging.
         '''
+        if shell_done:
+            continue
 
         #print(f'Knowledge base in agent: {knowledge_base}')
-        print(f'{Fore.RED}World size: {comm.world_size.value}')
+        logger.info(f'{Fore.RED}World size: {comm.world_size.value}')
         #for key, val in comm.knowledge_base.items(): print(f'{Fore.RED}Knowledge base: {key}: {val}')
-        for addr in comm.query_list: print(f'{Fore.RED}{addr.inet4}, {addr.port}')
+        for addr in comm.query_list: logger.info(f'{Fore.RED}{addr.inet4}, {addr.port}')
 
         #queue_loop.put((shell_iterations))
         if shell_iterations % mask_interval == 0:
@@ -716,9 +717,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
         task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
         if agent.total_steps >= task_steps_limit:
-            #print()
             task_counter_ = shell_task_counter
-            logger.info(Fore.BLUE + '*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
+            logger.info('\n' + Fore.BLUE + '*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
             agent.task_train_end()
 
             task_counter_ += 1
@@ -768,12 +768,6 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
             shell_eval_tracker = False
             shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
 
-
-        # If ShELL is finished running all tasks then stop the program
-        # this will have to be changed when we deploy so agents never stop working
-        # and simply idle if there is nothing to learn.
-        if shell_done:
-            break
     # end of while True
 
     eval_data_fh.close()
