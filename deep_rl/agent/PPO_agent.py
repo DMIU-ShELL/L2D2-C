@@ -522,7 +522,9 @@ class ShellAgent_DP(LLAgent):
         return found_mask
             
     def label_to_mask(self, task_label):
+        print(task_label)
         task_idx = self._label_to_idx(task_label)
+        print(task_idx)
         # get task mask
         if task_idx is None:
             mask = None

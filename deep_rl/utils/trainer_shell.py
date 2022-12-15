@@ -515,7 +515,7 @@ import multiprocessing as mp
 import multiprocessing.dummy as mpd
 from colorama import Fore
 
-def shell_dist_train_mp(agent, comm, agent_id, num_agents):
+def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base, mask_interval):
     logger = agent.config.logger
     #print()
 
@@ -553,10 +553,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     logger.info(Fore.BLUE + 'task: {0}'.format(shell_tasks[0]['task']))
     logger.info(Fore.BLUE + 'task_label: {0}'.format(shell_tasks[0]['task_label']))
     agent.task_train_start(shell_tasks[0]['task_label'])
-    #print()
     del states_
-
-
 
 
     # Msg can be embedding or task label.
@@ -565,34 +562,16 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
     # until a task change happens.
     msg = shell_tasks[0]['task_label']
 
-    # Track which agents are working which tasks. This will be resized every time a new agent is added
-    # to the network. Every time there is a communication step 1, we will check if it is none otherwise update
-    # this dictionary
-    #track_tasks = {agent_id: torch.from_numpy(msg)}
-
-
     # Agent-Communication interaction queues
-    manager = mp.Manager()
     queue_mask = manager.Queue()
     queue_label = manager.Queue()
     queue_label_send = manager.Queue()  # Used to send label from comm to agent to convert to mask
     queue_mask_recv = manager.Queue()   # Used to send mask from agent to comm after conversion from label
-    queue_loop = manager.Queue()
-
-    # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
-    knowledge_base = manager.dict()
-    world_size = manager.Value('i', num_agents)
-    #metadata = manager.dict()
-    #shell_iterations = manager.Value('i', 0)
-
-    # Put in the initial data into the loop queue so that the comm module is not blocking the agent
-    # from running.
-    queue_loop.put_nowait((shell_iterations))
 
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
     # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base, world_size)
+    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv)
 
     exchanges = []
     task_times = []
@@ -606,39 +585,87 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             logger.info(Fore.WHITE + f'\nAgent received from comm: \nMask:{mask}\nReward:{best_agent_rw}\nSrc:{best_agent_id}\nEmbedding:{received_label}')
                 
             if mask is not None:
-                #if shell_iterations % mask_interval == 0:
-                # Update the knowledge base with the expected reward
-                knowledge_base.update(best_agent_rw)
                 # Update the network with the mask
                 agent.distil_task_knowledge_single(mask, received_label)
+                # Update the knowledge base with the expected reward
+                knowledge_base.update(best_agent_rw)
+
                 logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
 
+                # Converting the knowledge base keys from tuple labels/embeddings to integers for easy reading in the logs.
                 _tempknowledgebase = {}
                 for key, val in knowledge_base.items():
                     _tempknowledgebase[np.argmax(key, axis=0)] = val
 
+                # Log the mask distillation
                 exchanges.append([shell_iterations, best_agent_id, np.argmax(received_label, axis=0), _tempknowledgebase, len(mask), mask])
                 np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
 
     def conv_handler():
         while True:
+            logger.info(Fore.RED + 'Waiting on a label to convert...')
             convert = queue_label_send.get()
+            logger.info(Fore.RED + f'Got a label to convert: {convert}')
+
+            print(convert['embedding'], type(convert['embedding']), convert['embedding'].dtype)
+
             convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
+            print(convert['mask'])
+            logger.info(f"{Fore.RED}Mask type from conversion: {convert['mask'].dtype}, {type(convert['mask'])}")
+            logger.info(f'{Fore.RED}{convert}')
+
             queue_mask_recv.put((convert))
 
     t_mask = mpd.Pool(processes=1)
-    t_conv = mpd.Pool(processes=1)
+    #t_conv = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
-    t_conv.apply_async(conv_handler)
+    #t_conv.apply_async(conv_handler)
 
+    idling = True
     while True:
         '''
         The main iteration loop. Handles everything from the actual iteration function (data collection/optimisation),
         iteration logging function, evaluation block, task change function, and the evaluation logging.
         '''
+        # Keeps the server running if the agent is done training.
+        if shell_done:
+            if idling:
+                print('Agent is idling...')
+                idling = False
 
-        queue_loop.put((shell_iterations))
-        queue_label.put(msg)
+            logger.info(Fore.RED + 'Waiting on a label to convert...')
+            convert = queue_label_send.get()
+            logger.info(Fore.RED + f'Got a label to convert: {convert}')
+
+            print(convert['embedding'], type(convert['embedding']), convert['embedding'].dtype)
+
+            convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
+            print(convert['mask'])
+            logger.info(f"{Fore.RED}Mask type from conversion: {convert['mask'].dtype}, {type(convert['mask'])}")
+            logger.info(f'{Fore.RED}{convert}')
+
+            queue_mask_recv.put((convert))
+
+
+        try:
+            logger.info(Fore.RED + 'Waiting on a label to convert...')
+            convert = queue_label_send.get()
+            logger.info(Fore.RED + f'Got a label to convert: {convert}')
+
+            print(convert['embedding'], type(convert['embedding']), convert['embedding'].dtype)
+
+            convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
+            print(convert['mask'])
+            logger.info(f"{Fore.RED}Mask type from conversion: {convert['mask'].dtype}, {type(convert['mask'])}")
+            logger.info(f'{Fore.RED}{convert}')
+
+            queue_mask_recv.put((convert))
+        except:
+            pass
+
+        # Send query to communication module if interval is reached.
+        if shell_iterations % mask_interval == 0:
+            queue_label.put(msg)
 
         
         ### AGENT ITERATION (training step): collect on policy data and optimise the agent
@@ -697,9 +724,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
 
         ### TASK CHANGE
-        # end of current task training. move onto next task or end training if last task.
-        # i.e., Task Change occurs here. For detect module, if the task embedding signifies a task
-        # change then that occurs here.
+        # Change task if reached maximum training steps. If final task, then end training and idle.
         '''
         If we want to use a Fetch All mode for ShELL then we need to add a commmunication component
         at task change which broadcasts the mask to all other agents currently on the network.
@@ -710,7 +735,6 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
         if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
         task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
         if agent.total_steps >= task_steps_limit:
-            #print()
             task_counter_ = shell_task_counter
             logger.info(Fore.BLUE + '*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
             agent.task_train_end()
@@ -750,7 +774,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
 
         ### EVALUATION BLOCK LOGGING
         '''
-        Logs the evaluation block data and tracks it.
+        Logs the evaluation block data and tracks it. This is no longer used.
         '''
         if shell_eval_tracker:
             # log the last eval metrics to file
@@ -763,11 +787,6 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents):
             shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
 
 
-        # If ShELL is finished running all tasks then stop the program
-        # this will have to be changed when we deploy so agents never stop working
-        # and simply idle if there is nothing to learn.
-        if shell_done:
-            break
     # end of while True
 
     eval_data_fh.close()

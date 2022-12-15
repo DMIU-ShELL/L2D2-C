@@ -172,14 +172,19 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     for line in lines:
         line = line.strip('\n')
         line = line.split(', ')
+        if int(line[1]) == init_port and line[0] == init_address: continue
         addresses.append(line[0])
         ports.append(int(line[1]))
 
+    manager = mp.Manager()
+    knowledge_base = manager.dict()
+    world_size = manager.Value('i', num_agents)
+
     mode = 'ondemand'
-    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports)
+    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports, knowledge_base, world_size)
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
+    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, mask_interval)
 
 def shell_dist_mctgraph_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path
@@ -617,7 +622,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int, default=0)        # Necessary for logging purposes and selecting the correcty curriculum from shell.json. Please set correctly.
     parser.add_argument('num_agents', help='world: total number of agents', type=int, default=1)                        # Required for the moment.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell.json')                             # Change the default so you don't have to type it every time. Required.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_4x4.json')                             # Change the default so you don't have to type it every time. Required.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Not required
     parser.add_argument('--mode', help='indicate evaluation agent', type=int, default=0)                                # Don't change. Default value of 0 is the only one that is implemented and tested at the moment.
