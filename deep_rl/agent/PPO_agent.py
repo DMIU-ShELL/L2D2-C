@@ -139,6 +139,10 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         torch.manual_seed(98)
         reference = torch.rand(500, self.task.state_dim)'''
 
+        #Variable for storing the action space size of the task for using it to 
+        #convert the actions to one-hot vectors.
+        self.task_action_space_size = self.task.tasks[0].action_space.n
+
         #Variable for storing the detect reference number.
         self.detect_reference_num = config.detect_reference_num
 
@@ -182,6 +186,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.current_task_emb = torch.zeros(self.get_task_emb_size())
         self.new_task_emb =  torch.zeros(self.get_task_emb_size())
         print("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII:", observation_size, self.task_emb_size)
+        print("HIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII:", self.task_action_space_size)
         #Ihave changed the bellow commande by substitue the label dim with embedding dim
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, self.task_emb_size)
         _params = list(self.network.parameters())
@@ -322,7 +327,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             'value_loss': value_loss_log, 'log_prob': log_probs_log, 'entropy': entropy_log, \
             'ppo_ratio': ratio_log}
 
-
+    #NOTE it is not used!!!!
     def iteration_emb(self):
         '''This function performs the training iteration.
         It is where the learner of the agent (the neural network) is being optimized.
@@ -538,11 +543,11 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         #print("SAR_DATA_NP_ARR:", sar_data_arr)
         return sar_data_arr
 
-    def compute_task_embedding(self, some_sar_data):
+    def compute_task_embedding(self, some_sar_data, task_action_space_size):
         '''Function for computing the task embedding based on the current
         batch of SAR data derived from the replay buffer.'''
         #print("TASK NUM OF ACTIONS:", self.task.action_space.n)
-        task_embedding = self.detect.lwe(some_sar_data)
+        task_embedding = self.detect.lwe(some_sar_data, task_action_space_size)
         self.new_task_emb = task_embedding
         #self.current_task_emb = task_embedding
         #self.task.set_current_task_info('task_emb', task_embedding)
@@ -550,6 +555,16 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.task_emb_size = len(task_embedding)
         return task_embedding
 
+
+    def get_task_action_space_size(self):
+        '''A getter method for retreiving the task action space.'''
+        return self.task_action_space_size
+
+    def set_task_action_space_size(self, a_new_action_space):
+        '''A setter method for manually assining the task action space
+        size for letter use it for converting the actions to one-hot
+        representation.'''
+        self.task_action_space_size = a_new_action_space
 
 
     def get_task_emb_size(self):
@@ -1107,3 +1122,8 @@ class LLAgent_NoOracle(PPOContinualLearnerAgent):
             task_idx = self._label_to_idx(self.curr_train_task_label)
             set_model_task(self.network, task_idx)
         return
+
+
+if __name__ == '__main__':
+
+    pass

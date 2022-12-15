@@ -1155,7 +1155,7 @@ def detect_module_activation_check(shell_training_iterations, detect_module_acti
 
     print("REPAY_BUFFER_SIZE:", agent.data_buffer.size())
     print("DETECT_MODULE_SAMPLE_SIZE:", agent.detect.get_num_samples())
-    print("ACTUAL_SAMPLES_DETECT_NEEDS:", (agent.detect.get_num_samples() * 64))
+    #print("ACTUAL_SAMPLES_DETECT_NEEDS:", (agent.detect.get_num_samples() * 64))
     if shell_training_iterations != 0 and shell_training_iterations % detect_module_activation_frequncy == 0 and agent.data_buffer.size() >= (agent.detect.get_num_samples() ):#Times the batch size the Detect Module uses.
         return True
     else:
@@ -1175,10 +1175,11 @@ def run_detect_module(an_agent, activation_check_flag):
         print("SAR SIZE:",sar_data.shape)
         print(sar_data)
         #print("CURR_EMB:", current_embedding)
-        new_emb = an_agent.compute_task_embedding(sar_data)
+        new_emb = an_agent.compute_task_embedding(sar_data, an_agent.get_task_action_space_size())
         current_embedding = an_agent.get_current_task_embedding()
         print("CURR_EMB:", current_embedding)
         print("NEW_EMB:", new_emb)
+        print("EMBEDDING SIZE:", len(new_emb))
         emb_bool = current_embedding == new_emb
         emb_dist = an_agent.calculate_emb_distance(current_embedding, new_emb)
         emb_dist_thrshld = an_agent.get_emb_dist_threshold()

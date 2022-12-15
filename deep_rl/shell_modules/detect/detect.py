@@ -58,7 +58,7 @@ class Detect:
     pre_calc_embedding_size = a_reference_num * (an_inputdim + some_action_dim + 1)#Plus one which is the reward.
     return pre_calc_embedding_size
 
-  def preprocess_dataset(self, X):
+  def preprocess_dataset(self, X, some_task_action_space_size):
     '''Function that preprpcess the Data-Batch of SAR before calcuting the embedding'''
     if self.num_samples is not None and len(X) > self.num_samples:
       idxs = np.sort(np.random.choice(len(X), self.num_samples, replace=False))
@@ -69,10 +69,12 @@ class Detect:
       loader = DataLoader(X, batch_size=64)
         
     X = []
-
+    q=0
     for batch in loader:
+      q = q+1
       X.append(batch.squeeze().view(batch.shape[0],-1))
     X = torch.cat(X).to(self.device)
+    print("QQQQQQQQQQQQ:", q)
     print("FIRST X:", X)
 
     img = X[:,:self.input_dim]
@@ -84,26 +86,26 @@ class Detect:
       std = torch.std(img.float())
       img = (img.float()-mean)/std
     if not self.oh:
-       act_oh = torch.zeros(X.shape[0], 3)
-       print("INITIAL ACT_OH:", act_oh)
+       act_oh = torch.zeros(X.shape[0], some_task_action_space_size)
+       #print("INITIAL ACT_OH:", act_oh)
  
        for i in range(act.shape[0]):
-        print("HI form i:", i)
+        #print("HI form i:", i)
         act_oh [i,int(act[i])]=1
        act = act_oh.to(self.device)
-       print("act_OH:", act_oh)
+       #print("act_OH:", act_oh)
        #lb = preprocessing.LabelBinarizer()
        #lb.fit(act_.cpu())
        #act = lb.transform(act_.cpu())
     return torch.cat((img, act, reward), dim=1).float()
     # return X.float()
 
-  def lwe(self, X):
+  def lwe(self, X, some_task_action_space_size):
     '''Calculates the Embedding for a given Data-Batch of SAR
     Returns a 1D Tensor with the calculated Embedding'''
-    X = self.preprocess_dataset(X)
+    X = self.preprocess_dataset(X, some_task_action_space_size)
     print("PrePRocess_SAR_DETECT:", X)
-    print(X.shape)
+    print("What we actually use form the data we give:", X.shape)
     ref_size = self.ref.shape[0]
     C = ot.dist(X.cpu(), self.ref).cpu().numpy()
     # Calculating the transport plan
