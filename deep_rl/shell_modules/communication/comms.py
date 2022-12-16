@@ -682,7 +682,6 @@ class ParallelComm(object):
                                 print(Fore.CYAN + f'State after picking best agent {metadata}')
                                 best_agent_id, best_agent_rw = self.pick_meta(metadata)
 
-
                         # Agent is sending a direct request for a mask
                         elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_REQ:
                             self.logger.info(Fore.CYAN + f'Data is a mask req')
@@ -860,7 +859,6 @@ class ParallelCommEval(object):
             port: The port of the destination.
         """
 
-        attempts = 0
         _data = pickle.dumps(data, protocol=5)
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -940,36 +938,11 @@ class ParallelCommEval(object):
         """
 
         meta_response = {}
-        # if populated prepare metadata responses
-        if other_agent_req is not None:
-            # If the req is none, which it usually will be, just skip.
-            #if other_agent_req['msg_data'] is None: pass
-
-            #else:
-            req_label_as_np = other_agent_req['embedding'].detach().cpu().numpy()
-            #print(req_label_as_np, type(req_label_as_np), flush=True)
-
-            # Iterate through the knowledge base and compute the distances
-            print('Knowledge base in proc_meta:', self.knowledge_base)
-            for tlabel, treward in self.knowledge_base.items():
-                print(tlabel, treward, flush=True)
-                if treward != np.around(0.0, decimals=6):
-                    distance = np.sum(abs(np.subtract(req_label_as_np, np.asarray(tlabel))))
-                    print(distance, flush=True)
-                    
-                    if distance <= ParallelCommEval.THRESHOLD:
-                        meta_response['dst_address'] = other_agent_req['sender_address']
-                        meta_response['dst_port'] = other_agent_req['sender_port']
-                        meta_response['mask_reward'] = treward
-                        meta_response['dist'] = distance
-                        meta_response['resp_embedding'] = torch.tensor(tlabel)
-
-        if not meta_response:
-            meta_response['dst_address'] = other_agent_req['sender_address']
-            meta_response['dst_port'] = other_agent_req['sender_port']
-            meta_response['mask_reward'] = torch.inf
-            meta_response['dist'] = torch.inf
-            meta_response['resp_embedding'] = None
+        meta_response['dst_address'] = other_agent_req['sender_address']
+        meta_response['dst_port'] = other_agent_req['sender_port']
+        meta_response['mask_reward'] = torch.inf
+        meta_response['dist'] = torch.inf
+        meta_response['resp_embedding'] = None
 
         return meta_response
     def send_meta(self, meta_response):
@@ -1390,6 +1363,11 @@ class ParallelCommEval(object):
                         self.logger.info(Fore.CYAN + f'Received {data!r}')
 
                         ### EVENT HANDLING
+                        # Agent is sending a query
+                        if data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_QUERY:
+                            self.logger.info(Fore.CYAN + f'Data is a query')
+                            self.query(data)
+
                         # Agent is sending some task distance and reward information
                         if data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_META:
                             self.logger.info(Fore.CYAN + f'Data is metadata')

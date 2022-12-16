@@ -866,6 +866,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
     t_mask.apply_async(mask_handler)
 
     while True:
+        time.sleep(2)
         print()
         print(shell_iterations, shell_task_counter, agent.total_steps, agent.config.max_steps, task_steps_limit)
         agent.total_steps += agent.config.rollout_length * agent.config.num_workers 

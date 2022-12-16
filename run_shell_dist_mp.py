@@ -252,7 +252,7 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
 
     addresses = []
     ports = []
-    file1 = open('./addresses_eval.csv', 'r')
+    file1 = open('./addresses.csv', 'r')
     lines = file1.readlines()
     for line in lines:
         line = line.strip('\n')
