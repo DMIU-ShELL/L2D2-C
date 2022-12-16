@@ -181,7 +181,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     world_size = manager.Value('i', num_agents)
 
     mode = 'ondemand'
-    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports, knowledge_base, world_size)
+    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, addresses, ports, knowledge_base, world_size)
 
     # start training
     shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, mask_interval)
@@ -257,16 +257,20 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
     for line in lines:
         line = line.strip('\n')
         line = line.split(', ')
+        if int(line[1]) == init_port and line[0] == init_address: continue
         addresses.append(line[0])
         ports.append(int(line[1]))
 
+    manager = mp.Manager()
+    knowledge_base = manager.dict()
+    world_size = manager.Value('i', num_agents)
+
     # set up communication (transfer module)
     mode = 'ondemand'
-    comm = ParallelCommEval(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode, ports)
+    comm = ParallelCommEval(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, addresses, ports, knowledge_base, world_size)
 
     # start training
-    shell_dist_eval_mp(agent, comm, args.agent_id, args.num_agents)
+    shell_dist_eval_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base)
 
 
 ##### Minigrid environment

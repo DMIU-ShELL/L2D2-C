@@ -80,13 +80,12 @@ class ParallelComm(object):
     TRIES = 1   # Handles how many times client will attempt to send some data
 
     # Task label size can be replaced with the embedding size.
-    def __init__(self, embd_dim, mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports, knowledge_base, world_size):
+    def __init__(self, embd_dim, mask_dim, logger, init_address, init_port, mode, addresses, ports, knowledge_base, world_size):
         super(ParallelComm, self).__init__()
         self.embd_dim = embd_dim            # Dimensions of the the embedding
         self.mask_dim = mask_dim            # Dimensions of the mask for use in buffers. May no longer be needed
         self.logger = logger                # Logger object for logging CLI outputs.
         self.mode = mode                    # Communication operation mode. Currently only ondemand knowledge is implemented
-        self.mask_interval = mask_interval  # Interval for mask communication in synchronised learning.
 
 
         # SHARED VARIABLES
@@ -373,7 +372,6 @@ class ParallelComm(object):
                             # Check if the reward is greater than the current reward for the task
                             # or if the knowledge even exists.
                             if tuple(recv_label) in self.knowledge_base.keys():
-                                #if shell_iterations % self.mask_interval == 0:
                                 if 0.9 * round(recv_msk_rw, 6) > self.knowledge_base[tuple(recv_label)]:
                                     # Add the agent id and embedding/tasklabel from the agent
                                     # to a dictionary to send requests/rejections to.
@@ -805,13 +803,12 @@ class ParallelCommEval(object):
     TRIES = 1   # Handles how many times client will attempt to send some data
 
     # Task label size can be replaced with the embedding size.
-    def __init__(self, embd_dim, mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports, knowledge_base, world_size):
+    def __init__(self, embd_dim, mask_dim, logger, init_address, init_port, mode, addresses, ports, knowledge_base, world_size):
         super(ParallelCommEval, self).__init__()
         self.embd_dim = embd_dim            # Dimensions of the the embedding
         self.mask_dim = mask_dim            # Dimensions of the mask for use in buffers. May no longer be needed
         self.logger = logger                # Logger object for logging CLI outputs.
         self.mode = mode                    # Communication operation mode. Currently only ondemand knowledge is implemented
-        self.mask_interval = mask_interval  # Interval for mask communication in synchronised learning.
 
 
         # SHARED VARIABLES
@@ -1098,7 +1095,6 @@ class ParallelCommEval(object):
                             # Check if the reward is greater than the current reward for the task
                             # or if the knowledge even exists.
                             if tuple(recv_label) in self.knowledge_base.keys():
-                                #if shell_iterations % self.mask_interval == 0:
                                 if 0.9 * round(recv_msk_rw, 6) > self.knowledge_base[tuple(recv_label)]:
                                     # Add the agent id and embedding/tasklabel from the agent
                                     # to a dictionary to send requests/rejections to.

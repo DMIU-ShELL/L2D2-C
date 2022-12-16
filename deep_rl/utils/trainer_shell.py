@@ -617,9 +617,9 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
             queue_mask_recv.put((convert))
 
     t_mask = mpd.Pool(processes=1)
-    #t_conv = mpd.Pool(processes=1)
+    t_conv = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
-    #t_conv.apply_async(conv_handler)
+    t_conv.apply_async(conv_handler)
 
     idling = True
     while True:
@@ -633,35 +633,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
                 print('Agent is idling...')
                 idling = False
 
-            logger.info(Fore.RED + 'Waiting on a label to convert...')
-            convert = queue_label_send.get()
-            logger.info(Fore.RED + f'Got a label to convert: {convert}')
-
-            print(convert['embedding'], type(convert['embedding']), convert['embedding'].dtype)
-
-            convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
-            print(convert['mask'])
-            logger.info(f"{Fore.RED}Mask type from conversion: {convert['mask'].dtype}, {type(convert['mask'])}")
-            logger.info(f'{Fore.RED}{convert}')
-
-            queue_mask_recv.put((convert))
-
-
-        try:
-            logger.info(Fore.RED + 'Waiting on a label to convert...')
-            convert = queue_label_send.get()
-            logger.info(Fore.RED + f'Got a label to convert: {convert}')
-
-            print(convert['embedding'], type(convert['embedding']), convert['embedding'].dtype)
-
-            convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
-            print(convert['mask'])
-            logger.info(f"{Fore.RED}Mask type from conversion: {convert['mask'].dtype}, {type(convert['mask'])}")
-            logger.info(f'{Fore.RED}{convert}')
-
-            queue_mask_recv.put((convert))
-        except:
-            pass
+            time.sleep(5)   # Hacky fix to the conversion handler getting stuck.
+            continue
 
         # Send query to communication module if interval is reached.
         if shell_iterations % mask_interval == 0:
@@ -789,19 +762,19 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
 
     # end of while True
 
-    eval_data_fh.close()
+    #eval_data_fh.close()
     # discard last eval data entry as it was not used.
-    if np.all(shell_eval_data[-1] == 0.):
-        shell_eval_data.pop(-1)
+    #if np.all(shell_eval_data[-1] == 0.):
+    #    shell_eval_data.pop(-1)
     # save eval metrics
-    to_save = np.stack(shell_eval_data, axis=0)
-    with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
-        np.save(f, to_save)
+    #to_save = np.stack(shell_eval_data, axis=0)
+    #with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
+    #    np.save(f, to_save)
 
-    agent.close()
-    return
+    #agent.close()
+    #return
 
-def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
+def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_base):
     logger = agent.config.logger
     #print()
 
@@ -854,30 +827,19 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     msg = _tasks[0]['task_label']
     
     # Agent-Communication interaction queues
-    manager = mp.Manager()
     queue_mask = manager.Queue()
     queue_label = manager.Queue()
     queue_label_send = manager.Queue()  # Used to send label from comm to agent to convert to mask
     queue_mask_recv = manager.Queue()   # Used to send mask from agent to comm after conversion from label
-    queue_loop = manager.Queue()
-
-    # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
-    knowledge_base = manager.dict()
-    world_size = manager.Value('i', num_agents)
-
-    # Put in the initial data into the loop queue so that the comm module is not blocking the agent
-    # from running.
-    queue_loop.put((shell_iterations))
 
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
     # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base, world_size)
+    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv)
 
     exchanges = []
     task_times = []
     task_times.append([0, shell_iterations, np.argmax(shell_tasks[0]['task_label'], axis=0), time.time()])
-
 
     # Communication module interaction handlers
     def mask_handler():
@@ -903,31 +865,17 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     t_mask = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
 
-
     while True:
         print()
         print(shell_iterations, shell_task_counter, agent.total_steps, agent.config.max_steps, task_steps_limit)
         agent.total_steps += agent.config.rollout_length * agent.config.num_workers 
 
         START = time.time()
-        #print(Fore.BLUE + 'Msg in this iteration: ', msg)
-        # If world size is 1 then act as an individual agent.
-        ######################## COMMUNICATION MODULE HANDLING ########################
-        '''
-        Handles the interaction between the agent and the communication module. The agent can tell the
-        communication module to get it masks from the network if available. Agent will continue to function
-        regardless of whether the communication module gets a mask or not.
-        '''
-
-
-        # Update the communication module with the latest information from this iteration
-        queue_loop.put_nowait((shell_iterations))
         
         # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
         # the communication module will do its thing.
         msg = _tasks[shell_task_counter]['task_label']
-        #agent.curr_eval_task_label = msg
-        queue_label.put_nowait(msg)
+        queue_label.put(msg)
 
 
         # Evaluation agent does not need to do data collection and optimisation so we will
