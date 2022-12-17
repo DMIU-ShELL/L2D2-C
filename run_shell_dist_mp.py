@@ -161,7 +161,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     #    print(k, " : ", v)
 
 
-    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 2
+    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
 
     # set up communication (transfer module)
 

@@ -630,12 +630,17 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
     t_mask.apply_async(mask_handler)
     t_conv.apply_async(conv_handler)
 
+    idling = True
+
     while True:
         '''
         The main iteration loop. Handles everything from the actual iteration function (data collection/optimisation),
         iteration logging function, evaluation block, task change function, and the evaluation logging.
         '''
         if shell_done:
+            if idling:
+                print('Agent is idling...')
+                idling = False
             continue
 
         #print(f'Knowledge base in agent: {knowledge_base}')

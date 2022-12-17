@@ -293,9 +293,9 @@ if __name__ == '__main__':
             print(Fore.GREEN + f'Attempting to send to port: {address}:{port}')
             #TL.client(address, port, ['hello'])
             #TL.client(port, [127, 0, 0, 1, args.port, 2, 1, 1, 0, 0, time.time()])
-            #TL.client(address, port, ['lnx-grid-19.lboro.ac.uk', args.port, 4, 4, rand(110800), rand(3), time.time()])
+            TL.client(address, port, ['lnx-grid-19.lboro.ac.uk', args.port, 4, 4, rand(110800), rand(3), time.time()])
             #TL.client(port, ['127.0.0.1', args.port, 4, 4, rand(3), time.time()])
-            TL.client(address, port, 'hello world')
+            #TL.client(address, port, 'hello world')
 
         sleep(3)
         

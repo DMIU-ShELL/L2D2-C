@@ -54,14 +54,20 @@ TODO: Figure out how to re-introduce SSL/TLS without compromising mask transfer.
        it is more readable that way.
 '''
 class ParallelComm(object):
+    ### COMMUNCIATION MODULE HYPERPARAMETERS
     # DETECT MODULE CONSTANTS
     # Threshold for embedding/tasklabel distance (similarity)
     # This should be taken from the detect module eventually
     THRESHOLD = 0.0
 
-    # SSL/TLS Parameters
+    # SSL/TLS PATHS
+    # Paths to the SSL/TLS certificates and key
     CERTPATH = 'certificates/certificate.pem'
     KEYPATH = 'certificates/key.pem'
+
+    # COMMUNICATION DROPOUT
+    # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
+    DROPOUT = 0.25  # Value between 0 and 1 i.e, 0.25=25% dropout, 0=100% dropout, 1=no dropout
 
     # buffer indexes
     META_INF_IDX_ADDRESS = 0
@@ -92,9 +98,6 @@ class ParallelComm(object):
     MSG_DATA_MSK_REQ = 2
     MSG_DATA_MSK = 3
     MSG_DATA_META = 4
-
-    # number of seconds to sleep/wait
-    SLEEP_DURATION = 1
 
     # Task label size can be replaced with the embedding size.
     def __init__(self, embd_dim, mask_dim, logger, init_address, init_port, mode, ref_addresses, ref_ports, knowledge_base, world_size, query_list, reference_list):
@@ -170,30 +173,36 @@ class ParallelComm(object):
         """
         _data = pickle.dumps(data, protocol=5)
 
-        # Attempt to send the data a number of times. If successful do not attempt to send again.     
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #s.settimeout(2.0)
-        #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #s = ssl.wrap_socket(s, keyfile=ParallelComm.KEYPATH, certfile=ParallelComm.CERTPATH, ssl_version=ssl.PROTOCOL_TLSv1_2)      # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
-        try:
-            s.connect((address, port))
-            _data = struct.pack('>I', len(_data)) + _data
-            s.sendall(_data)
-            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
+        #context = ssl.create_default_context()
+        #context.load_verify_locations('certificates/certificate.pem')
 
-            success = True
+        #with socket.create_connection((address, port)) as sock:
+        #    with context.wrap_socket(sock, server_hostname=address) as ssock:
+        #        print(ssock.version())
+        # Attempt to send the data a number of times. If successful do not attempt to send again.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(1.0)
+            #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            #s = ssl.wrap_socket(s, keyfile=ParallelComm.KEYPATH, certfile=ParallelComm.CERTPATH, ssl_version=ssl.PROTOCOL_TLSv1_2)      # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
+            try:
+                sock.connect((address, port))
+                _data = struct.pack('>I', len(_data)) + _data
+                sock.sendall(_data)
+                self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
-        except:
-            # Try to remove the ip and port that failed from the query table
-            #try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == address and x.port == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
-            #except: pass
-            #self.world_size -= 1
+                success = True
 
-            success = False
+            except:
+                # Try to remove the ip and port that failed from the query table
+                try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == address and x.port == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
+                except: pass
+                self.world_size -= 1
 
-        finally: s.close()
+                success = False
 
-        return success
+            finally: sock.close()
+
+            return success
 
 
     ### Methods for agents joining a network
@@ -237,6 +246,7 @@ class ParallelComm(object):
         response = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_TABLE, list(self.query_list), self.world_size.value]
         self.client(response, address, port)
 
+        # Update the query and reference lists
         self.query_list.append(Address(inet4=address, port=port))
         self.reference_list.append(Address(inet4=address, port=port))
 
@@ -760,133 +770,139 @@ class ParallelComm(object):
             msg = struct.unpack('>I', msg_length)[0]
             return _recvall(conn, msg)
 
+
+        #context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        #context.load_cert_chain(certfile='certificates/certificate.pem', keyfile='certificates/key.pem')
         # Initialise a socket and wrap it with SSL
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #s = ssl.wrap_socket(s, server_side=True, keyfile=ParallelComm.KEYPATH, certfile=ParallelComm.CERTPATH, ssl_version=ssl.PROTOCOL_TLSv1_2)    # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
 
-        # Bind the socket to the chosen address-port and start listening for connections
-        if self.init_address == '127.0.0.1': s.bind(('127.0.0.1', self.init_port))
-        else: s.bind(('', self.init_port))
-        s.listen(1)
+        #with socket.socket(socket.AF_INET, socket.SOCK_STREAM , 0) as sock:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            #s = ssl.wrap_socket(s, server_side=True, keyfile=ParallelComm.KEYPATH, certfile=ParallelComm.CERTPATH, ssl_version=ssl.PROTOCOL_TLSv1_2)    # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
 
-        metadata = {}
+            # Bind the socket to the chosen address-port and start listening for connections
+            if self.init_address == '127.0.0.1': sock.bind(('127.0.0.1', self.init_port))
+            else: sock.bind(('', self.init_port))
+            sock.listen(0)
+
+            metadata = {}
 
 
-        recv_mask = None
-        best_agent_rw = None
-        best_agent_id = None
-        recv_embedding = None
-        while True:
-            # Accept the connection
-            conn, addr = s.accept()
-            with conn:
-                self.logger.info('\n' + Fore.CYAN + f'Connected by {addr}')
-                while True:
-                    try:
-                        # Receive the data onto a buffer
-                        data = recv_msg(conn)
-                        if not data: break
-                        # Deseralize the data
-                        data = pickle.loads(data)
-                        self.logger.info(Fore.CYAN + f'Received {data!r}')
+            recv_mask = None
+            best_agent_rw = None
+            best_agent_id = None
+            recv_embedding = None
+            while True:
+                # Accept the connection
+                conn, addr = sock.accept()
+                with conn:
+                    self.logger.info('\n' + Fore.CYAN + f'Connected by {addr}')
+                    while True:
+                        try:
+                            # Receive the data onto a buffer
+                            data = recv_msg(conn)
+                            if not data: break
+                            #print(Fore.WHITE + f'{data}')
+                            # Deseralize the data
+                            data = pickle.loads(data)
+                            self.logger.info(Fore.CYAN + f'Received {data!r}')
 
-                        ### EVENT HANDLING
-                        # Agent attempting to join the network
-                        if data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_JOIN:
-                            t_validation = mpd.Pool(processes=1)
-                            t_validation.apply_async(self.recv_join_net, (data, ))
-                            self.logger.info(Fore.CYAN + 'Data is a join request')
-                            t_validation.close()
-                            del t_validation
+                            ### EVENT HANDLING
+                            # Agent attempting to join the network
+                            if data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_JOIN:
+                                t_validation = mpd.Pool(processes=1)
+                                t_validation.apply_async(self.recv_join_net, (data, ))
+                                self.logger.info(Fore.CYAN + 'Data is a join request')
+                                t_validation.close()
+                                del t_validation
 
-                            for addr in self.query_list: print(f'{Fore.GREEN}{addr.inet4, addr.port}')
-                            print(f'{Fore.GREEN}{self.world_size}')
+                                for addr in self.query_list: print(f'{Fore.GREEN}{addr.inet4, addr.port}')
+                                print(f'{Fore.GREEN}{self.world_size}')
 
-                        # Agent is sending a query table
-                        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_TABLE:
-                            self.logger.info(Fore.CYAN + 'Data is a query table')
-                            # Update this agent's query table
-                            t_table = mpd.Pool(processes=1)
-                            t_table.apply_async(self.update_params, (data,))
-                            t_table.close()
-                            del t_table
-                            for addr in self.query_list: print(f'{Fore.GREEN}{addr.inet4, addr.port}')
-                            print(f'{Fore.GREEN}{self.world_size.value}')
+                            # Agent is sending a query table
+                            elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_TABLE:
+                                self.logger.info(Fore.CYAN + 'Data is a query table')
+                                # Update this agent's query table
+                                t_table = mpd.Pool(processes=1)
+                                t_table.apply_async(self.update_params, (data,))
+                                t_table.close()
+                                del t_table
+                                for addr in self.query_list: print(f'{Fore.GREEN}{addr.inet4, addr.port}')
+                                print(f'{Fore.GREEN}{self.world_size.value}')
 
-                        # Another agent is leaving the network
-                        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_LEAVE:
-                            t_leave = mpd.Pool(processes=1)
-                            _address, _port = t_leave.apply_async(self.recv_exit_net, (data)).get()
+                            # Another agent is leaving the network
+                            elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_LEAVE:
+                                t_leave = mpd.Pool(processes=1)
+                                _address, _port = t_leave.apply_async(self.recv_exit_net, (data)).get()
 
-                            # Remove the ip-port from the query table for the agent that is leaving
-                            try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == addr.inet4 and x.port == addr.port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
-                            except: pass
+                                # Remove the ip-port from the query table for the agent that is leaving
+                                try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == addr.inet4 and x.port == addr.port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
+                                except: pass
 
-                            self.logger.info(Fore.CYAN + 'Data is a leave request')
-                            t_leave.close()
-                            del t_leave
+                                self.logger.info(Fore.CYAN + 'Data is a leave request')
+                                t_leave.close()
+                                del t_leave
 
-                        # An agent is sending a query
-                        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_QUERY:
-                            t_query = mpd.Pool(processes=1)
-                            _address, _port = t_query.apply_async(self.query, (data, )).get()
+                            # An agent is sending a query
+                            elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_QUERY:
+                                t_query = mpd.Pool(processes=1)
+                                _address, _port = t_query.apply_async(self.query, (data, )).get()
 
-                            # If the agent receives a query from a location it has not previously encountered then
-                            # update the query and reference tables.
-                            if not any(x.inet4 == _address and x.port == _port for x in self.query_list):
-                                self.query_list.append(Address(_address, _port))
-                                self.reference_list.append(Address(_address, _port))
-                                self.world_size.value += 1    # Increase the world size by 1 for the new connection
+                                # If the agent receives a query from a location it has not previously encountered then
+                                # update the query and reference tables.
+                                if not any(x.inet4 == _address and x.port == _port for x in self.query_list):
+                                    self.query_list.append(Address(_address, _port))
+                                    self.reference_list.append(Address(_address, _port))
+                                    self.world_size.value += 1    # Increase the world size by 1 for the new connection
 
-                            self.logger.info(Fore.CYAN + 'Data is a query')
-                            t_query.close()
-                            del t_query
+                                self.logger.info(Fore.CYAN + 'Data is a query')
+                                t_query.close()
+                                del t_query
 
-                        # An agent is sending some task distance and reward information in response to a query
-                        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_META:
-                            # Update the list of data
-                            t_meta = mpd.Pool(processes=1)
-                            best_agent_id, best_agent_rw = t_meta.apply_async(self.add_meta, (data, metadata)).get()
-                            self.logger.info(Fore.CYAN + 'Data is metadata')
-                            t_meta.close()
-                            del t_meta
+                            # An agent is sending some task distance and reward information in response to a query
+                            elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_META:
+                                # Update the list of data
+                                t_meta = mpd.Pool(processes=1)
+                                best_agent_id, best_agent_rw = t_meta.apply_async(self.add_meta, (data, metadata)).get()
+                                self.logger.info(Fore.CYAN + 'Data is metadata')
+                                t_meta.close()
+                                del t_meta
 
-                        # An agent is sending a direct request for a mask
-                        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_REQ:
-                            t_req = mpd.Pool(processes=1)
-                            t_req.apply_async(self.req, (data, queue_label_send, queue_mask_recv))
-                            self.logger.info(Fore.CYAN + 'Data is a mask req')
-                            t_req.close()
-                            del t_req
+                            # An agent is sending a direct request for a mask
+                            elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_REQ:
+                                t_req = mpd.Pool(processes=1)
+                                t_req.apply_async(self.req, (data, queue_label_send, queue_mask_recv))
+                                self.logger.info(Fore.CYAN + 'Data is a mask req')
+                                t_req.close()
+                                del t_req
 
-                        # An agent is sending a mask
-                        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_MASK:
-                            t_msk = mpd.Pool(processes=1)
-                            recv_mask, recv_embedding = t_msk.apply_async(self.recv_mask, (data, best_agent_id)).get()
-                            self.logger.info(Fore.CYAN + 'Data is a mask')
-                            t_msk.close()
-                            del t_msk
+                            # An agent is sending a mask
+                            elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_MASK:
+                                t_msk = mpd.Pool(processes=1)
+                                recv_mask, recv_embedding = t_msk.apply_async(self.recv_mask, (data, best_agent_id)).get()
+                                self.logger.info(Fore.CYAN + 'Data is a mask')
+                                t_msk.close()
+                                del t_msk
 
-                            self.logger.info(f'\n{Fore.WHITE}Mask: {recv_mask}\nReward: {best_agent_rw}\nSrc: {best_agent_id}\nEmbedding: {recv_embedding}\n')
-                            # Send knowledge to the agent if anything is available otherwise do nothing.
-                            if recv_mask is not None and best_agent_rw is not None and best_agent_id is not None and recv_embedding is not None:
-                                print('SENDING DATA TO AGENT')
-                                queue_mask.put((recv_mask, best_agent_rw, best_agent_id, recv_embedding))
-                                recv_mask = None
-                                best_agent_rw = None
-                                best_agent_id = None
-                                recv_embedding = None
+                                self.logger.info(f'\n{Fore.WHITE}Mask: {recv_mask}\nReward: {best_agent_rw}\nSrc: {best_agent_id}\nEmbedding: {recv_embedding}\n')
+                                # Send knowledge to the agent if anything is available otherwise do nothing.
+                                if recv_mask is not None and best_agent_rw is not None and best_agent_id is not None and recv_embedding is not None:
+                                    print('SENDING DATA TO AGENT')
+                                    queue_mask.put((recv_mask, best_agent_rw, best_agent_id, recv_embedding))
+                                    recv_mask = None
+                                    best_agent_rw = None
+                                    best_agent_id = None
+                                    recv_embedding = None
 
-                        print('\n')
+                            print('\n')
 
-                    # Handles a connection reset by peer error that I've noticed when running the code. For now it just catches 
-                    # the exception and moves on to the next connection.
-                    except socket.error as e:
-                        if e.errno != ECONNRESET: raise
-                        print(Fore.RED + f'Error raised while attempting to receive data from {addr}')
-                        pass
-    
+                        # Handles a connection reset by peer error that I've noticed when running the code. For now it just catches 
+                        # the exception and moves on to the next connection.
+                        except socket.error as e:
+                            if e.errno != ECONNRESET: raise
+                            print(Fore.RED + f'Error raised while attempting to receive data from {addr}')
+                            pass
+
     # Main loop + listening server initialisation
     def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
         """
@@ -918,7 +934,7 @@ class ParallelComm(object):
             # Attempt to connect to reference agent and get latest table. If the query table is reduced to original state then try to reconnect previous agents
             # using the reference table.
             # Unless there is no reference.
-            #try:
+            try:
                 print()
                 # Do some checks on the agent/communication interaction queues and perform actions based on those
                 self.logger.info(Fore.GREEN + f'Knowledge base in this iteration:')
@@ -938,18 +954,18 @@ class ParallelComm(object):
                 try:
                     # Send out a query when shell iterations matches mask interval if the agent is working on a task
                     if self.world_size.value > 1:
-                        #self.logger.info(Fore.MAGENTA + f'Sending msg to other servers')
-                        self.send_query(msg)
+                        if int(np.random.choice(2, 1, p=[1-ParallelComm.DROPOUT, ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss
+                            self.send_query(msg)
 
                 except:
                     continue
 
             # Handles the agent crashing or stopping or whatever. Not sure if this is the right way to do this. Come back to this later.
-            #except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
-            #    p_server.close()
-            #    p_discover.close()
-            #    self.send_exit_net()
-            #    sys.exit()
+            except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
+                p_server.close()
+                p_discover.close()
+                self.send_exit_net()
+                sys.exit()
             
 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
