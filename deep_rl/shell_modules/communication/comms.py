@@ -67,7 +67,7 @@ class ParallelComm(object):
 
     # COMMUNICATION DROPOUT
     # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
-    DROPOUT = 0.25  # Value between 0 and 1 i.e, 0.25=25% dropout, 0=100% dropout, 1=no dropout
+    DROPOUT = 1  # Value between 0 and 1 i.e, 0.25=25% dropout, 0=100% dropout, 1=no dropout
 
     # buffer indexes
     META_INF_IDX_ADDRESS = 0
@@ -181,7 +181,7 @@ class ParallelComm(object):
         #        print(ssock.version())
         # Attempt to send the data a number of times. If successful do not attempt to send again.
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(1.0)
+            sock.settimeout(1.5)
             #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             #s = ssl.wrap_socket(s, keyfile=ParallelComm.KEYPATH, certfile=ParallelComm.CERTPATH, ssl_version=ssl.PROTOCOL_TLSv1_2)      # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
             try:
