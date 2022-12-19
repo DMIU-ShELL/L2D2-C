@@ -150,7 +150,7 @@ class ParallelComm(object):
         _data = pickle.dumps(data, protocol=5)
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #s.settimeout(1.0)
+        s.settimeout(1.0)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         #s = ssl.wrap_socket(s, keyfile="key.pem", certfile="certificate.pem")      # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
         try:
@@ -652,7 +652,7 @@ class ParallelComm(object):
             s.bind(('127.0.0.1', self.init_port))
         else:
             s.bind(('', self.init_port))
-        s.listen(1)
+        s.listen(0)
 
         metadata = {}
 
@@ -872,7 +872,7 @@ class ParallelCommEval(object):
         _data = pickle.dumps(data, protocol=5)
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #s.settimeout(1.0)
+        s.settimeout(1.0)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         #s = ssl.wrap_socket(s, keyfile="key.pem", certfile="certificate.pem")      # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
         try:
@@ -1349,7 +1349,7 @@ class ParallelCommEval(object):
             s.bind(('127.0.0.1', self.init_port))
         else:
             s.bind(('', self.init_port))
-        s.listen(1)
+        s.listen(0)
 
         metadata = {}
 
