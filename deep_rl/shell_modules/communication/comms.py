@@ -37,10 +37,20 @@ Further changes have been made to implement a client-server event-based architec
 improves the flexibility of the system.
 '''
 class ParallelComm(object):
+    ### COMMUNCIATION MODULE HYPERPARAMETERS
     # DETECT MODULE CONSTANTS
     # Threshold for embedding/tasklabel distance (similarity)
     # This should be taken from the detect module eventually
     THRESHOLD = 0.0
+
+    # SSL/TLS PATHS
+    # Paths to the SSL/TLS certificates and key
+    CERTPATH = 'certificates/certificate.pem'
+    KEYPATH = 'certificates/key.pem'
+
+    # COMMUNICATION DROPOUT
+    # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
+    DROPOUT = 0  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
 
     # buffer indexes
     META_INF_IDX_ADDRESS = 0
@@ -137,7 +147,6 @@ class ParallelComm(object):
             port: The port of the destination.
         """
 
-        attempts = 0
         _data = pickle.dumps(data, protocol=5)
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -744,7 +753,8 @@ class ParallelComm(object):
             try:
                 # Send out a query when shell iterations matches mask interval if the agent is working on a task
                 if self.world_size.value > 1:
-                    self.send_query(msg)
+                    if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1-ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss
+                        self.send_query(msg)
 
             except:
                 continue
