@@ -4,6 +4,13 @@
         {
             "task_ids": [0, 1, 2, 3],
             "max_steps": 51200
+<<<<<<< HEAD
+=======
+        },
+        {
+            "task_ids": [0, 1, 2, 3],
+            "max_steps": 51200
+>>>>>>> 98b5601ad7bceb5dbce59bea8cf631b981b5ed9f
         },
         {
             "task_ids": [3, 0, 1, 2],
