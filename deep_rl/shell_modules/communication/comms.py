@@ -177,13 +177,16 @@ class ParallelComm(object):
             success = True
 
         except:
-            sys.exit()
+            #sys.exit()
             # Try to remove the ip and port that failed from the query table
-            #try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == address and x.port == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
-            #except: pass
+            try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == address and x.port == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
+            except: pass
+
+            self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
+
             #self.world_size.value -= 1
 
-            #success = False
+            success = False
 
         finally: sock.close()
 
