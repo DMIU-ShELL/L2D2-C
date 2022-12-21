@@ -18,6 +18,8 @@ old_logs
 log_offload
 figure
 to_plot
+.git
+certificates
 
 # C extensions
 *.so
