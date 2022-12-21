@@ -20,6 +20,7 @@ figure
 to_plot
 .git
 certificates
+.vscode
 
 # C extensions
 *.so
