@@ -25,6 +25,9 @@ import torch
 from .torch_utils import *
 from ..shell_modules import *
 
+import multiprocessing.dummy as mpd
+from colorama import Fore
+
 try:
     # python >= 3.5
     from pathlib import Path
@@ -145,11 +148,15 @@ def _shell_itr_log_mw(logger, agent, agent_idx, itr_counter, task_counter, dict_
 
     return
 
+
+
+
+# Deprecated trainers. Please use the concurrent versions further down in this file.
 '''
 shell training: single processing, all agents are executed/trained in a single process
 with each agent taking turns to execute a training step.
 
-note: task boundaries are explictly given to the agents. this means that each agent
+NOTE: task boundaries are explictly given to the agents. this means that each agent
 knows when task changes. 
 '''
 def shell_train(agents, logger):
@@ -305,7 +312,7 @@ def shell_train(agents, logger):
 shell training: concurrent processing, all agents are executed/trained in across multiple
 processes (either in a single machine, or distributed machines)
 
-note: task boundaries are explictly given to the agents. this means that each agent
+NOTE: task boundaries are explictly given to the agents. this means that each agent
 knows when task changes. 
 '''
 def shell_dist_train(agent, comm, agent_id, num_agents):
@@ -507,14 +514,12 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
     return
     
 
-'''
-ShELL distributed trainer using multiprocessing communication. Multiprocessing agent to be
-added in the future.
-'''
-import multiprocessing as mp
-import multiprocessing.dummy as mpd
-from colorama import Fore
 
+# Concurrent implementations
+'''
+shell training: concurrent processing for event-based communication. a multitude of improvements have been made compared
+to the previous shell_dist_train.
+'''
 def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base, mask_interval):
     logger = agent.config.logger
 
@@ -592,39 +597,37 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
 
     # Communication module interaction handlers
     def mask_handler():
+        """
+        Handles incoming masks from other agents. Distills the mask knowledge to the agent's network.
+        """
         while True:
             mask, best_agent_rw, best_agent_id, received_label = queue_mask.get()
-            logger.info(Fore.WHITE + f'\nAgent received from comm: \nMask:{mask}\nReward:{best_agent_rw}\nSrc:{best_agent_id}\nEmbedding:{received_label}')
+            logger.info(Fore.WHITE + f'\nReceived mask: \nMask:{mask}\nReward:{best_agent_rw}\nSrc:{best_agent_id}\nEmbedding:{received_label}')
                 
             if mask is not None:
-                #if shell_iterations % mask_interval == 0:
                 # Update the knowledge base with the expected reward
                 knowledge_base.update(best_agent_rw)
                 # Update the network with the mask
                 agent.distil_task_knowledge_single(mask, received_label)
 
-                # Debugging. Reset the environment before using the new mask.
-                #agent.states = agent.task.reset()
-                #agent.states = agent.config.state_normalizer(agent.states)
+                #logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
 
-
-                logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
-
+                # Mask transfer logging.
                 _tempknowledgebase = {}
-                for key, val in knowledge_base.items():
-                    _tempknowledgebase[np.argmax(key, axis=0)] = val
-
+                for key, val in knowledge_base.items(): _tempknowledgebase[np.argmax(key, axis=0)] = val
                 exchanges.append([shell_iterations, best_agent_id, np.argmax(received_label, axis=0), _tempknowledgebase, len(mask), mask])
                 np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
 
     def conv_handler():
+        """
+        Handles interval label to mask conversions for outgoing mask responses.
+        """
         while True:
             convert = queue_label_send.get()
-            mask_to_send = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
-            logger.info(f'{Fore.RED}Mask type from conversion: {mask_to_send.dtype}, {type(mask_to_send)}')
             convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
             queue_mask_recv.put((convert))
 
+    # Start threads for the mask and conversion handlers.
     t_mask = mpd.Pool(processes=1)
     t_conv = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
@@ -633,29 +636,25 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
     idling = True
 
     while True:
-        '''
-        The main iteration loop. Handles everything from the actual iteration function (data collection/optimisation),
-        iteration logging function, evaluation block, task change function, and the evaluation logging.
-        '''
         if shell_done:
             if idling:
-                print('Agent is idling...')
+                print('Agent is idling...') # Useful visualisation but we can eventually remove this idling message.
                 idling = False
             continue
 
         #print(f'Knowledge base in agent: {knowledge_base}')
-        logger.info(f'{Fore.RED}World size: {comm.world_size.value}')
+        logger.info(f'{Fore.RED}World: {comm.world_size.value}')
         #for key, val in comm.knowledge_base.items(): print(f'{Fore.RED}Knowledge base: {key}: {val}')
-        for addr in comm.query_list: logger.info(f'{Fore.RED}{addr.inet4}, {addr.port}')
+        #for addr in comm.query_list: logger.info(f'{Fore.RED}{addr.inet4}, {addr.port}')
 
-        #queue_loop.put((shell_iterations))
+        # Send label/embedding to the communication module to query for relevant knowledge from other peers.
         if shell_iterations % mask_interval == 0:
             queue_label.put(msg)
 
         
         ### AGENT ITERATION (training step): collect on policy data and optimise the agent
         '''
-        Handles the data collection and optimisation functionalities of the agent.
+        Handles the data collection and optimisation within the agent.
         TODO: Look into multihreading/multiprocessing the data collection and optimisation of the agent
                 to achieve the continous data collection we want for a real world scenario.
             
@@ -683,10 +682,9 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
                     agent.task.name))
 
 
-        ### EVALUATION BLOCK
+        ### EVALUATION BLOCK    Deprecated. Marked for removal
         '''
-        Performs the evaluation block. This will never run in the standard agent but it's here anyway if we need it. Enable by changing the eval
-        interval value in the config.
+        Performs the evaluation block. Has been replaced by the evaluation agent. Can be re-enabled by changing the eval interval value in the configuration in run_shell_dist_mp.py.
         '''
         # If we want to stop evaluating then set agent.config.eval_interval to None
         if (agent.config.eval_interval is not None and shell_iterations % agent.config.eval_interval == 0):
@@ -711,7 +709,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         ### TASK CHANGE
         # end of current task training. move onto next task or end training if last task.
         # i.e., Task Change occurs here. For detect module, if the task embedding signifies a task
-        # change then that occurs here.
+        # change then that should occur here.
         '''
         If we want to use a Fetch All mode for ShELL then we need to add a commmunication component
         at task change which broadcasts the mask to all other agents currently on the network.
@@ -759,9 +757,9 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
             del task_counter_
 
 
-        ### EVALUATION BLOCK LOGGING
+        ### EVALUATION BLOCK LOGGING    Deprecated. Marked for removal
         '''
-        Logs the evaluation block data and tracks it.
+        Logs the evaluation block data to a text file. No longer necessary as we are now using the evaluation agent.
         '''
         if shell_eval_tracker:
             # log the last eval metrics to file
@@ -773,21 +771,10 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
             shell_eval_tracker = False
             shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
 
-    # end of while True
-
-    eval_data_fh.close()
-    # discard last eval data entry as it was not used.
-    if np.all(shell_eval_data[-1] == 0.):
-        shell_eval_data.pop(-1)
-    # save eval metrics
-    to_save = np.stack(shell_eval_data, axis=0)
-    with open(logger.log_dir + '/eval_metrics_agent_{0}.npy'.format(agent_id), 'wb') as f:
-        np.save(f, to_save)
-
-    agent.close()
-    return
-
-def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
+'''
+shell evaluation: concurrent processing for event-based communication.
+'''
+def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_base):
     logger = agent.config.logger
     #print()
 
@@ -838,27 +825,16 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     # this will ensure that other agents are aware that this agent is now working this task
     # until a task change happens.
     msg = _tasks[0]['task_label']
-    
-    # Agent-Communication interaction queues
-    manager = mp.Manager()
+
     queue_mask = manager.Queue()
     queue_label = manager.Queue()
     queue_label_send = manager.Queue()  # Used to send label from comm to agent to convert to mask
     queue_mask_recv = manager.Queue()   # Used to send mask from agent to comm after conversion from label
-    queue_loop = manager.Queue()
-
-    # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
-    knowledge_base = manager.dict()
-    world_size = manager.Value('i', num_agents)
-
-    # Put in the initial data into the loop queue so that the comm module is not blocking the agent
-    # from running.
-    queue_loop.put((shell_iterations))
 
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
     # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, knowledge_base, world_size)
+    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, knowledge_base)
 
     exchanges = []
     task_times = []
@@ -893,27 +869,13 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents):
     while True:
         print()
         print(shell_iterations, shell_task_counter, agent.total_steps, agent.config.max_steps, task_steps_limit)
-        agent.total_steps += agent.config.rollout_length * agent.config.num_workers 
-
-        START = time.time()
-        #print(Fore.BLUE + 'Msg in this iteration: ', msg)
-        # If world size is 1 then act as an individual agent.
-        ######################## COMMUNICATION MODULE HANDLING ########################
-        '''
-        Handles the interaction between the agent and the communication module. The agent can tell the
-        communication module to get it masks from the network if available. Agent will continue to function
-        regardless of whether the communication module gets a mask or not.
-        '''
-
-
-        # Update the communication module with the latest information from this iteration
-        queue_loop.put_nowait((shell_iterations))
+        agent.total_steps += agent.config.rollout_length * agent.config.num_workers
         
         # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
         # the communication module will do its thing.
         msg = _tasks[shell_task_counter]['task_label']
         #agent.curr_eval_task_label = msg
-        queue_label.put_nowait(msg)
+        queue_label.put(msg)
 
 
         # Evaluation agent does not need to do data collection and optimisation so we will

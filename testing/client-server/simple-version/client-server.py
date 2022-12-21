@@ -16,7 +16,7 @@ from colorama import Fore
 
 HOST = ''
 
-OTHER_DST = {29500: 'lnx-grid-19.lboro.ac.uk', 29501: 'lnx-grid-19.lboro.ac.uk'}
+
 
 
 
@@ -229,10 +229,10 @@ class TCP:
         buffer = pickle.dumps(buffer)
         #buffer = struct.pack('11d', *buffer)
         print(len(buffer))
-        for port in OTHER_PORTS:
+        for addr, port in OTHER_DST:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.connect((HOST, port))
+                    s.connect((addr, port))
                     s.sendall(buffer)
             except:
                 pass
@@ -268,32 +268,29 @@ if __name__ == '__main__':
     print('Running TCP + TLS/SSL in Peer to Peer')
     parser = argparse.ArgumentParser()
     parser.add_argument('port', help='port for this agent', type=int)
-    #parser.add_argument('link', help='address of an agent in the network', type=int)
     args = parser.parse_args()
+
+    addresses = ['127.0.0.1'] * 32
+    ports = [29500 + i for i in range(32)]
+    OTHER_DST = zip(addresses, ports)
 
     print(args.port)
 
-    del OTHER_DST[args.port]
+    TL = TCP()
 
-    TL = SS_SERVER()
-
-    #if args.port == 29500:
+    pool = mp.Pool(processes=64)
     p_server = mp.Process(target=TL.server, args=(args.port,))
     p_server.start()
 
-    #client(b'')
-
-    #if args.port == 29500:
-    #else:
     count = 0
     while True:
         count += 1
         print(Fore.GREEN + f'\n\nIteration: {count}')
-        for port, address in OTHER_DST.items():
+        for address, port in OTHER_DST:
             print(Fore.GREEN + f'Attempting to send to port: {address}:{port}')
             #TL.client(address, port, ['hello'])
             #TL.client(port, [127, 0, 0, 1, args.port, 2, 1, 1, 0, 0, time.time()])
-            TL.client(address, port, ['lnx-grid-19.lboro.ac.uk', args.port, 4, 4, rand(110800), rand(3), time.time()])
+            TL.client([address, port, '127.0.0.1', args.port, 4, 4, rand(110800), rand(3), time.time()])
             #TL.client(port, ['127.0.0.1', args.port, 4, 4, rand(3), time.time()])
             #TL.client(address, port, 'hello world')
 
