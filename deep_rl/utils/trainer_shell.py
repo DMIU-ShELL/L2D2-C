@@ -645,7 +645,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         #print(f'Knowledge base in agent: {knowledge_base}')
         logger.info(f'{Fore.RED}World: {comm.world_size.value}')
         #for key, val in comm.knowledge_base.items(): print(f'{Fore.RED}Knowledge base: {key}: {val}')
-        #for addr in comm.query_list: logger.info(f'{Fore.RED}{addr.inet4}, {addr.port}')
+        for addr in comm.query_list: print(f'{Fore.RED}{addr[0]}, {addr[1]}')
 
         # Send label/embedding to the communication module to query for relevant knowledge from other peers.
         if shell_iterations % mask_interval == 0:

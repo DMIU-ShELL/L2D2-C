@@ -163,6 +163,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
     addresses, ports = [], []
+    laddr, lports = [], []
     reference_file = open('./reference.csv', 'r')
     lines = reference_file.readlines()
 
@@ -171,12 +172,25 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
             line = lines[i].strip('\n').split(', ')
             addresses.append(line[0])
             ports.append(int(line[1]))
+            if int(line[1]) > args.port:
+                addresses.append(line[0])
+                ports.append(int(line[1]))
+            else:
+                laddr.append(line[0])
+                lports.append(int(line[1]))
 
     else:
         for line in lines:
             line = line.strip('\n').split(', ')
-            addresses.append(line[0])
-            ports.append(int(line[1]))
+            if int(line[1]) > args.port:
+                addresses.append(line[0])
+                ports.append(int(line[1]))
+            else:
+                laddr.append(line[0])
+                lports.append(int(line[1]))
+
+        addresses = addresses + laddr
+        ports = ports + lports
 
 
     print(len(addresses), len(ports))

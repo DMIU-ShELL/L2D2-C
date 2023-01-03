@@ -23,19 +23,10 @@ from errno import ECONNRESET
 from queue import Empty
 from itertools import cycle
 import urllib.request
+from random import shuffle
 
 import numpy as np
 import torch
-
-
-class Address(object):
-    """
-    Helper class for storing the address and port for individual agents. Makes it easier to store the information.
-    """
-    def __init__(self, inet4, port):
-        self.inet4 = inet4
-        self.port = port
-
 
 
 '''
@@ -114,7 +105,7 @@ class ParallelComm(object):
         self.init_port = int(init_port)
 
         # Shared memory variables. Make these into attributes of the communication module to make it easier to use across the many sub processes of the module.
-        self.query_list = manager.list([Address(inet4=adr, port=prt) for adr, prt in reference if prt != self.init_port or adr != self.init_address])
+        self.query_list = manager.list([item for item in reference if item != (self.init_address, self.init_port)]) # manager.list(reference)
         self.reference_list = manager.list(deepcopy(self.query_list))   # Weird thing was happening here so used deepcopy to recreate the manager ListProxy with the addresses.
         self.knowledge_base = knowledge_base
         
@@ -126,10 +117,10 @@ class ParallelComm(object):
 
         # For debugging
         print('Query table:')
-        for addr in self.query_list: print(addr.inet4, addr.port)
+        for addr in self.query_list: print(addr[0], addr[1])
 
         print('\nReference table:')
-        for addr in self.reference_list: print(addr.inet4, addr.port)
+        for addr in self.reference_list: print(addr[0], addr[1])
 
         print(f'\nlistening server params ->\naddress: {self.init_address}\nport: {self.init_port}\n')
         print('mask size:', self.mask_dim)
@@ -162,11 +153,12 @@ class ParallelComm(object):
             address: The ip of the destination.
             port: The port of the destination.
         """
+        print(Fore.MAGENTA + 'PICKLED')
         _data = pickle.dumps(data, protocol=5)
 
         # Attempt to send the data a number of times. If successful do not attempt to send again.
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #sock.settimeout(1.5)
+        sock.settimeout(2)
         
         try:
             sock.connect((address, port))
@@ -174,25 +166,20 @@ class ParallelComm(object):
             sock.sendall(_data)
             self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
-            success = True
-
         except:
-            #sys.exit()
-            # Try to remove the ip and port that failed from the query table
-            try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == address and x.port == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
-            except: pass
-
             self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
+            # Try to remove the ip and port that failed from the query table
+            try: self.query_list.remove(next(item for item in self.query_list if item == (address, port)))
+            except: print('FAILED :(((((((')
+            self.world_size.value = len(self.query_list) + 1
 
-            #self.world_size.value -= 1
-
-            success = False
+            print(f'New query list: {self.query_list}')
+            print(f'New world size: {self.world_size.value}')
 
         finally: sock.close()
 
-        return success
 
-
+    '''
     ### Methods for agents joining a network
     def send_join_net(self):
         """
@@ -211,9 +198,9 @@ class ParallelComm(object):
         # re-discovered by some other agents and eventually the network will slowly heal again and reform into a complete network.
         while len(self.query_list) == 0 and len(self.reference_list) != 0:
             for addr in cycle(self.reference_list):
-                #print(f"Reaching out to: {addr.inet4}, {addr.port}")
-                if self.client(data, addr.inet4, addr.port):
-                    self.query_list.append(Address(addr.inet4, addr.port))
+                #print(f"Reaching out to: {addr[0]}, {addr[1]}")
+                if self.client(data, addr[0], addr[1]):
+                    self.query_list.append((addr[0], addr[1]))
                     break
     def recv_join_net(self, data):
         """
@@ -232,9 +219,8 @@ class ParallelComm(object):
         self.client(response, address, port)
 
         # Update the query and reference lists
-        self.query_list.append(Address(inet4=address, port=port))
-        self.reference_list.append(Address(inet4=address, port=port))
-
+        self.query_list.append((address, port))
+        self.reference_list.append((address, port))
 
     ### Methods for agents leaving a network
     def send_exit_net(self):
@@ -246,7 +232,7 @@ class ParallelComm(object):
 
 
         for addr in self.query_list:
-            self.client(data, addr.inet4, addr.port)
+            self.client(data, addr[0], addr[1])
     def recv_exit_net(self, data):
         """
         Updates the known peers and world size if a network leave notification is recieved from another agent.
@@ -262,10 +248,11 @@ class ParallelComm(object):
 
 
         # Remove address to from query list
-        try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == address and x.port == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
+        try: self.query_list.remove(next((x for x in self.query_list if x[0] == address and x[1] == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
         except: pass
 
         return address, port
+    '''
 
     ### Query send and recv functions
     def send_query(self, embedding):
@@ -288,8 +275,10 @@ class ParallelComm(object):
             data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_QUERY, ParallelComm.MSG_DATA_QUERY, np.array(embedding)]
 
         # Try to send a query to all known destinations. Skip the ones that don't work
+        #shuffle(self.query_list.shuffle())
         for addr in self.query_list:
-            self.client(data, addr.inet4, addr.port)
+            #print(addr)
+            self.client(data, addr[0], addr[1])
     def recv_query(self, buffer):
         """
         Unpacks the data buffer received from another agent for a query.
@@ -392,15 +381,18 @@ class ParallelComm(object):
                 data.append(np.array(embedding))
 
             # If the agent receives a query from a location it has not previously encountered then
-            if not any(x.inet4 == dst_address and x.port == dst_port for x in self.query_list):
+            if not any(x[0] == dst_address and x[1] == dst_port for x in self.query_list):
                 # Send this agent's query table and world size to the new agent.
-                data.append(list(self.query_list))
+                table = list(self.query_list)
+                table.remove((dst_address, dst_port))
+                table.append((self.init_address, self.init_port))
+                data.append(list(table))
 
                 self.client(data, dst_address, dst_port)
 
                 # Update this agent's query and reference tables
-                self.query_list.append(Address(dst_address, dst_port))
-                self.reference_list.append(Address(dst_address, dst_port))
+                self.query_list.append((dst_address, dst_port))
+                self.reference_list.append((dst_address, dst_port))
 
             else:
                 #print('CASE 2')
@@ -420,11 +412,13 @@ class ParallelComm(object):
         """
 
         if len(buffer) == 8:
+            print('BUFFER', buffer)
+            #buffer.reverse()
             # Update the query and reference lists with all new connections
             for addr_obj in buffer[-1]:
-                if not any((x for x in self.query_list if x.inet4 == addr_obj.inet4 and x.port == addr_obj.port)):
-                    self.query_list.append(addr_obj)
-                    self.reference_list.append(addr_obj)
+                if not any((x for x in self.query_list if x[0] == addr_obj[0] and x[1] == addr_obj[1])):
+                    self.query_list.insert(0, addr_obj)
+                    self.reference_list.insert(0, addr_obj)
 
         ret = {}
         if self._null_message(buffer):
@@ -706,8 +700,6 @@ class ParallelComm(object):
             return best_agent_id, best_agent_rw
         
         return None, None
-
-
     def pick_meta(self, metadata):
         """
         Event handler to pick a best agent from the information it has collected at this point. Resets the metadata list.
@@ -726,9 +718,6 @@ class ParallelComm(object):
         metadata.clear() #reset metadata dictionary
         self.send_mask_req(mask_req)
         return best_agent_id, best_agent_rw 
-
-
-
     def req(self, data, queue_label_send, queue_mask_recv):
         '''
         Event handler for mask requests. Unpacks the data buffer, processes the response and sends mask.
@@ -825,7 +814,7 @@ class ParallelComm(object):
                         #    t_validation.close()
                         #    del t_validation
 
-                        #    for addr in self.query_list: print(f'{Fore.GREEN}{addr.inet4, addr.port}')
+                        #    for addr in self.query_list: print(f'{Fore.GREEN}{addr[0], addr[1]}')
                         #    print(f'{Fore.GREEN}{self.world_size}')
 
                         # Another agent is leaving the network
@@ -834,7 +823,7 @@ class ParallelComm(object):
                         #    _address, _port = t_leave.apply_async(self.recv_exit_net, (data)).get()
 
                         #    # Remove the ip-port from the query table for the agent that is leaving
-                        #    try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == addr.inet4 and x.port == addr.port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
+                        #    try: self.query_list.remove(next((x for x in self.query_list if x[0] == addr[0] and x[1] == addr[1])))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
                         #    except: pass
 
                         #    self.logger.info(Fore.CYAN + 'Data is a leave request')
@@ -853,7 +842,7 @@ class ParallelComm(object):
 
                             #self.update_params(data)
 
-                            for addr in self.query_list: print(f'{Fore.GREEN}{addr.inet4, addr.port}')
+                            for addr in self.query_list: print(f'{Fore.GREEN}{addr[0], addr[1]}')
                             #print(f'{Fore.GREEN}{self.world_size.value}')
 
                         # An agent is sending a query
@@ -960,13 +949,14 @@ class ParallelComm(object):
                 self.logger.info(Fore.GREEN + f'World size in comm: {self.world_size.value}')
 
                 #self.logger.info(Fore.GREEN + f'Query table in this iteration:')
-                #for addr in self.query_list: print(addr.inet4, addr.port)
+                #for addr in self.query_list: print(addr[0], addr[1])
 
                 #self.logger.info(Fore.GREEN + f'Reference table this iteration:')
-                #for addr in self.reference_list: print(addr.inet4, addr.port)
+                #for addr in self.reference_list: print(addr[0], addr[1])
 
                 # Get an embedding to query for. If no embedding to query for then do nothing.
                 msg = queue_label.get()
+
 
                 self.world_size.value = len(self.query_list) + 1
 
@@ -982,7 +972,7 @@ class ParallelComm(object):
             except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
                 p_server.close()
                 #p_discover.close()
-                self.send_exit_net()
+                #self.send_exit_net()
                 sys.exit()
                 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
@@ -1061,22 +1051,22 @@ class ParallelCommEval(object):
         self.init_port = int(init_port)
 
         # Shared memory variables. Make these into attributes of the communication module to make it easier to use across the many sub processes of the module.
-        self.reference_list = manager.list([Address(inet4=adr, port=prt) for adr, prt in reference if prt != self.init_port or adr != self.init_address])
-        self.query_list = manager.list([Address(inet4=adr, port=prt) for adr, prt in reference if prt != self.init_port or adr != self.init_address])
+        self.reference_list = manager.list([(adr, prt) for adr, prt in reference if prt != self.init_port or adr != self.init_address])
+        self.query_list = manager.list([(adr, prt) for adr, prt in reference if prt != self.init_port or adr != self.init_address])
         self.knowledge_base = knowledge_base
 
         
         self.world_size = manager.Value('i', num_agents)
 
         # For debugging
-        try: print(f'Reference address: {self.reference_list[0].inet4}, {self.reference_list[0].port}')
+        try: print(f'Reference address: {self.reference_list[0][0]}, {self.reference_list[0][1]}')
         except: pass
         print('query table:', self.query_list)
         for addr in self.query_list:
-            print(addr.inet4, addr.port)
+            print(addr[0], addr[1])
         print('reference table:', self.reference_list)
         for addr in self.reference_list:
-            print(addr.inet4, addr.port)
+            print(addr[0], addr[1])
 
         print(f'\nlistening server params ->\naddress: {self.init_address}\nport: {self.init_port}\n')
         print('mask size:', self.mask_dim)
@@ -1125,7 +1115,7 @@ class ParallelCommEval(object):
 
         except:
             # Try to remove the ip and port that failed from the query table
-            try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == address and x.port == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
+            try: self.query_list.remove(next((x for x in self.query_list if x[0] == address and x[1] == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
             except: pass
             #self.world_size.value -= 1
 
@@ -1154,9 +1144,9 @@ class ParallelCommEval(object):
         # re-discovered by some other agents and eventually the network will slowly heal again and reform into a complete network.
         while len(self.query_list) == 0 and len(self.reference_list) != 0:
             for addr in cycle(self.reference_list):
-                #print(f"Reaching out to: {addr.inet4}, {addr.port}")
-                if self.client(data, addr.inet4, addr.port):
-                    self.query_list.append(Address(addr.inet4, addr.port))
+                #print(f"Reaching out to: {addr[0]}, {addr[1]}")
+                if self.client(data, addr[0], addr[1]):
+                    self.query_list.append((addr[0], addr[1]))
                     break
     def recv_join_net(self, data):
         """
@@ -1175,8 +1165,8 @@ class ParallelCommEval(object):
         self.client(response, address, port)
 
         # Update the query and reference lists
-        self.query_list.append(Address(inet4=address, port=port))
-        self.reference_list.append(Address(inet4=address, port=port))
+        self.query_list.append((address, port))
+        self.reference_list.append((address, port))
 
 
     ### Methods for agents leaving a network
@@ -1189,7 +1179,7 @@ class ParallelCommEval(object):
 
 
         for addr in self.query_list:
-            self.client(data, addr.inet4, addr.port)
+            self.client(data, addr[0], addr[1])
     def recv_exit_net(self, data):
         """
         Updates the known peers and world size if a network leave notification is recieved from another agent.
@@ -1205,7 +1195,7 @@ class ParallelCommEval(object):
 
 
         # Remove address to from query list
-        try: self.query_list.remove(next((x for x in self.query_list if x.inet4 == address and x.port == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
+        try: self.query_list.remove(next((x for x in self.query_list if x[0] == address and x[1] == port)))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
         except: pass
 
         return address, port
@@ -1232,7 +1222,7 @@ class ParallelCommEval(object):
 
         # Try to send a query to all known destinations. Skip the ones that don't work
         for addr in self.query_list:
-            self.client(data, addr.inet4, addr.port)
+            self.client(data, addr[0], addr[1])
     def recv_query(self, buffer):
         """
         Unpacks the data buffer received from another agent for a query.
@@ -1310,15 +1300,15 @@ class ParallelCommEval(object):
                 data.append(np.array(embedding))
 
             # If the agent receives a query from a location it has not previously encountered then
-            if not any(x.inet4 == dst_address and x.port == dst_port for x in self.query_list):
+            if not any(x[0] == dst_address and x[1] == dst_port for x in self.query_list):
                 # Send this agent's query table and world size to the new agent.
                 data.append(list(self.query_list))
 
                 self.client(data, dst_address, dst_port)
 
                 # Update this agent's query and reference tables
-                self.query_list.append(Address(dst_address, dst_port))
-                self.reference_list.append(Address(dst_address, dst_port))
+                self.query_list.append((dst_address, dst_port))
+                self.reference_list.append((dst_address, dst_port))
 
             else:
                 #print('CASE 2')
@@ -1340,7 +1330,7 @@ class ParallelCommEval(object):
         if len(buffer) == 8:
             # Update the query and reference lists with all new connections
             for addr_obj in buffer[-1]:
-                if not any((x for x in self.query_list if x.inet4 == addr_obj.inet4 and x.port == addr_obj.port)):
+                if not any((x for x in self.query_list if x[0] == addr_obj[0] and x[1] == addr_obj[1])):
                     self.query_list.append(addr_obj)
                     self.reference_list.append(addr_obj)
 

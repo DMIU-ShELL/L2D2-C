@@ -14,7 +14,7 @@ import sys
 from errno import ECONNRESET
 from colorama import Fore
 
-HOST = ''
+HOST = '127.0.0.1'
 
 
 
@@ -206,16 +206,6 @@ class TCP_TLS:
 
 # TCP
 class TCP:
-    def handle(self, conn, addr):
-        with conn:
-            print(f"\nConnected by {addr}")
-            while True:
-                data = conn.recv(4096)
-                if not data: break
-                data = pickle.loads(data)
-                #data = list(struct.unpack('11d', data))
-                print(f"Received {data!r}. Time taken to complete transfer: {(time.time()-data[-1])*(10**3):.3f}µs")
-
     def server(self, port):
         while True:
             print('Listening...')
@@ -223,19 +213,24 @@ class TCP:
                 s.bind((HOST, port))
                 s.listen(1)
                 conn, addr = s.accept()
-                self.handle(conn, addr)
+                with conn:
+                    print(f"\nConnected by {addr}")
+                    while True:
+                        data = conn.recv(4096)
+                        if not data: break
+                        data = pickle.loads(data)
+                        print(f"Received {data!r}. Time taken to complete transfer: {(time.time()-data[-1])*(10**3):.3f}µs")
 
-    def client(self, buffer):
+    def client(self, addr, port, buffer):
+        print(buffer)
         buffer = pickle.dumps(buffer)
-        #buffer = struct.pack('11d', *buffer)
         print(len(buffer))
-        for addr, port in OTHER_DST:
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.connect((addr, port))
-                    s.sendall(buffer)
-            except:
-                pass
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect((addr, port))
+                s.sendall(buffer)
+        except:
+            pass
 
 
 
@@ -270,29 +265,35 @@ if __name__ == '__main__':
     parser.add_argument('port', help='port for this agent', type=int)
     args = parser.parse_args()
 
-    addresses = ['127.0.0.1'] * 32
-    ports = [29500 + i for i in range(32)]
+    addresses = ['127.0.0.1'] * 2
+    ports = [30000 + i for i in range(2)]
     OTHER_DST = zip(addresses, ports)
 
     print(args.port)
 
+    manager = mp.Manager()
+
+    l = manager.list(rand(110800))
+
     TL = TCP()
 
-    pool = mp.Pool(processes=64)
-    p_server = mp.Process(target=TL.server, args=(args.port,))
-    p_server.start()
+    if args.port == 30000:
+        #pool = mp.Pool(processes=1)
+        p_server = mp.Process(target=TL.server, args=(args.port,))
+        p_server.start()
 
-    count = 0
-    while True:
-        count += 1
-        print(Fore.GREEN + f'\n\nIteration: {count}')
-        for address, port in OTHER_DST:
-            print(Fore.GREEN + f'Attempting to send to port: {address}:{port}')
-            #TL.client(address, port, ['hello'])
-            #TL.client(port, [127, 0, 0, 1, args.port, 2, 1, 1, 0, 0, time.time()])
-            TL.client([address, port, '127.0.0.1', args.port, 4, 4, rand(110800), rand(3), time.time()])
-            #TL.client(port, ['127.0.0.1', args.port, 4, 4, rand(3), time.time()])
-            #TL.client(address, port, 'hello world')
+    else:
+        count = 0
+        while True:
+            count += 1
+            print(Fore.GREEN + f'\n\nIteration: {count}')
+            for address, port in OTHER_DST:
+                print(Fore.GREEN + f'Attempting to send to port: {address}:{port}')
+                #TL.client(address, port, ['hello'])
+                #TL.client(port, [127, 0, 0, 1, args.port, 2, 1, 1, 0, 0, time.time()])
+                TL.client(address, port, [address, port, l, time.time()])
+                #TL.client(port, ['127.0.0.1', args.port, 4, 4, rand(3), time.time()])
+                #TL.client(address, port, 'hello world')
 
-        sleep(3)
+            sleep(3)
         
