@@ -37,7 +37,7 @@ from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, Running
 from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_eval_mp
 from deep_rl.agent.PPO_agent import ShellAgent_DP
-from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval
+from deep_rl.shell_modules.communication.comms import ParallelCommV1, ParallelCommV2, ParallelCommEval, ParallelCommOmniscent
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
@@ -201,7 +201,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     knowledge_base = manager.dict()
 
     mode = 'ondemand'
-    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, mode, zip(addresses, ports), knowledge_base, manager, args.localhost)
+    comm = ParallelCommV2(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, mode, zip(addresses, ports), knowledge_base, manager, args.localhost)
 
     # start training
     shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, mask_interval)

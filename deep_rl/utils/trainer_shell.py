@@ -26,6 +26,7 @@ from .torch_utils import *
 from ..shell_modules import *
 
 import multiprocessing.dummy as mpd
+from queue import Empty
 from colorama import Fore
 
 try:
@@ -601,21 +602,19 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         Handles incoming masks from other agents. Distills the mask knowledge to the agent's network.
         """
         while True:
-            mask, best_agent_rw, best_agent_id, received_label = queue_mask.get()
-            logger.info(Fore.WHITE + f'\nReceived mask: \nMask:{mask}\nReward:{best_agent_rw}\nSrc:{best_agent_id}\nEmbedding:{received_label}')
+            mask, label, reward, ip, port  = queue_mask.get()
+            logger.info(Fore.WHITE + f'\nReceived mask: \nMask:{mask}\nReward:{reward}\nSrc:{ip, port}\nEmbedding:{label}')
                 
             if mask is not None:
                 # Update the knowledge base with the expected reward
-                knowledge_base.update(best_agent_rw)
+                knowledge_base.update({label: reward})
                 # Update the network with the mask
-                agent.distil_task_knowledge_single(mask, received_label)
+                agent.distil_task_knowledge_single(mask, label)
 
-                #logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
+                logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
 
                 # Mask transfer logging.
-                _tempknowledgebase = {}
-                for key, val in knowledge_base.items(): _tempknowledgebase[np.argmax(key, axis=0)] = val
-                exchanges.append([shell_iterations, best_agent_id, np.argmax(received_label, axis=0), _tempknowledgebase, len(mask), mask])
+                exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, len(mask), mask])
                 np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
 
     def conv_handler():
@@ -624,6 +623,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         """
         while True:
             convert = queue_label_send.get()
+            logger.info('Got label to convert to mask')
             convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
             queue_mask_recv.put((convert))
 
@@ -640,10 +640,13 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
             if idling:
                 print('Agent is idling...') # Useful visualisation but we can eventually remove this idling message.
                 idling = False
+            
+            time.sleep(2)
             continue
 
         #print(f'Knowledge base in agent: {knowledge_base}')
         logger.info(f'{Fore.RED}World: {comm.world_size.value}')
+        #logger.info(f'{Fore.RED}Meta: {len(comm.metadata)}')
         #for key, val in comm.knowledge_base.items(): print(f'{Fore.RED}Knowledge base: {key}: {val}')
         for addr in comm.query_list: print(f'{Fore.RED}{addr[0]}, {addr[1]}')
 
