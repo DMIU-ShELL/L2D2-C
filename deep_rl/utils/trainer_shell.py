@@ -837,7 +837,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
     # Start the communication module with the initial states and the first task label.
     # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
     # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv, knowledge_base)
+    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv)
 
     exchanges = []
     task_times = []
@@ -846,23 +846,23 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
 
     # Communication module interaction handlers
     def mask_handler():
+        """
+        Handles incoming masks from other agents. Distills the mask knowledge to the agent's network.
+        """
         while True:
-            mask, best_agent_rw, best_agent_id, received_label = queue_mask.get()
-            logger.info(Fore.WHITE + f'\nAgent received from comm: \nMask:{mask}\nReward:{best_agent_rw}\nSrc:{best_agent_id}\nEmbedding:{received_label}')
+            mask, label, reward, ip, port  = queue_mask.get()
+            logger.info(Fore.WHITE + f'\nReceived mask: \nMask:{mask}\nReward:{reward}\nSrc:{ip, port}\nEmbedding:{label}')
                 
             if mask is not None:
-                #if shell_iterations % mask_interval == 0:
                 # Update the knowledge base with the expected reward
-                knowledge_base.update(best_agent_rw)
+                knowledge_base.update({label: reward})
                 # Update the network with the mask
-                agent.distil_task_knowledge_single(mask, received_label)
+                agent.distil_task_knowledge_single(mask, label)
+
                 logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
 
-                _tempknowledgebase = {}
-                for key, val in knowledge_base.items():
-                    _tempknowledgebase[np.argmax(key, axis=0)] = val
-
-                exchanges.append([shell_iterations, best_agent_id, np.argmax(received_label, axis=0), _tempknowledgebase, len(mask), mask])
+                # Mask transfer logging.
+                exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, len(mask), mask])
                 np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
 
     t_mask = mpd.Pool(processes=1)
@@ -937,7 +937,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
             shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
 
 
-        print('***** AGENT ITERATION TIME ELAPSED:', time.time()-START)
+        #print('***** AGENT ITERATION TIME ELAPSED:', time.time()-START)
 
         # If ShELL is finished running all tasks then stop the program
         # this will have to be changed when we deploy so agents never stop working

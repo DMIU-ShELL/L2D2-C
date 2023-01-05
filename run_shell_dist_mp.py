@@ -73,7 +73,7 @@ def global_config(config, name):
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 25600
-    config.evaluation_episodes = 50
+    config.evaluation_episodes = 25
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
@@ -163,37 +163,20 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
     addresses, ports = [], []
-    laddr, lports = [], []
-    reference_file = open('./reference.csv', 'r')
+    reference_file = open(args.reference, 'r')
     lines = reference_file.readlines()
-
+    
     if args.quick_start:
         for i in range(args.agent_id + 1):
             line = lines[i].strip('\n').split(', ')
             addresses.append(line[0])
             ports.append(int(line[1]))
-            if int(line[1]) > args.port:
-                addresses.append(line[0])
-                ports.append(int(line[1]))
-            else:
-                laddr.append(line[0])
-                lports.append(int(line[1]))
 
     else:
         for line in lines:
             line = line.strip('\n').split(', ')
-            if int(line[1]) > args.port:
-                addresses.append(line[0])
-                ports.append(int(line[1]))
-            else:
-                laddr.append(line[0])
-                lports.append(int(line[1]))
-
-        addresses = addresses + laddr
-        ports = ports + lports
-
-
-    print(len(addresses), len(ports))
+            addresses.append(line[0])
+            ports.append(int(line[1]))
         
 
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
@@ -212,7 +195,7 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
 
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
-    init_port = shell_config['dist_only']['init_port']
+    init_port = args.port
 
     # set up config
     config = Config()
@@ -232,7 +215,13 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
     config.log_dir = log_dir
 
     # save shell config and env config
-    shutil.copy(shell_config_path, log_dir)
+    #shutil.copy(shell_config_path, log_dir)
+    try:
+        with open(log_dir + '/shell_config.json', 'w') as f:
+            json.dump(shell_config, f, indent=4)
+            print('Shell configuration saved to shell_config.json')
+    except:
+        print('Something went terribly wrong. Unable to save shell configuration JSON')
     shutil.copy(env_config_path, log_dir)
 
     # create/initialise agent
@@ -248,7 +237,7 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
 
     #task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
     task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)          # Chris
-    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
     #eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
     eval_task_fn= lambda log_dir: MetaCTgraphFlatObs(name, env_config_path,log_dir)            # Chris
     config.eval_task_fn = eval_task_fn
@@ -269,7 +258,7 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
     #    print(k, " : ", v)
 
     addresses, ports = [], []
-    reference_file = open('./reference.csv', 'r')
+    reference_file = open(args.reference, 'r')
     lines = reference_file.readlines()
     
     if args.quick_start:
@@ -651,7 +640,7 @@ if __name__ == '__main__':
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
     parser.add_argument('--num_agents', help='world: total number of agents', type=int, default=1)                      # Will eventually be deprecated. Currently used to set the communication module initial world size.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_8x8.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_16x16.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='indicate evaluation agent', action='store_true')                   # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
@@ -669,6 +658,7 @@ if __name__ == '__main__':
                                                                                                                         # Was implemented just to make internal testing easier during development.
 
     parser.add_argument('--device', help='select device 1 for GPU or 0 for CPU. default is GPU', type=int, default=1)   # Used to select device. By default system will try to use the GPU. Currently PyTorch is only compatible with NVIDIA GPUs or Apple M Series processors.
+    parser.add_argument('--reference', '--r', '-r', help='reference.csv file path', type=str, default='reference.csv')
     args = parser.parse_args()
 
     select_device(args.device)
