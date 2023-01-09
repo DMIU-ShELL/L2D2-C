@@ -43,13 +43,13 @@ To run multiple agents on localhost, first check that the addresses.csv file con
 127.0.0.1, 29504
 127.0.0.1, 29505
 ```
-To run two agents on localhost simply run the following commands on two seperate terminals:
+To run two agents on localhost simply run the following commands on two seperate terminals. NOTE: that the agent_id acts as an index value for the selection of a curriculum from the provided shell.json configuration file. It is also used to create directories for each agent's logs.
 ```
 Terminal 1:
-python run_shell_dist_mp.py 0 2 --port 29500
+python run_shell_dist_mp.py <agent_id> <port> -l
 
 Terminal 2:
-python run_shell_dist_mp.py 1 2 --port 29501
+python run_shell_dist_mp.py <agent_id> <port> -l
 ```
 
 To run multiple agents on seperate devices, please update the addresses.csv file to contain the IPs and ports for ALL of your devices. For example:
@@ -60,14 +60,31 @@ xxx.xxx.0.2, 29501
 To then run two agents on two different devices simply run the following commands:
 ```
 Device 1:
-python run_shell_dist_mp.py 0 2 --ip xxx.xxx.0.1 --port 29500
+python run_shell_dist_mp.py 0 29500
 
 Device 2:
-python run_shell_dist_mp.py 1 2 --ip xxx.xxx.0.2 --port 29501
+python run_shell_dist_mp.py 1 29501
 ```
 
-In a future release we hope to remove the need for a look-up table by implementing an additional protocol for dynamically adding and removing agents!
 
+The agent can also be run in evaluation mode to evaluate a collective of agents by using the flag -e, --e, or --eval:
+```
+python run_shell_dist_mp.py <agent_id> <port> -e
+```
+
+
+Additional parameters are also available in the system
+```
+--num_agents: Modify the default value of the initial world size (default starts at 1)
+--shell_config_path: Modify the default path to the shell configuration JSON.
+--exp_id: A unique ID/name for an experiment. Can be useful to seperate logging
+--eval: Launches in evaluation mode
+--localhost: Launches in localhost mode. Can be useful for debugging
+--shuffle: Randomly shuffles the curriculum from the shell.json configuration. Can be useful for testing.
+--comm_interval: An integer value to indicate the number of communications to perform per task. The default is 5.
+--device: An integer value to indicate the device selection. By default it will select the GPU if available. Otherwise a value of 0 will indicate CPU.
+--reference: The file path to the .csv file containing the address table of bootstrapping agents. These are the addresses the agent will use to connect to an existing network, or form a new one.
+```
 
 ### Configuring environments/curriculum
 Curriculums and environments can be modified from the shell.json file. This file contains the curriculum for each agent by
