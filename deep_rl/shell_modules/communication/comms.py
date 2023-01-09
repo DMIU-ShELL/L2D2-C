@@ -1015,7 +1015,7 @@ class ParallelCommV2(object):
 
     # COMMUNICATION DROPOUT
     # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
-    DROPOUT = 0.25  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
+    DROPOUT = 0.0  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
 
     # buffer indexes
     META_INF_IDX_ADDRESS = 0
@@ -1167,10 +1167,8 @@ class ParallelCommV2(object):
             _data = struct.pack('>I', len(_data)) + _data
             
             # Send formatted query
-
-            if int(np.random.choice(2, 1, p=[ParallelCommV2.DROPOUT, 1 - ParallelCommV2.DROPOUT])) == 1:  # Condition to simulate % communication loss
-                sock.sendall(_data)
-                self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
+            sock.sendall(_data)
+            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
         except:
             self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
@@ -1197,11 +1195,16 @@ class ParallelCommV2(object):
             
         #self.logger.info(Fore.GREEN + 'send_recv_req, req data: {0}'.format(embedding))
 
+        reward = 0.0
+        if tuple(embedding.tolist()) in self.knowledge_base:
+            reward = self.knowledge_base[tuple(embedding.tolist())]
+
+
         if embedding is None:
             data = [self.init_address, self.init_port, ParallelCommV2.MSG_TYPE_SEND_QUERY, ParallelCommV2.MSG_DATA_NULL]
 
         else:
-            data = [self.init_address, self.init_port, ParallelCommV2.MSG_TYPE_SEND_QUERY, ParallelCommV2.MSG_DATA_QUERY, np.array(embedding)]
+            data = [self.init_address, self.init_port, ParallelCommV2.MSG_TYPE_SEND_QUERY, ParallelCommV2.MSG_DATA_QUERY, embedding, reward]
 
         self.expecting.value = True
         # Try to send a query to all known destinations. Skip the ones that don't work
@@ -1259,7 +1262,8 @@ class ParallelCommV2(object):
         ret['sender_port'] = int(buffer[ParallelCommV2.META_INF_IDX_PORT])
         #ret['msg_type'] = int(buffer[ParallelCommV2.META_INF_IDX_MSG_TYPE])
         #ret['msg_data'] = int(buffer[ParallelCommV2.META_INF_IDX_MSG_DATA])
-        ret['embedding'] = torch.tensor(buffer[ParallelCommV2.META_INF_IDX_TASK_SZ])
+        ret['embedding'] = buffer[ParallelCommV2.META_INF_IDX_TASK_SZ]
+        ret['sender_reward'] = buffer[-1]
 
         return ret
     def proc_meta(self, other_agent_req):
@@ -1278,6 +1282,7 @@ class ParallelCommV2(object):
 
         if other_agent_req is not None:
             np_embedding = other_agent_req['embedding'].detach().cpu().numpy()
+            sender_reward = other_agent_req['sender_reward']
 
             # Iterate through the knowledge base and compute the distances
             # If reward greater than 0
@@ -1285,9 +1290,10 @@ class ParallelCommV2(object):
             # response = True (false by default)
             for tlabel, treward in self.knowledge_base.items():
                 if treward > np.around(0.0, decimals=6):
-                    if np.sum(abs(np.subtract(np_embedding, np.asarray(tlabel)))) <= ParallelCommV2.THRESHOLD:
-                        other_agent_req['response'] = True
-                        other_agent_req['reward'] = treward
+                    if 0.9 * round(treward, 6) > sender_reward:
+                        if np.sum(abs(np.subtract(np_embedding, np.array(tlabel)))) <= ParallelCommV2.THRESHOLD:
+                            other_agent_req['response'] = True
+                            other_agent_req['reward'] = treward
 
         # Return the query request
         return other_agent_req
@@ -1309,6 +1315,8 @@ class ParallelCommV2(object):
             queue_label_send.put((mask_req))
             self.logger.info('Mask request sent')
             return queue_mask_recv.get()        # Return the dictionary with the mask attached
+        #else:
+        #    return mask_req
 
     def send_mask(self, mask_resp):
         """
@@ -1814,7 +1822,8 @@ class ParallelCommV2(object):
 
                 # Send out a query when shell iterations matches mask interval if the agent is working on a task
                 if self.world_size.value > 1:
-                    self.send_query(msg)
+                    if int(np.random.choice(2, 1, p=[ParallelCommV2.DROPOUT, 1 - ParallelCommV2.DROPOUT])) == 1:  # Condition to simulate % communication loss
+                        self.send_query(msg)
 
 
 
@@ -1941,28 +1950,13 @@ class ParallelCommEval(object):
             return False
 
     # Modified version of the client used by the send_query function. Has an additional bit of code to handle the mask response before querying the next agent in the query list
-    def query_client(self, data, address, port, queue_mask):
+    def query_client(self, data, address, port):
         
         _data = pickle.dumps(data, protocol=5)
 
         # Attempt to send the data a number of times. If successful do not attempt to send again.
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)
-
-        def _recvall(conn, n):
-            data = bytearray()
-            while len(data) < n:
-                packet = conn.recv(n - len(data))
-                if not packet: return None
-                data.extend(packet)
-            return data
-        def recv_msg(conn):
-            msg_length = _recvall(conn, 4)
-            if not msg_length: return None
-            msg = struct.unpack('>I', msg_length)[0]
-            return _recvall(conn, msg)
-
-        received_mask, received_label, received_reward = None, None, None
         
         try:
             # Connect to target server
@@ -1985,7 +1979,7 @@ class ParallelCommEval(object):
         finally: sock.close()
 
     ### Query send and recv functions
-    def send_query(self, embedding, queue_mask):
+    def send_query(self, embedding):
         """
         Sends a query for knowledge for a given embedding to other agents known to this agent.
         
@@ -1998,17 +1992,22 @@ class ParallelCommEval(object):
             
         #self.logger.info(Fore.GREEN + 'send_recv_req, req data: {0}'.format(embedding))
 
+        reward = 0.0
+        if tuple(embedding.tolist()) in self.knowledge_base:
+            reward = self.knowledge_base[tuple(embedding.tolist())]
+
+
         if embedding is None:
-            data = [self.init_address, self.init_port, ParallelCommEval.MSG_TYPE_SEND_QUERY, ParallelCommEval.MSG_DATA_NULL]
+            data = [self.init_address, self.init_port, ParallelCommV2.MSG_TYPE_SEND_QUERY, ParallelCommV2.MSG_DATA_NULL]
 
         else:
-            data = [self.init_address, self.init_port, ParallelCommEval.MSG_TYPE_SEND_QUERY, ParallelCommEval.MSG_DATA_QUERY, np.array(embedding)]
+            data = [self.init_address, self.init_port, ParallelCommV2.MSG_TYPE_SEND_QUERY, ParallelCommV2.MSG_DATA_QUERY, embedding, reward]
 
         self.expecting.value = True
         # Try to send a query to all known destinations. Skip the ones that don't work
         for addr in self.query_list:
             if not self.expecting.value: break
-            self.query_client(data, addr[0], addr[1], queue_mask)
+            self.query_client(data, addr[0], addr[1])
     def recv_mask(self, buffer):
         """
         Unpacks a received mask response from another agent.
@@ -2112,7 +2111,8 @@ class ParallelCommEval(object):
         ret['sender_port'] = int(buffer[ParallelCommEval.META_INF_IDX_PORT])
         #ret['msg_type'] = int(buffer[ParallelCommEval.META_INF_IDX_MSG_TYPE])
         #ret['msg_data'] = int(buffer[ParallelCommEval.META_INF_IDX_MSG_DATA])
-        ret['embedding'] = torch.tensor(buffer[ParallelCommEval.META_INF_IDX_TASK_SZ])
+        ret['embedding'] = buffer[ParallelCommEval.META_INF_IDX_TASK_SZ]
+        ret['sender_reward'] = buffer[-1]
 
         return ret
     def proc_meta(self, other_agent_req):
@@ -2131,6 +2131,7 @@ class ParallelCommEval(object):
 
         if other_agent_req is not None:
             np_embedding = other_agent_req['embedding'].detach().cpu().numpy()
+            sender_reward = other_agent_req['sender_reward']
 
             # Iterate through the knowledge base and compute the distances
             # If reward greater than 0
@@ -2138,9 +2139,10 @@ class ParallelCommEval(object):
             # response = True (false by default)
             for tlabel, treward in self.knowledge_base.items():
                 if treward > np.around(0.0, decimals=6):
-                    if np.sum(abs(np.subtract(np_embedding, np.asarray(tlabel)))) <= ParallelCommEval.THRESHOLD:
-                        other_agent_req['response'] = True
-                        other_agent_req['reward'] = treward
+                    #if 0.9 * round(treward, 6) > sender_reward:
+                        if np.sum(abs(np.subtract(np_embedding, np.array(tlabel)))) <= ParallelCommV2.THRESHOLD:
+                            other_agent_req['response'] = True
+                            other_agent_req['reward'] = treward
 
         # Return the query request
         return other_agent_req
@@ -2215,8 +2217,8 @@ class ParallelCommEval(object):
         #self.logger.info(f'Processes mask resp: {mask_resp}')
 
         # Send the mask response back to the querying agent
-        other_agent_req['response'] = False
-        self.send_mask(other_agent_req)
+        #other_agent_req['response'] = False
+        self.send_mask(None)
     def update_params(self, data):
         temp = list(self.query_list)
         self.query_list[:] = []
@@ -2349,7 +2351,7 @@ class ParallelCommEval(object):
                 # Send out a query when shell iterations matches mask interval if the agent is working on a task
                 if self.world_size.value > 1:
                     if int(np.random.choice(2, 1, p=[ParallelCommEval.DROPOUT, 1 - ParallelCommEval.DROPOUT])) == 1:  # Condition to simulate % communication loss
-                        self.send_query(msg, queue_mask)
+                        self.send_query(msg)
 
             # Handles the agent crashing or stopping or whatever. Not sure if this is the right way to do this. Come back to this later.
             except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling

@@ -607,7 +607,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
                 
             if mask is not None:
                 # Update the knowledge base with the expected reward
-                knowledge_base.update({label: reward})
+                knowledge_base.update({tuple(label.tolist()): reward})
                 # Update the network with the mask
                 agent.distil_task_knowledge_single(mask, label)
 
