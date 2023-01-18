@@ -37,7 +37,7 @@ from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, Running
 from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_eval_mp
 from deep_rl.agent.PPO_agent import ShellAgent_DP
-from deep_rl.shell_modules.communication.comms import ParallelCommV1, ParallelCommV2, ParallelCommEval, ParallelCommOmniscent
+from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
@@ -160,7 +160,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     #for k, v in agent.network.named_parameters():       # Chris
     #    print(k, " : ", v)
 
-    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
+    querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
     addresses, ports = [], []
     reference_file = open(args.reference, 'r')
@@ -182,12 +182,18 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
     manager = mp.Manager()
     knowledge_base = manager.dict()
+    mode = manager.Value('b', args.omni)
 
-    mode = 'ondemand'
-    comm = ParallelCommV2(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, mode, zip(addresses, ports), knowledge_base, manager, args.localhost)
+    # If True then run the omnisicent mode agent, otherwise run the normal agent.
+    if mode.value:
+        comm = ParallelCommOmniscient(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode)
+        shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
+    
+    
+    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode)
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, mask_interval)
+    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
 
 def shell_dist_mctgraph_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path
@@ -278,7 +284,7 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
 
     # set up communication (transfer module)
     mode = 'ondemand'
-    comm = ParallelCommEval(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, mode, zip(addresses, ports), knowledge_base, manager, args.localhost)
+    comm = ParallelCommEval(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost)
 
     # start training
     shell_dist_eval_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base)
@@ -362,24 +368,34 @@ def shell_dist_minigrid_mp(name, args, shell_config):
 
     # For optimal performance the mask interval should be divisible by the number of iterations per task
     # i..e, set max_steps to multiple of 512
-    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 1
+    querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
-    addresses = []
-    ports = []
-    file1 = open('./reference.csv', 'r')
-    lines = file1.readlines()
-    for line in lines:
-        line = line.strip('\n')
-        line = line.split(', ')
-        addresses.append(line[0])
-        ports.append(int(line[1]))
+    addresses, ports = [], []
+    reference_file = open(args.reference, 'r')
+    lines = reference_file.readlines()
+    
+    if args.quick_start:
+        for i in range(args.agent_id + 1):
+            line = lines[i].strip('\n').split(', ')
+            addresses.append(line[0])
+            ports.append(int(line[1]))
+
+    else:
+        for line in lines:
+            line = line.strip('\n').split(', ')
+            addresses.append(line[0])
+            ports.append(int(line[1]))
+        
+
+    # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
+    manager = mp.Manager()
+    knowledge_base = manager.dict()
 
     mode = 'ondemand'
-    comm = ParallelComm(agent.task_label_dim, agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval, addresses, ports)
-
+    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, mode, zip(addresses, ports), knowledge_base, manager, args.localhost)
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
+    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency)
 
 def shell_dist_minigrid_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path
@@ -537,15 +553,34 @@ def shell_dist_continualworld_mp(name, args, shell_config):
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
 
-    mask_interval = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / 5
+    querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
-    # set up communication (transfer module)
+    addresses, ports = [], []
+    reference_file = open(args.reference, 'r')
+    lines = reference_file.readlines()
+    
+    if args.quick_start:
+        for i in range(args.agent_id + 1):
+            line = lines[i].strip('\n').split(', ')
+            addresses.append(line[0])
+            ports.append(int(line[1]))
+
+    else:
+        for line in lines:
+            line = line.strip('\n').split(', ')
+            addresses.append(line[0])
+            ports.append(int(line[1]))
+        
+
+    # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
+    manager = mp.Manager()
+    knowledge_base = manager.dict()
+
     mode = 'ondemand'
-    comm = ParallelComm(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode, mask_interval)
+    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, mode, zip(addresses, ports), knowledge_base, manager, args.localhost)
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents)
+    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency)
 
 def shell_dist_continualworld_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path
@@ -643,7 +678,12 @@ if __name__ == '__main__':
     parser.add_argument('--shell_config_path', help='shell config', default='./shell_16x16.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
-    parser.add_argument('--eval', '--e', '-e', help='indicate evaluation agent', action='store_true')                   # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
+    parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
+    parser.add_argument('--omni', '--o', '-o', help='launches agetn in omniscient mode. omniscient agents use the '\
+        'gather all querying method to gather all knowledge from the network while still operating as a functional '\
+            'learning agent', action='store_true')                                                                      # Flag used to start the system in omniscient agent mode. By default the system will run in learning mode.
+                                                                                                                        # Omnisicient agent mode cannot be combined with evaluation mode.
+
     parser.add_argument('--localhost', '--ls', '-ls', help='used to run DMIU in localhost mode', action='store_true')   # Flag used to start the system using localhost instead of public IP. Can be useful for debugging network related problems.
     parser.add_argument('--shuffle', '--s', '-s', help='randomise the task curriculum', action='store_true')            # Not required. If you want to randomise the order of tasks in the curriculum then you can change to 1
     parser.add_argument('--comm_interval', '--i', '-i', help='integer value indicating the number of communications '\

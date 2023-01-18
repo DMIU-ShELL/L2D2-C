@@ -521,7 +521,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
 shell training: concurrent processing for event-based communication. a multitude of improvements have been made compared
 to the previous shell_dist_train.
 '''
-def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base, mask_interval):
+def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base, mask_interval, omniscient_mode):
     logger = agent.config.logger
 
     logger.info(Fore.BLUE + '*****start shell training')
@@ -624,6 +624,8 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         while True:
             convert = queue_label_send.get()
             logger.info('Got label to convert to mask')
+            print(convert['embedding'], type(convert['embedding']))
+
             convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
             queue_mask_recv.put((convert))
 
@@ -640,7 +642,12 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
             if idling:
                 print('Agent is idling...') # Useful visualisation but we can eventually remove this idling message.
                 idling = False
-            
+            if omniscient_mode:
+                if shell_iterations % mask_interval == 0:
+                    queue_label.put(None)
+
+                shell_iterations += 1
+
             time.sleep(2)
             continue
 
@@ -685,7 +692,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
                     agent.task.name))
 
 
-        ### EVALUATION BLOCK    Deprecated. Marked for removal
+        ### EVALUATION BLOCK    Deprecated.
         '''
         Performs the evaluation block. Has been replaced by the evaluation agent. Can be re-enabled by changing the eval interval value in the configuration in run_shell_dist_mp.py.
         '''
@@ -760,7 +767,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
             del task_counter_
 
 
-        ### EVALUATION BLOCK LOGGING    Deprecated. Marked for removal
+        ### EVALUATION BLOCK LOGGING    Deprecated.
         '''
         Logs the evaluation block data to a text file. No longer necessary as we are now using the evaluation agent.
         '''
