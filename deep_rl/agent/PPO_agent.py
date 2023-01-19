@@ -188,7 +188,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         print("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII:", observation_size, self.task_emb_size)
         print("HIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII:", self.task_action_space_size)
         #Ihave changed the bellow commande by substitue the label dim with embedding dim
-        self.network = config.network_fn(self.task.state_dim, self.task.action_dim, self.task_emb_size)
+        self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)#self.task_emb_size)
         _params = list(self.network.parameters())
         self.opt = config.optimizer_fn(_params, config.lr)
         self.total_steps = 0

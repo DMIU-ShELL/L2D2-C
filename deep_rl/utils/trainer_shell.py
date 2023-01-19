@@ -677,14 +677,15 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         shell_iterations += 1
 
 
-        ''''activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency(), agent)   #Chris
-        str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb = run_detect_module(agent, activation_flag)   #Chris
+        activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency(), agent)   #Chris
+        #str_task_chng_msg, task_change_flag, emb_dist, emb_bool, 
+        new_emb = run_detect_module(agent, activation_flag)   #Chris
 
             #Logging of the detect operations!!!   #Chris
         if activation_flag:
             #print(Fore.GREEN)
-            detect_module_activations.append([shell_iterations, activation_flag, agent.detect.get_num_samples(), str_task_chng_msg, task_change_flag, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool, "HI I AM EMB:", new_emb])
-            np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')'''
+            detect_module_activations.append([shell_iterations, activation_flag, agent.detect.get_num_samples(), "I AM THE NEW EMBEDIIIIIIIIIIIIIING!!!!!!!!!!!!:", new_emb])#str_task_chng_msg, task_change_flag, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool, "HI I AM EMB:", new_emb])
+            np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
 
 
 
@@ -1012,13 +1013,13 @@ def run_detect_module(an_agent, activation_check_flag):
         print(sar_data)
         #print("CURR_EMB:", current_embedding)
         new_emb = an_agent.compute_task_embedding(sar_data, an_agent.get_task_action_space_size())
-        current_embedding = an_agent.get_current_task_embedding()
-        print("CURR_EMB:", current_embedding)
+        #current_embedding = an_agent.get_current_task_embedding()
+        #print("CURR_EMB:", current_embedding)
         print("NEW_EMB:", new_emb)
         print("EMBEDDING SIZE:", len(new_emb))
-        emb_bool = current_embedding == new_emb
-        emb_dist = an_agent.calculate_emb_distance(current_embedding, new_emb)
-        emb_dist_thrshld = an_agent.get_emb_dist_threshold()
-        str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
+        #emb_bool = current_embedding == new_emb
+        #emb_dist = an_agent.calculate_emb_distance(current_embedding, new_emb)
+        #emb_dist_thrshld = an_agent.get_emb_dist_threshold()
+        #str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
 
-    return str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    
+    return new_emb#str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    
