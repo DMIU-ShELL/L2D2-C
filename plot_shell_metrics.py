@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import floor
 import matplotlib.transforms as transforms
+import pandas as pd
 
 def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label=''):
     fig = plt.figure(figsize=(9, 6))
@@ -35,6 +36,7 @@ def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label='')
     ax.grid(True, which='both')
 
     for method_name, result_dict in results.items():
+        print(method_name)
         xdata = result_dict['xdata']
         ydata = result_dict['ydata']
         cfi = result_dict['ydata_cfi']
@@ -68,14 +70,13 @@ def plot_tra(xdata, ydata, num_agents):
     #addlabels(xdata, ydata)
     return fig
 
-def load_shell_data(args_path):
+def load_shell_data(args_path, interval):
     if args_path[-1] != '/':
         args_path += '/'
 
     names = os.listdir(args_path)
     names = [name for name in names if re.search('agent_*', name) is not None]
     names = sorted(names, key=lambda x: int(x.split('_')[3].split('.')[0]))
-    print(names)
 
     paths = [args_path + name for name in names]
     #paths = ['{0}/{1}/'.format(path, os.listdir(path)[-1]) for path in paths]
@@ -99,13 +100,28 @@ def load_shell_data(args_path):
     wall_clock_time = wall_clock_time.transpose(1, 0)
 
     metrics = metrics[ : , : , : -1] # remove the last dim (wall clock time) from metrics
+    #print(metrics)
     #print(metrics.shape)
+    #metrics = metrics[:, :, 0::interval]
+    shell_df = pd.DataFrame(metrics[0])
+    #shell_df = shell_df.rolling(interval).mean()
+    #shell_df = shell_df.iloc[::interval, :]
+    shell_df = shell_df.groupby(np.arange(len(shell_df))//interval).mean()
+    #print(shell_df_avg)
+    metrics = shell_df.to_numpy()
+    metrics = np.array([metrics])
+    #print(metrics)
+    #print(metrics.shape)
+
+
     # shape: num_evals x num_agents x num_tasks
     metrics = metrics.transpose(1, 0, 2)
     #print(metrics.shape)
     
     metrics_icr = []
     metrics_tpot = []
+    num_evals = len(metrics)
+    #print(num_evals)
     for idx in range(num_evals):
         data = metrics[idx]
         _max_reward = data.max(axis=0)
@@ -120,7 +136,7 @@ def load_shell_data(args_path):
     
     return metrics, metrics_icr, metrics_tpot, wall_clock_time
 
-def load_ll_data(path):
+def load_ll_data(path, interval):
         # Load baseline data for a single LL agent
         if os.path.exists(path + 'eval_metrics_agent_0.csv'):
             path = path + 'eval_metrics_agent_0.csv'
@@ -133,6 +149,16 @@ def load_ll_data(path):
         wall_clock_time = np.expand_dims(wall_clock_time, axis=1)
 
         raw_data = raw_data[ : , : -1] # remove the last dim (wall clock time)
+        #print(raw_data)
+        #print(raw_data.shape)
+        #raw_data = raw_data[:, 0::interval]
+        ll_df = pd.DataFrame(raw_data)
+        ll_df = ll_df.groupby(np.arange(len(ll_df))//interval).mean()
+        raw_data = ll_df.to_numpy()
+        #raw_data = np.array([raw_data])
+        #print(raw_data)
+        #print(raw_data.shape)
+
         metrics_icr = raw_data.sum(axis=1)
         metrics_tpot = []
         for idx in range(len(metrics_icr)):
@@ -154,13 +180,14 @@ def main(args):
     data['ila'] = {}
     data['sbf3'] = {}
 
+    maximum_icr_ = 0
     # load single agent (ll) data if it exists
     if args.ll_paths is not None:
         ll_data = []
         ll_icr = []
         ll_tpot = []
         for p in args.ll_paths:
-            raw_data, metrics_icr, metrics_tpot, ll_wall_clock = load_ll_data(p)
+            raw_data, metrics_icr, metrics_tpot, ll_wall_clock = load_ll_data(p, args.interval)
             ll_data.append(raw_data)
             ll_icr.append(metrics_icr)
             ll_tpot.append(metrics_tpot)
@@ -174,6 +201,12 @@ def main(args):
         data['icr']['ll']['ydata'] = np.mean(ll_icr, axis=0) # average across seeds
         data['icr']['ll']['ydata_cfi'] = np.std(ll_icr, axis=0)
         data['icr']['ll']['plot_colour'] = 'red'
+
+        #print(data['icr']['ll']['ydata'])
+        maximum_icr_ = np.max(data['icr']['ll']['ydata'])
+
+        #print(data['icr']['ll']['xdata'])
+        #print(data['icr']['ll']['ydata'])
         # tpot
         data['tpot']['ll'] = {}
         data['tpot']['ll']['xdata'] = np.arange(num_evals)
@@ -186,7 +219,7 @@ def main(args):
     shell_icr = []
     shell_tpot = []
     for p in args.shell_paths:
-        raw_data, metrics_icr, metrics_tpot, shell_wall_clock = load_shell_data(p)
+        raw_data, metrics_icr, metrics_tpot, shell_wall_clock = load_shell_data(p, args.interval)
         shell_data.append(raw_data)
         shell_icr.append(metrics_icr)
         shell_tpot.append(metrics_tpot)
@@ -201,6 +234,9 @@ def main(args):
     data['icr']['shell']['ydata'] = np.mean(shell_icr, axis=0) # average across seeds
     data['icr']['shell']['ydata_cfi'] = np.std(shell_tpot, axis=0)
     data['icr']['shell']['plot_colour'] = 'green'
+
+    maximum_icr_ = max(maximum_icr_, np.max(data['icr']['shell']['ydata']))
+
     # tpot
     data['tpot']['shell'] = {}
     data['tpot']['shell']['xdata'] = np.arange(num_evals)
@@ -208,39 +244,120 @@ def main(args):
     data['tpot']['shell']['ydata_cfi'] = np.std(shell_tpot, axis=0)
     data['tpot']['shell']['plot_colour'] = 'green'
 
+
+    '''
+    ### BAR CHARTS
+    ### Performance at 20%, 50% and 70% of MAX
+    #print(data['icr']['shell']['ydata'])
+    #print('max icr')
+    #print(maximum_icr_)
+    #print(np.where(data['icr']['shell']['ydata'] >= maximum_icr_)[0])
+    #print('Here')
+    _max_time_shell = data['icr']['shell']['xdata'][np.where(data['icr']['shell']['ydata'] >= maximum_icr_)[0][0]]
+    _max_time_ll = data['icr']['ll']['xdata'][np.where(data['icr']['ll']['ydata'] >= maximum_icr_)[0][0]]
+    _seventy = 0.70 * maximum_icr_
+    _fifty = 0.50 * maximum_icr_
+    _twenty= 0.20 * maximum_icr_
+    bar_x = []
+    bar_x.append(np.where(data['icr']['shell']['ydata'] >= _twenty)[0][0])
+    bar_x.append(np.where(data['icr']['shell']['ydata'] >= _fifty)[0][0])
+    bar_x.append(np.where(data['icr']['shell']['ydata'] >= _seventy)[0][0])
+
+    bar_x2 = []
+    bar_x2.append(np.where(data['icr']['ll']['ydata'] >= _twenty)[0][0])
+    bar_x2.append(np.where(data['icr']['ll']['ydata'] >= _fifty)[0][0])
+    bar_x2.append(np.where(data['icr']['ll']['ydata'] >= _seventy)[0][0])
+
+    fig = plt.figure()
+    ax = fig.add_axes([0, 0, 1, 1])
+    xlabels = ['20%', '50%', '70%']
+    ax.bar(xlabels, bar_x2, label='ll', width=0.6)
+    ax.bar(xlabels, bar_x, label='shell', width=0.6)
+    for i in range(len(xlabels)):
+        ax.text(i, bar_x[i], str(bar_x[i]) + ' (' + str((round((bar_x[i]/_max_time_ll)*100, 2))) + '%)', ha = 'center', fontsize=15)
+    for i in range(len(xlabels)):
+        ax.text(i, bar_x2[i], str(bar_x2[i]) + ' (' + str((round((bar_x2[i]/_max_time_ll)*100, 2))) + '%)', ha = 'center', fontsize=15)
+    
+    plt.ylabel('Evaluation checkpoints', fontsize=15)
+    plt.xlabel("X% of max performance", fontsize=15)
+    plt.legend(loc='upper left')
+    fig.savefig(save_path + 'bar_chart100.pdf', dpi=256, format='pdf', bbox_inches='tight')
+
+
+
+
+    ### Performance at 20%, 50% and 70% of 95% performance
+    maximum_icr_ninetyfive = 0.95 * maximum_icr_
+    _max_time_shell = data['icr']['shell']['xdata'][np.where(data['icr']['shell']['ydata'] >= maximum_icr_ninetyfive)[0][0]]
+    _max_time_ll = data['icr']['ll']['xdata'][np.where(data['icr']['ll']['ydata'] >= maximum_icr_ninetyfive)[0][0]]
+    print(_max_time_shell, _max_time_ll)
+    _seventy = 0.70 * _max_time_ll
+    _fifty = 0.50 * _max_time_ll
+    _twenty= 0.20 * _max_time_ll
+
+    bar_x = []
+    bar_x.append((data['icr']['shell']['ydata'][np.where(data['icr']['shell']['xdata'] >= _twenty)[0][0]] / maximum_icr_)*100)
+    bar_x.append((data['icr']['shell']['ydata'][np.where(data['icr']['shell']['xdata'] >= _fifty)[0][0]] / maximum_icr_)*100)
+    bar_x.append((data['icr']['shell']['ydata'][np.where(data['icr']['shell']['xdata'] >= _seventy)[0][0]] / maximum_icr_)*100)
+
+    bar_x2 = []
+    bar_x2.append((data['icr']['ll']['ydata'][np.where(data['icr']['ll']['xdata'] >= _twenty)[0][0]] / maximum_icr_)*100)
+    bar_x2.append((data['icr']['ll']['ydata'][np.where(data['icr']['ll']['xdata'] >= _fifty)[0][0]] / maximum_icr_)*100)
+    bar_x2.append((data['icr']['ll']['ydata'][np.where(data['icr']['ll']['xdata'] >= _seventy)[0][0]] / maximum_icr_)*100)
+    print(_seventy, _fifty, _twenty)
+    print(bar_x, bar_x2)
+
+    fig = plt.figure()
+    ax = fig.add_axes([0, 0, 1, 1])
+    xlabels = ['20%', '50%', '70%']
+    ax.bar(xlabels, bar_x, label='shell', width=0.6)
+    ax.bar(xlabels, bar_x2, label='ll', width=0.6)
+    for i in range(len(xlabels)):
+        ax.text(i, bar_x[i], str(round(bar_x[i], 2)) + '%', ha = 'center', fontsize=15)
+    for i in range(len(xlabels)):
+        ax.text(i, bar_x2[i], str(round(bar_x2[i], 2)) + '%', ha = 'center', fontsize=15)
+
+    plt.ylabel('Performance (%)', fontsize=15)
+    plt.xlabel("X% of time to reach 95% performance in the ll agent", fontsize=15)
+    plt.legend(loc='upper left')
+    fig.savefig(save_path + 'bar_chart95.pdf', dpi=256, format='pdf', bbox_inches='tight')
+    '''
+
+
+
     # plot icr
     fig = plot(data['icr'], 'ICR', yaxis_label='Instant Cumulative Reward (ICR)')
-    fig.savefig(save_path + 'metrics_icr.pdf', dpi=256, format='pdf')
+    fig.savefig(save_path + 'metrics_icr.pdf', dpi=256, format='pdf', bbox_inches='tight')
     # plot tpot
     fig = plot(data['tpot'], 'TPOT', yaxis_label='Total Performance Over Time (TPOT)')
-    fig.savefig(save_path + 'metrics_tpot.pdf', dpi=256, format='pdf')
+    fig.savefig(save_path + 'metrics_tpot.pdf', dpi=256, format='pdf', bbox_inches='tight')
 
     if args.ll_paths is not None:
         eps = 1e-6 # to help with zero divide
         # tla
         #tla = data['tpot']['shell']['ydata'] / (data['tpot']['ll']['ydata'] + eps)
-        tla = ((data['tpot']['shell']['ydata'])[0:len(data['tpot']['ll']['ydata'])] + 1) / ((data['tpot']['ll']['ydata'])[0:len(data['tpot']['shell']['ydata'])] + 1)
+        tla = (((data['tpot']['shell']['ydata'])[0:len(data['tpot']['ll']['ydata'])] + 0.03125) / ((data['tpot']['ll']['ydata'])[0:len(data['tpot']['shell']['ydata'])] + 0.03125))
         data['tla']['shell'] = {}
-        data['tla']['shell']['xdata'] = np.arange(num_evals)
+        data['tla']['shell']['xdata'] = np.arange(len(tla))#np.arange(num_evals)
         data['tla']['shell']['ydata'] = tla
         data['tla']['shell']['ydata_cfi'] = np.zeros_like(tla)
         data['tla']['shell']['plot_colour'] = 'green'
         # ila
         #ila = data['icr']['shell']['ydata'] / (data['icr']['ll']['ydata'] + eps)
-        ila = ((data['icr']['shell']['ydata'])[0:len(data['icr']['ll']['ydata'])] + 1) / ((data['icr']['ll']['ydata'])[0:len(data['icr']['shell']['ydata'])] + 1)
+        ila = (((data['icr']['shell']['ydata'])[0:len(data['icr']['ll']['ydata'])] + 0.03125) / ((data['icr']['ll']['ydata'])[0:len(data['icr']['shell']['ydata'])] + 0.03125))
         data['ila']['shell'] = {}
-        data['ila']['shell']['xdata'] = np.arange(num_evals)
+        data['ila']['shell']['xdata'] = np.arange(len(ila))#np.arange(num_evals)
         data['ila']['shell']['ydata'] = ila 
         data['ila']['shell']['ydata_cfi'] = np.zeros_like(ila)
         data['ila']['shell']['plot_colour'] = 'green'
         # plot tla
         y_label = 'TPOT(Shell, t) / TPOT(SingleLLAgent, t)'
         fig = plot(data['tla'], 'Total Learning Advantage (TLA)', yaxis_label=y_label)
-        fig.savefig(save_path + 'metrics_tla.pdf', dpi=256, format='pdf')
+        fig.savefig(save_path + 'metrics_tla.pdf', dpi=256, format='pdf', bbox_inches='tight')
         # plot ila
         y_label = 'ICR(Shell, t) / ICR(SingleLLAgent, t)'
         fig = plot(data['ila'], 'Instant Learning Advantage (ILA)', yaxis_label=y_label)
-        fig.savefig(save_path + 'metrics_ila.pdf', dpi=256, format='pdf')
+        fig.savefig(save_path + 'metrics_ila.pdf', dpi=256, format='pdf', bbox_inches='tight')
         
         #tra
         # Get the max icr achieved by ll
@@ -270,10 +387,11 @@ def main(args):
                 single_arr[i] += 1.
                 shell_arr[i] += 1.
         y = np.divide(single_arr, shell_arr)
+
+        # 20% 50% 70%
         y[np.isnan(y)] = 0
-        #print(y)
         x = np.around(np.arange(0, floor((max_icr+0.1)*10)/10, 0.5, dtype=np.float32), 1)
-        #x = np.append(x, max_icr)  # Needed if we want to use >0.1
+        #x = np.append(x, max_icr)  # Needed if we want to use >0.1=
         den = max(x)
         for index, val in enumerate(x):
             x[index] = (val/den)*100
@@ -292,5 +410,6 @@ if __name__ == '__main__':
         'agent lifelong learning (support paths to multiple seeds)', nargs='+', default=None)
     parser.add_argument('--exp_name', help='name of experiment', default='metrics_plot')
     parser.add_argument('--num_agents', help='number of agents in the experiment', type=int, default=1)
+    parser.add_argument('--interval', help='interval', type=int, default=1)
     main(parser.parse_args())
 

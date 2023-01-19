@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 #   _________                                           .__                  __   .__                 
 #   \_   ___ \   ____    _____    _____   __ __   ____  |__|  ____  _____  _/  |_ |__|  ____    ____  
 #   /    \  \/  /  _ \  /     \  /     \ |  |  \ /    \ |  |_/ ___\ \__  \ \   __\|  | /  _ \  /    \ 
@@ -7,1640 +6,2045 @@
 #    \______  / \____/ |__|_|  /|__|_|  /|____/ |___|  /|__| \___  >(____  /|__|  |__| \____/ |___|  /
 #           \/               \/       \/             \/          \/      \/                        \/ 
 #
-#                                                   (╯°□°)╯︵ ┻━┻
-import os
-import copy
-import time
+#                                                 (╯°□°)╯︵ ┻━┻
+from colorama import Fore
+from copy import deepcopy
 import datetime
+import multiprocessing as mp
+import multiprocessing.dummy as mpd
+import os
+import sys
+import pickle
+import socket
+import ssl
+import struct
+import time
+from errno import ECONNRESET
+from queue import Empty
+from itertools import cycle
+import urllib.request
+from random import shuffle, uniform
+
 import numpy as np
 import torch
-import torch.distributed as dist
-import multiprocess as mp
-from queue import Empty
+import traceback
 
 
-
-# Add back the old comm as well
-
-
-'''
-Revise communication class. Contains the new implementation of the communication module
-Improves on the bandwidth efficiency by some margin by reducing the amount of masks
-that are communicated over the network, but will likely take longer to complete
-
-Is currently the communication method used in the parallelisation wrapper
-
-TODO: Debug this version of the communication module. Ensure it is working as expected.
-probably best to use it in a synchronised setting first before moving to full async mode.
-To do this use waits for the handlers etc. The code should work fingers crossed.
-'''
-from colorama import Fore, Back, Style
 class ParallelComm(object):
+    ### COMMUNCIATION MODULE HYPERPARAMETERS
     # DETECT MODULE CONSTANTS
     # Threshold for embedding/tasklabel distance (similarity)
+    # This should be taken from the detect module eventually
     THRESHOLD = 0.0
 
+    # SSL/TLS PATHS
+    # Paths to the SSL/TLS certificates and key
+    CERTPATH = 'certificates/certificate.pem'
+    KEYPATH = 'certificates/key.pem'
+
+    # COMMUNICATION DROPOUT
+    # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
+    DROPOUT = 0.0  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
+
     # buffer indexes
-    META_INF_IDX_PROC_ID = 0
-    META_INF_IDX_MSG_TYPE = 1
-    META_INF_IDX_MSG_DATA = 2
+    META_INF_IDX_ADDRESS = 0
+    META_INF_IDX_PORT = 1
+    META_INF_IDX_MSG_TYPE = 2
+    META_INF_IDX_MSG_DATA = 3
 
-    META_INF_IDX_MSK_RW = 3
-    META_INF_IDX_TASK_SZ = 3 # only for the send_recv_request buffer
+    META_INF_IDX_MSK_RW = 4
+    META_INF_IDX_TASK_SZ = 4 # only for the send_recv_request buffer
 
-    META_INF_IDX_DIST = 4
-    META_INF_IDX_TASK_SZ_ = 5 # for the meta send recv buffer
-    
+    META_INF_IDX_DIST = 5
+    META_INF_IDX_TASK_SZ_ = 6 # for the meta send recv buffer
 
-    META_INF_IDX_MASK_SZ = 3
+    META_INF_IDX_MASK_SZ = 4
     
     # message type (META_INF_IDX_MSG_TYPE) values
-    MSG_TYPE_SEND_REQ = 0
-    MSG_TYPE_RECV_RESP = 1
-    MSG_TYPE_RECV_REQ = 2
-    MSG_TYPE_SEND_RESP = 3
+    MSG_TYPE_SEND_QUERY = 0
+    MSG_TYPE_SEND_META = 1
+    MSG_TYPE_SEND_REQ = 2
+    MSG_TYPE_SEND_MASK = 3
+    MSG_TYPE_SEND_JOIN = 4
+    MSG_TYPE_SEND_LEAVE = 5
+    MSG_TYPE_SEND_TABLE = 6
 
     # message data (META_INF_IDX_MSG_DATA) values
     MSG_DATA_NULL = 0 # an empty message
-    MSG_DATA_TSK = 1
-    MSG_DATA_MSK = 2
-    MSG_DATA_META = 3
-
-    # number of seconds to sleep/wait
-    SLEEP_DURATION = 1
+    MSG_DATA_QUERY = 1
+    MSG_DATA_MSK_REQ = 2
+    MSG_DATA_MSK = 3
+    MSG_DATA_META = 4
 
     # Task label size can be replaced with the embedding size.
-    def __init__(self, agent_id, num_agents, emb_label_sz, mask_sz, logger, init_address, init_port, mode, mask_interval, threshold):
+    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost, mode):
         super(ParallelComm, self).__init__()
-        self.agent_id = agent_id
-        self.num_agents = num_agents
-        self.emb_label_sz = emb_label_sz
-        self.mask_sz = mask_sz
-        self.logger = logger
-        self.mode = mode
-        self.mask_interval = mask_interval
-        self.threshold = threshold
+        self.embd_dim = embd_dim            # Dimensions of the the embedding
+        self.mask_dim = mask_dim            # Dimensions of the mask for use in buffers. May no longer be needed
+        self.logger = logger                # Logger object for logging CLI outputs.
+        self.mode = mode                    # Communication operation mode. Currently only ondemand knowledge is implemented
 
-        print('MASK SIZE IS: ', self.mask_sz)
+        # Address and port for this agent
+        if localhost: self.init_address = '127.0.0.1'
+        else: self.init_address = self.init_address = urllib.request.urlopen('https://v4.ident.me').read().decode('utf8') # Use this to get the public ip of the host server.
+        self.init_port = int(init_port)
+
+        # Shared memory variables. Make these into attributes of the communication module to make it easier to use across the many sub processes of the module.
+        self.query_list = manager.list([item for item in reference if item != (self.init_address, self.init_port)]) # manager.list(reference)
+        self.reference_list = manager.list(deepcopy(self.query_list))   # Weird thing was happening here so used deepcopy to recreate the manager ListProxy with the addresses.
+        self.knowledge_base = knowledge_base
         
-        # Setup init string for process group
-        if init_address in ['127.0.0.1', 'localhost']:
-            os.environ['MASTER_ADDR'] = init_address
-            os.environ['MASTER_PORT'] = init_port
-            self.comm_init_str = 'env://'
-        else:
-            self.comm_init_str = 'tcp://{0}:{1}'.format(init_address, init_port)
+        self.world_size = manager.Value('i', num_agents)
+        self.metadata = manager.list()
 
-        # Setup async communication handlers
-        self.handle_send_recv_req = None
-        self.handle_recv_resp = [None, ] * num_agents
-        self.handle_send_resp = [None, ] * num_agents
 
-        # Setup communication buffers
-        self.buff_send_recv_req = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ + emb_label_sz, dtype=torch.float32) \
-            * torch.inf for _ in range(num_agents)]
+        print(type(self.query_list))
+        print(type(self.reference_list))
 
-        self.buff_recv_meta = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
-            for _ in range(num_agents)]
-        self.buff_send_meta = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
-            for _ in range(num_agents)]
+        # For debugging
+        print('Query table:')
+        for addr in self.query_list: print(addr[0], addr[1])
 
-        self.buff_recv_mask = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf 
-        self.buff_send_mask = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf
-            
-    def init_dist(self):
-        '''
-        Initialise the process group for torch. Return boolean of is processes group initialised.
-        '''
-        self.logger.info('*****agent {0} / initialising transfer (communication) module'.format(self.agent_id))
-        dist.init_process_group(backend='gloo', init_method=self.comm_init_str, rank=self.agent_id, \
-            world_size=self.num_agents)
+        print('\nReference table:')
+        for addr in self.reference_list: print(addr[0], addr[1])
 
-        return dist.is_initialized()
+        print(f'\nlistening server params ->\naddress: {self.init_address}\nport: {self.init_port}\n')
+        print('mask size:', self.mask_dim)
+        print('embedding size:', self.embd_dim)
 
     def _null_message(self, msg):
+        """
+        Checks if a message contains null i.e, no data.
+
+        Args:
+            msg: A list received from another agent.
+
+        Returns:
+            A boolean indicating whether A list contains null data.
+        """
+
         # check whether message sent denotes or is none.
         if bool(msg[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_NULL):
             return True
+
         else:
             return False
 
-    # Original send and recv request of a tasklabel
-    def send_receive_request(self, emb_label):
-        '''
-        Setup up the communication buffer with the necessary flags and data.
-        Send buffer to all agents in the network.
-        Then listen for any requests from other agents and unpack the buffer.
-        Return the data to the main process for use in the next process.
-
-        Task label can be interchangeable with the task embedding. Just needs to be a numpy 
-        array to be compatible.
-
-        # Data buffer for communication looks like this
-        #   task label: [0, 0, 1]
-        #   [agentid, communication type, is data or null flag, 0, 0, 1]
-        '''
-        #### TO DO: Switch task labels with embeddings?
-        # or with new idea task labels are made for each embedding cluster?
-
-        if isinstance(emb_label, np.ndarray):
-            emb_label = torch.tensor(emb_label, dtype=torch.float32)
-
-            
-        self.logger.info('send_recv_req, req data: {0}'.format(emb_label))
-        # from message to send from agent (current node), can be NULL message or a valid
-        # request based on given task label
-        data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
-
-        # Send the task label or embedding to the other agents.
-        data[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
-        data[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_REQ
-
-        if emb_label is None:
-            data[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
-        else:
-            data[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_TSK
-            data[ParallelComm.META_INF_IDX_TASK_SZ : ] = emb_label # NOTE deepcopy?
-
-
-        self.logger.info('actual send, recv')
-        # actual send/receive
-        self.handle_send_recv_req = dist.all_gather(tensor_list=self.buff_send_recv_req, \
-            tensor=data, async_op=True)
-
-
-        #time.sleep(ParallelComm.SLEEP_DURATION)
-        self.handle_send_recv_req.wait()
-        print(self.buff_send_recv_req, flush=True)
-
-
-        # briefly wait to see if other agents will send their request
-        #time.sleep(ParallelComm.SLEEP_DURATION)
+    # Client used by the server to send responses
+    def client(self, data, address, port):
+        """
+        Client implementation. Begins a TCP connection secured using SSL/TLS to a trusted server ip-port. Attempts to send the serialized bytes.
         
-        # check buffer for incoming requests
-        idxs = list(range(len(self.buff_send_recv_req)))
-        idxs.remove(self.agent_id)
-        ret = []
-        for idx in idxs :
-            buff = self.buff_send_recv_req[idx]
+        Args:
+            data: A list to be sent to another agent.
+            address: The ip of the destination.
+            port: The port of the destination.
+        """
+        _data = pickle.dumps(data, protocol=5)
 
-            if self._null_message(buff):
-                d = {}
-                d['sender_agent_id'] = int(buff[ParallelComm.META_INF_IDX_PROC_ID])
-                d['msg_data'] = None
-                ret.append(d)
-            else:
-                self.logger.info('send_recv_req: request received from agent {0}'.format(idx))
-                d = {}
-                d['sender_agent_id'] = int(buff[ParallelComm.META_INF_IDX_PROC_ID])
-                d['msg_type'] = int(buff[ParallelComm.META_INF_IDX_MSG_TYPE])
-                #d['msg_data'] = int(buff[ParallelComm.META_INF_IDX_MSG_DATA])
-                d['task_label'] = buff[ParallelComm.META_INF_IDX_TASK_SZ : ]
-                ret.append(d)
-        return ret
+        # Attempt to send the data a number of times. If successful do not attempt to send again.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
 
-    # Multi-threaded handling of metadata send recv.
-    def send_meta_response(self, requesters):
-        '''
-        Sends either the mask or meta data to another agent.
-        '''
-        if len(requesters) > 0:
-            #self.logger.info('send_resp:')
-            for req_dict in requesters:
-                self.logger.info('send_resp {0}'.format(req_dict))
-                
-                dst_agent_id = req_dict['dst_agent_id']
-                mask_reward =req_dict['mask_reward']
-                distance = req_dict['dist']
-                distance = np.float64(distance)
-                emb_label = req_dict['resp_task_label']
+        try:
+            sock.connect((address, port))
 
-                #print(dst_agent_id, mask_reward, distance, emb_label)
-                #print(type(dst_agent_id), type(mask_reward), type(distance), type(emb_label))
+            #context = ssl.create_default_context()
+            #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
+            #sock_ssl = context.wrap_socket(sock, server_side=False)
 
-                #print(dst_agent_id, mask_reward, emb_label, flush=True)
-                #print(type(dst_agent_id), type(mask_reward), type(emb_label), flush=True)
-
-                if isinstance(emb_label, np.ndarray):
-                    emb_label = torch.tensor(emb_label, dtype=torch.float32)
-
-                # Consider changing to local buffer
-                buff = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + self.emb_label_sz, dtype=torch.float32) * torch.inf
-                buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
-                buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
-
-                #self.logger.info('send_resp: responding to agent {0} query'.format(dst_agent_id))
-                #self.logger.info('send_resp: mask (response) data type: {0}'.format(type(mask)))
-
-                # If mask is none then send back torch.inf
-                # otherwise send mask
-                if mask_reward is torch.inf:
-                    #print('Mask reward is None -> True', flush=True)
-                    buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
-
-                else:
-                    #print('Mask reward is None -> False', flush=True)
-                    #print(mask_reward, emb_label, distance, flush=True)
-                    #print(type(mask_reward), type(emb_label), type(distance), flush=True)
-                    # if the mask is none but there is a mask reward, then overwrite the buffer with
-                    # the meta data. Otherwise don't do anything.
-                    buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_META
-                    buff[ParallelComm.META_INF_IDX_MSK_RW] = mask_reward
-                    buff[ParallelComm.META_INF_IDX_DIST] = distance
-                    buff[ParallelComm.META_INF_IDX_TASK_SZ_ :] = emb_label
-
-                #self.logger.info('Sending metadata to agent {0}: {1}'.format(dst_agent_id, buff, buff.dtype))
-                # actual send
-                #print(buff)
-                #for idx, val in enumerate(buff):
-                    #print(type(val), val)
-                #print(type(buff))
-                #print(type(buff[0]), type(buff[1]), type(buff[2]), type(buff[3]), type(buff[4]), type(buff[5]))
-                #print('STARTING SEND')
-                req_send = dist.isend(tensor=buff, dst=dst_agent_id)
-                req_send.wait()
-    def receive_meta_response(self, await_response):
-        '''
-        Receives the response from all in the network agents.
-        '''
-        #print(await_response)
-        ret = []
-        _buff_list = []
-        if any(await_response):
-            #self.logger.info('recv_resp:')
-            for idx in range(self.num_agents):
-                #print(idx)
-                _buff_recv = torch.ones(ParallelComm.META_INF_IDX_TASK_SZ_ + self.emb_label_sz, dtype=torch.float32) * torch.inf
-                if idx == self.agent_id:
-                    _buff_list.append(_buff_recv)
-
-                else:
-                    req_recv = dist.irecv(tensor=_buff_recv, src=idx)
-                    req_recv.wait()
-                    _buff_list.append(_buff_recv)
-                    #print('COMPLETED RECEPTION from agent {0}'.format(idx), flush=True)
-
-            #time.sleep(ParallelComm.SLEEP_DURATION)
-
-            #print(_buff_list)
-            # check whether message has been received
-            for idx in range(self.num_agents):
-                _buff = _buff_list[idx]
-
-                if idx == self.agent_id:
-                    #print('recv buff self agent id')
-                    d = {}
-                    d['agent_id'] = self.agent_id
-                    d['mask_reward'] = torch.inf
-                    d['dist'] = torch.inf
-                    d['emb_label'] = _buff[5:].detach().cpu().numpy()
-                    ret.append(d)
-
-                else:
-                    if self._null_message(_buff):
-                        #print('recv buff is null')
-                        d = {}
-                        d['agent_id'] = int(_buff[0])
-                        d['mask_reward'] = torch.inf
-                        d['dist'] = torch.inf
-                        d['emb_label'] = _buff[5:].detach().cpu().numpy()
-                        ret.append(d)
-                        #self.logger.info('recv_resp: appending {0} response'.format(None))
-                    
-                    elif _buff[ParallelComm.META_INF_IDX_MSG_DATA] == torch.inf:
-                        #print('recv buff failed')
-                        ret.append(False)
-                        #self.logger.info('recv_resp: appending False response. All hope is lost')
-
-                    elif _buff[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_META:
-                        #print('recv buff success')
-                        d = {}
-                        d['agent_id'] = int(_buff[0])
-                        d['mask_reward'] = float(_buff[3])
-                        d['dist'] = float(_buff[4])
-                        d['emb_label'] = _buff[5:].detach().cpu().numpy()
-                        ret.append(d)
-        return ret
-
-    def send_recv_meta(self, requesters, await_response):
-        pool1 = mp.pool.ThreadPool(processes=1)
-        pool2 = mp.pool.ThreadPool(processes=1)
-
-        #self.logger.info('send_recv_meta():')
-
-        _ = pool1.apply_async(self.send_meta_response, (requesters,))
-        #self.send_meta_response(requesters)
-        #time.sleep(0.2)
-        result = pool2.apply_async(self.receive_meta_response, (await_response,))
-        #result = self.receive_meta_response(await_response)
-        #return result
-
-        pool1.close()
-        pool2.close()
-        return result.get()
+            _data = struct.pack('>I', len(_data)) + _data
+            sock.sendall(_data)
+            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
 
-    # Multi-threaded handling of mask request send recv
-    def send_mask_request(self, send_msk_requests):
-        # TODO: Merge this function with the other send_receive_mask function.
-        '''
-        Sends a request to the top three agents for masks using the their embeddings.
-        Checks for similar requests.
-        '''
-        print('SEND_MSK_REQ: ', send_msk_requests, flush=True)
-
-        if send_msk_requests:
-            for agent_id, emb_label in send_msk_requests.items():
-                print(agent_id, emb_label, flush=True)
-                
-                
-                #if agent_id == self.agent_id:
-                #    print('continue')
-                #    continue
-
-                #print('sending', flush=True)
-                # Convert embedding label to tensor
-                if isinstance(emb_label, np.ndarray):
-                    emb_label = torch.tensor(emb_label, dtype=torch.float32)
-
-                # Initialise a buffer for one agent embedding/tasklabel
-                data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
-
-                # Populate the tensor with necessary data
-                data[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
-                data[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_REQ
-                
-                if emb_label is None:
-                    # If emb_label is none it means we reject the agent
-                    data[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
-                        
-                else:
-                    # Otherwise we want the agent's mask
-                    data[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_TSK
-                    data[ParallelComm.META_INF_IDX_TASK_SZ : ] = emb_label # NOTE deepcopy?
-
-                # Send out the mask request or rejection to each agent that sent metadata
-                req = dist.isend(tensor=data, dst=agent_id)
-                req.wait()
-                print('SENDING: ', data, agent_id, '\n', flush=True)
-    def receive_mask_requests(self, expecting):
-        print('Inside recv_msk_req()', flush=True)
-        # Check for mask requests from other agents if expecting any requests
-        ret = []
-        _data_list = [torch.ones(ParallelComm.META_INF_IDX_TASK_SZ + self.emb_label_sz, dtype=torch.float32) \
-            * torch.inf for _ in range(self.num_agents)]
-
-        print('_DATA_LIST INITIAL STATE:', _data_list, flush=True)
-        if len(expecting) > 0:
-            # If expecting a request for a mask, check for each expected agent id
-            for idx in expecting:
-                print('idx:', idx, flush=True)
-                req = dist.irecv(tensor=_data_list[idx], src=idx)
-                req.wait()
-                print('received from successfully!', idx)
-            
-            print()
-            print('Data recevied in recv_mask_req(): ', _data_list, flush=True)
-            print()
-
-            for idx in expecting:
-                _data = _data_list[idx]
-
-                print('Parsing data {0}: {1}'.format(idx, _data))
-
-                # If response was null message then this agent has been rejected.
-                # If so, remove the idx from expecting and check the next id.
-                # if no more idxs then return the list of dictionaries. (can be empty)
-                if self._null_message(_data):
-                    pass
-
-                elif _data[ParallelComm.META_INF_IDX_MSG_DATA] == torch.inf:
-                    # failed
-                    pass
-
-                # If not rejected then we need to send the mask to the requester
-                else:
-                    d = {}
-                    d['requester_agent_id'] = int(_data[ParallelComm.META_INF_IDX_PROC_ID])
-                    d['msg_type'] = int(_data[ParallelComm.META_INF_IDX_MSG_TYPE])
-                    d['msg_data'] = int(_data[ParallelComm.META_INF_IDX_MSG_DATA])
-                    d['task_label'] = _data[ParallelComm.META_INF_IDX_TASK_SZ : ]
-                    ret.append(d)
-
-        # Return a list of dictionaries for each agent that wants a mask
-        return ret
+        except:
+            # Try to remove the ip and port that failed from the query table
+            try:
+                self.query_list.remove((address, port))
+                self.world_size.value = len(self.query_list) + 1
+            except:
+                pass
+            self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
+        finally: sock.close()
     
-    def send_recv_mask_req(self, send_msk_requests, expecting):
-        #print('SEND_MSK_REQ: ', send_msk_requests)
+    # Modified version of the client used by the send_query function. Has an additional bit of code to handle the mask response before querying the next agent in the query list
+    def query_client(self, data, address, port):
+        # Attempt to send the data a number of times. If successful do not attempt to send again.
+        
+        _data = pickle.dumps(data, protocol=5)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        
+        try:
+            sock.connect((address, port))
 
-        pool1 = mp.pool.ThreadPool(processes=1)
-        pool2 = mp.pool.ThreadPool(processes=1)
+            #context = ssl.create_default_context()
+            #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
+            #sock = context.wrap_socket(sock, server_side=False)
 
-        #self.send_mask_request(send_msk_requests)
-        _ = pool1.apply_async(self.send_mask_request, (send_msk_requests,))
-        result = pool2.apply_async(self.receive_mask_requests, (expecting,))
+            _data = struct.pack('>I', len(_data)) + _data
+            sock.sendall(_data)
+            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
-        pool1.close()
-        pool2.close()
-        #return None, None
-        return result.get()
+        except:
+            # Try to remove the ip and port that failed from the query table
+            try:
+                self.query_list.remove((address, port))
+                self.world_size.value = len(self.query_list) + 1
+            except:
+                pass
+            self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
+        finally:
+            sock.close()
+
+    ### Query send and recv functions
+    def send_query(self, embedding):
+        """
+        Sends a query for knowledge for a given embedding to other agents known to this agent.
+        
+        Args:
+            embedding: A torch tensor containing an embedding
+        """
+
+        if isinstance(embedding, np.ndarray):
+            embedding = torch.tensor(embedding, dtype=torch.float32)
+            
+        #self.logger.info(Fore.GREEN + 'send_recv_req, req data: {0}'.format(embedding))
+
+        reward = 0.0
+        if tuple(embedding.tolist()) in self.knowledge_base:
+            reward = self.knowledge_base[tuple(embedding.tolist())]
 
 
-    # Multi-threaded handling of mask send recv
-    def send_mask(self, masks_list):
-        if len(masks_list) > 0:
-            print('Agent entered send_mask()', flush=True)
-            for mask_dict in masks_list:
-                self._send_mask(mask_dict)
-    def _send_mask(self, mask_dict):
-        print(mask_dict, flush=True)
-        dst_agent_id = int(mask_dict['dst_agent_id'])
-        emb_label = mask_dict['label']
-        mask = mask_dict['mask']
-
-        print(type(mask), mask.dtype, flush=True)
-
-        buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz + self.emb_label_sz, dtype=torch.float32) * torch.inf
-
-        buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
-        buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
-
-        if mask is None:
-            buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
-            buff[ParallelComm.META_INF_IDX_MASK_SZ : ] = torch.inf
+        if embedding is None:
+            data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_QUERY, ParallelComm.MSG_DATA_NULL]
 
         else:
-            buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_MSK
-            buff[ParallelComm.META_INF_IDX_MASK_SZ : ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz] = mask # NOTE deepcopy?
-            buff[ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz : ] = emb_label
+            data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_QUERY, ParallelComm.MSG_DATA_QUERY, embedding, reward]
 
-        print('send_mask(): sending buffer', buff, flush=True)
-        req_send = dist.isend(tensor=buff, dst=dst_agent_id)
-        req_send.wait()
-        print('send_mask() completed. Returning', flush=True)
-    def receive_mask(self, best_agent_id):
+        # Try to send a query to all known destinations. Skip the ones that don't work
+        for addr in list(self.query_list):
+            self.query_client(data, addr[0], addr[1])
+
+        time.sleep(0.2)
+        self.pick_meta()
+        
+    def recv_mask(self, buffer):
+        """
+        Unpacks a received mask response from another agent.
+        
+        Args:
+            buffer: A list received from another agent.
+            best_agent_id: A shared memory variable of type dict() containing a ip-port pair for the best agent.
+            
+        Returns:
+            received_mask: A torch tensor containing the continous mask parameters.
+            received_label: A torch tensor containing the embedding.
+        """
+        
         received_mask = None
         received_label = None
+        received_reward = None
+        ip = None
+        port = None
 
-        if best_agent_id is not None:
-            print('Agent entered receive_mask()', flush=True)
-            # We want to get the mask from the best agent
-            _buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz + self.emb_label_sz, dtype=torch.float32) * torch.inf
-            print(_buff, len(_buff))
-            # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
-            print('Mask recv start', flush=True)
+        if buffer[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_NULL:
+            pass
 
+        elif buffer[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_MSK:
+            received_mask = buffer[4]
+            received_label = buffer[5]
+            received_reward = buffer[6]
+            ip = buffer[0]
+            port = buffer[1]
+
+        return received_mask, received_label, received_reward, ip, port
+
+
+    def recv_query(self, buffer):
+        """
+        Unpacks the data buffer received from another agent for a query.
+        
+        Args:
+            buffer: A list received from another agent.
             
-            req_recv = dist.irecv(tensor=_buff, src=best_agent_id)
-            req_recv.wait()
-            print('Mask recv end', flush=True)
-            #time.sleep(ParallelComm.SLEEP_DURATION)
+        Returns:
+            ret: A dictionary containing the unpacked data.
+        """
 
-            # otherwise return the mask
-            if _buff[ParallelComm.META_INF_IDX_MSG_DATA] == torch.inf:
-                pass
+        ret = {}
+        ret['sender_address'] = str(buffer[ParallelComm.META_INF_IDX_ADDRESS])
+        ret['sender_port'] = int(buffer[ParallelComm.META_INF_IDX_PORT])
+        #ret['msg_type'] = int(buffer[ParallelComm.META_INF_IDX_MSG_TYPE])
+        #ret['msg_data'] = int(buffer[ParallelComm.META_INF_IDX_MSG_DATA])
+        ret['embedding'] = buffer[ParallelComm.META_INF_IDX_TASK_SZ]
+        ret['sender_reward'] = buffer[-1]
 
-            elif _buff[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_MSK:
-                print('MASK DATA RECEIVED', flush=True)
-                if _buff[ParallelComm.META_INF_IDX_PROC_ID] == best_agent_id:
-                    print('SENDER IS BEST AGENT', flush=True)
-                    received_mask = _buff[ParallelComm.META_INF_IDX_MASK_SZ : ParallelComm.META_INF_IDX_MASK_SZ+self.mask_sz]
-                    received_label = _buff[ParallelComm.META_INF_IDX_MASK_SZ+self.mask_sz : ]
+        # Handle when we receive a query from another agent that we do not have in our known list of agents (self.query_list)
+        if (ret['sender_address'], ret['sender_port']) not in self.query_list:
+            self.client([self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_TABLE, list(self.query_list)], ret['sender_address'], ret['sender_port'])
+            self.query_list.append((ret['sender_address'], ret['sender_port']))
 
-            # Reset the best agent id for the next request
-            best_agent_id = None
+        self.world_size.value = len(self.query_list) + 1    # Refresh the world_size value
 
-        return received_mask, best_agent_id, received_label
+        return ret
+    def proc_meta(self, other_agent_req):
+        """
+        Processes a query for an embedding and produces a response to send back to the requesting agent.
+        
+        Args:
+            other_agent_req: A dictionary containing the information for the query request.
+            knowledge_base: A shared memory variable consisting of a dictionary to store the task embeddings and rewards accumulated.
+        
+        Returns:
+            meta_response: A dictionary containing the response information.
+        """
 
-    def send_recv_mask(self, masks_list, best_agent_id):
-        #print('Send Recv Mask Function', len(mask), dst_agent_id, best_agent_id)
-        pool1 = mp.pool.ThreadPool(processes=1)
-        pool2 = mp.pool.ThreadPool(processes=1)
+        other_agent_req['response'] = False
 
+        if other_agent_req is not None:
+            np_embedding = other_agent_req['embedding'].detach().cpu().numpy()
+            sender_reward = other_agent_req['sender_reward']
 
-        print()
-        print('Inside send_recv_mask')
-        print(masks_list, best_agent_id)
+            # Iterate through the knowledge base and compute the distances
+            # If reward greater than 0
+            # If distance is less than or equal to threshold
+            # response = True (false by default)
+            for tlabel, treward in self.knowledge_base.items():
+                if treward > np.around(0.0, decimals=6):
+                    if 0.9 * round(treward, 6) > sender_reward:
+                        tdist = np.sum(abs(np.subtract(np_embedding, np.array(tlabel))))
+                        if tdist <= ParallelComm.THRESHOLD:
+                            other_agent_req['response'] = True
+                            other_agent_req['reward'] = treward         # Reward of the mask this agent has for the task
+                            other_agent_req['dist'] = tdist             # Distance between the embedding of this agent's closest mask and the embedding from the querying agent
+                            other_agent_req['resp_embedding'] = torch.tensor(tlabel)  # The closest embedding that this agent has to the one that the querying agent has queried for
 
-        #self.send_mask(masks_list)
-        #received_mask, best_agent_id = self.receive_mask(best_agent_id)
+        # Return the query request
+        return other_agent_req
+    def send_meta(self, meta_resp):
+        if meta_resp:
+            data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_META]
+            if meta_resp['response']:
+                data.append(ParallelComm.MSG_DATA_META)
+                data.append(meta_resp.get('reward', None))
+                data.append(meta_resp.get('dist', None))
+                data.append(meta_resp.get('resp_embedding', None))
 
-        #return received_mask, best_agent_id
-        #print('send_mask():', masks_list)
-        _ = pool1.apply_async(self.send_mask, (masks_list,))
-        result = pool2.apply_async(self.receive_mask, (best_agent_id,))
+            #else:
+            #    data.append(ParallelComm.MSG_DATA_NULL)
 
-        pool1.close()
-        pool2.close()
+                self.client(data, str(meta_resp['sender_address']), int(meta_resp['sender_port']))
 
-        # If the recv was not run then return NoneType for mask and whatever was passed for
-        # best_agent_id (probably []).
-        return result.get()
+    def proc_mask(self, mask_req, queue_label_send, queue_mask_recv):
+        """
+        Processes the mask response to send to another agent.
+        
+        Args:
+            mask_req: A dictionary consisting of the response information to send to a specific agent.
+            queue_label_send: A shared memory queue to send an embedding to be converted by the agent module.
+            queue_mask_recv: A shared memory queue to receive a converted mask from the agent module.
 
-    ### Core functions
-    def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check):
-        timings = []
-        # Initialise the process group for torch distributed
-        proc_check = self.init_dist()
-        queue_check.put(proc_check)
+        Returns:
+            The mask_req dictionary with the converted mask now included. 
+        """
 
-        msg = None
-        # Store the best agent id for quick reference
-        best_agent_id = None
-        best_agent_rw = {}
+        if mask_req['response']:
+            self.logger.info('Sending mask request to be converted')
+            queue_label_send.put((mask_req))
+            self.logger.info('Mask request sent')
+            return queue_mask_recv.get()        # Return the dictionary with the mask attached
 
-        # initial state of input variables to loop
-        comm_iter = 0
-        while True:
-            START = time.time()
-            expecting = list() # Come back to once all components are checked. Might cause issues
+    def send_mask(self, mask_resp):
+        """
+        Sends a mask response to a specific agent.
+        
+        Args:
+            mask_resp: A dictionary consisting of the information to send to a specific agent.    
+        """
+        if mask_resp:
+            data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_MASK]
 
-            # Get the latest states of these variables
-            track_tasks, mask_rewards_dict, await_response, shell_iterations = queue_loop.get()
-            print()
-            print()
-            print()
-            print(Fore.GREEN + 'COMMUNICATION ITERATION: ', comm_iter)
-            print(Fore.GREEN + '', track_tasks, mask_rewards_dict, await_response)
+            # if response is True then send the mask
+            if mask_resp['response']:
+                data.append(ParallelComm.MSG_DATA_MSK)
+                data.append(mask_resp.get('mask', None))
+                data.append(mask_resp.get('embedding', None))
+                data.append(mask_resp.get('reward', None))
+
+                self.logger.info(f'Sending mask response: {data}')
+                self.client(data, str(mask_resp['address']), int(mask_resp['port']))
             
-            # Try getting the label request, otherwise it will be NoneType
-            try:
-                # Initially msg will be populated with the first task label then set to None after the 
-                # first completed communication loop. After that the msg will be None until a new query
-                # is requested from the agent.
-                msg = queue_label.get_nowait()
-                print(Fore.GREEN + 'Comm Module msg this iter: ', msg)
-            except Empty:
-                print(Fore.GREEN + 'FAILED')
-                continue
+            # otherwise send a null response
+            #else:
+            #    data.append(ParallelComm.MSG_DATA_NULL)
             
             
-            #if self.mode == 'ondemand':
-            #######################   COMMUNICATION STEP ONE    #######################
-            ####################### REQUESTS BETWEEN ALL AGENTS #######################
-            # send out broadcast request to all other agents for task label
-            #print(Fore.GREEN + 'Doing request')
-            start_time = time.time()
-            dist.monitored_barrier(wait_all_ranks=True)
-            other_agents_request = self.send_receive_request(msg)
-            END1 = time.time()-start_time
-            print('******** TIME TAKEN FOR SEND_RECV_REQ():', END1)
-            print()
-            print(Fore.GREEN + 'Other agent requests: ', other_agents_request)
+    
+    # Event handler wrappers. This is done so the various functions for each event can be run in a single thread.
+    def query(self, data):
+        """
+        Event handler for receiving a query from another agent. Unpacks the buffer received from another agent, processes the request and sends some response if necessary.
+        
+        Args:
+            data: A list received from another agent.
+            knowledge_base: A shared memory variable of type dict() containing embedding-reward pairs for task embeddings observed by the agent.    
+        """
 
-            
-            #######################   COMMUNICATION STEP TWO    #######################
-            ####################### SEND AND RECV META REPONSES #######################
-            # Respond to received queries with metadata.
-            # Meta data contains the reward for the similar task, distance and the similar 
-            # tasklabel/embedding.
+        # Get the query from the other agent
+        other_agent_req = self.recv_query(data)
+        self.logger.info(f'Received query: {other_agent_req}')
 
-            ### SEND META RESPONSES
-            # Go through each request from the network of agents
-            meta_responses = []
+        # Check if this agent has any knowledge for the task
+        meta_resp = self.proc_meta(other_agent_req)
+        self.logger.info(f'Processes mask req: {meta_resp}')
 
-            # if populated prepare metadata responses
-            if other_agents_request:
-                for req in other_agents_request:
-                    # If the req is none, which it usually will be, just skip.
-                    if req['msg_data'] is None: continue
+        self.send_meta(meta_resp)
+    def add_meta(self, data):
+        print(Fore.YELLOW + 'Metadata:')
+        print(f'Address: {data[0]}')
+        print(f'Port: {data[1]}')
+        print(f'Reward: {data[4]}')
+        print(f'Distance: {data[5]}')
+        print(f'Embedding: {data[6]}')
+        # Append the received metadata to the global list
+        self.metadata.append({'address':data[0], 'port':data[1], 'reward':data[4], 'dist':data[5], 'embedding':data[6]})
+    def pick_meta(self):
+        data = [self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_REQ]
+        # Time to pick the best agent
+        if len(self.metadata) > 0:
+            meta_copy = list(self.metadata)
+            self.metadata[:] = []   # Reset the metadata list now that we have a copy
 
+            meta_copy = sorted(meta_copy, key=lambda d: (d['dist'], -d['reward']))      # bi-directional multikey sorting using the distance and reward
 
-                    # Evaluation agent response handling here
-                    #if req['sender_agent_id'] == -1:
+            for meta_dict in meta_copy:
+                if meta_dict['reward'] == torch.inf: pass
+                else:
+                    recv_address = meta_dict['address']
+                    recv_port = meta_dict['port']
+                    recv_rw = meta_dict['reward']
+                    recv_dist = meta_dict['dist']
+                    recv_emb = meta_dict['embedding']
 
+                    self.logger.info(recv_address)
+                    self.logger.info(recv_port)
+                    self.logger.info(recv_rw)
+                    self.logger.info(recv_dist)
+                    self.logger.info(recv_emb)
                     
-                    # If the message is None then the agent has already requested and begun
-                    # working the task. So there is no need to update this agents task tracking dictionary
-                    # If the other agents do task change then they will do a fresh request. This will make the
-                    # request not None and this agent can update their task track.
-                    track_tasks[req['sender_agent_id']] = req['task_label']
-
-                    # If this agent has not learned anything yet, then respond with nothing
-                    #if mask_rewards_dict:
-                    # Otherwise send what it knows if appropriate
-                    # Compute the embedding distance. Maybe there is a better way to achieve this
-                    req_label_as_np = req['task_label'].detach().cpu().numpy()
-                    print(Fore.GREEN + 'Requested label from agent {0}: {1}'.format(req['sender_agent_id'], req_label_as_np))
-                    print(Fore.GREEN + 'Current knowledge base for this agent: ', mask_rewards_dict)
-
-                    # For each embedding/tasklabel reward pair, calculate the distance to the
-                    # requested embedding/tasklabel.
-                    # If the distance is below the THRESHOLD then send it back
-                    # otherwise send nothing back.
-
-                    # Iterate through the knowledge base and compute the distances
-                    d = {}
-                    print('Knowledge base', mask_rewards_dict)
-                    for tlabel, treward in mask_rewards_dict.items():
-                        if treward != np.around(0.0, decimals=6):
-                            print(np.asarray(tlabel), treward)
-                            distance = torch.linalg.vector_norm(req['task_label'] - torch.tensor(tlabel))
-                            if distance < self.threshold:
-                                d['dst_agent_id'] = req['sender_agent_id']
-                                d['mask_reward'] = treward
-                                d['dist'] = distance
-                                d['resp_task_label'] = torch.tensor(tlabel)
-                                expecting.append(d['dst_agent_id'])
-                                meta_responses.append(d)
+                    if recv_rw != 0.0:
+                        if recv_dist <= ParallelComm.THRESHOLD:
+                            if tuple(recv_emb) in self.knowledge_base.keys():
+                                if 0.9 * round(recv_rw, 6) > self.knowledge_base[tuple(recv_emb.tolist())]:
+                                    data.append(ParallelComm.MSG_DATA_MSK_REQ)
+                                    data.append(recv_emb)
+                                    self.client(data, recv_address, recv_port)
+                                    break
                                 
-                    if not d:
-                        d['dst_agent_id'] = req['sender_agent_id']
-                        d['mask_reward'] = torch.inf
-                        d['dist'] = torch.inf
-                        d['resp_task_label'] = torch.tensor([torch.inf] * 3)
-
-                        #expecting.append(d['dst_agent_id'])
-                        meta_responses.append(d)
-            #print()
-            #print(Fore.GREEN + 'Meta responses to send:', meta_responses)
-            print(Fore.GREEN + 'Expecting mask request from these agents:', expecting)
-
-
-            ### SEND RECV META RESPONSES
-            # Receive metadata response from other agents for a embedding/tasklabel request from 
-            # this agent.
-            #print(Fore.GREEN + 'Awaiting Responses? ', await_response)
-
-            results = []
-            start_time = time.time()
-            dist.monitored_barrier(wait_all_ranks=True)
-            results = self.send_recv_meta(meta_responses, await_response)
-            END2 = time.time()-start_time
-            print('******** TIME TAKEN FOR SEND_RECV_META():', END2)
-            print()
-
-
-
-            send_msk_requests = dict()
-            
-            # if not results something bad has happened
-            if len(results) > 0:
-                # Sort received meta data by smallest distance (primary) and highest reward (secondary),
-                # using full bidirectional multikey sorting (fancy words for such a simple concept)
-                results = sorted(results, key=lambda d: (d['dist'], -d['mask_reward']))
-                print(Fore.GREEN + 'Metadata responses sorted: ')
-                for item in results:
-                    print(item)
-
-                # Iterate through the await_response list. Upon task change this is an array:
-                # [True,] * num_agents
-                selected = False    # flag to check if the best agent of the lot has been selected
-                for idx in range(len(await_response)):
-                    # Do some checks to remove to useless results
-                    if results[idx]['agent_id'] == self.agent_id:
-                        await_response[idx] = False
-                        continue
-
-                    if await_response[idx] is False:
-                        continue
-
-                    if results[idx] is False:
-                        continue
-
-                    elif results[idx]['mask_reward'] == torch.inf:
-                        await_response[idx] = False
-
-                    # Otherwise unpack the metadata
-                    else:
-                        recv_agent_id = results[idx]['agent_id']
-                        recv_msk_rw = results[idx]['mask_reward']
-                        recv_dist = results[idx]['dist']
-                        recv_label = results[idx]['emb_label']
-
-                        # If the recv_dist is lower or equal to the threshold and a best agent
-                        # hasn't been selected yet then continue
-                        if recv_dist <= self.threshold and selected == False:
-                            # Check if the reward is greater than the current reward for the task
-                            # or if the knowledge even exists.
-                            if tuple(msg) in mask_rewards_dict.keys():
-                                if shell_iterations % self.mask_interval == 0:
-                                    if round(recv_msk_rw, 6) > mask_rewards_dict[tuple(msg)]:
-                                        # Add the agent id and embedding/tasklabel from the agent
-                                        # to a dictionary to send requests/rejections to.
-                                        send_msk_requests[recv_agent_id] = recv_label
-                                        # Make a note of the best agent id in memory of this agent
-                                        # We will use this later to get the mask from the best agent
-                                        best_agent_id = recv_agent_id
-                                        best_agent_rw[tuple(msg)] = np.around(recv_msk_rw, 6)
-                                        # Make the selected flag true so we don't pick another agent
-                                        selected = True
-
-                                    else:
-                                        # if this agent's reward is higher or the same as the other best agent
-                                        # then reject the best agent
-                                        recv_agent_id = results[idx]['agent_id']
-                                        send_msk_requests[recv_agent_id] = None
-
-
-                                else:
-                                    # if this agent's reward is higher or the same as the other best agent
-                                    # then reject the best agent
-                                    recv_agent_id = results[idx]['agent_id']
-                                    send_msk_requests[recv_agent_id] = None
-                                    
-
-                            # If we don't have any knowledge present for the task then get the mask 
-                            # anyway from the best agent.
                             else:
-                                # Add the agent id and embedding/tasklabel from the agent
-                                # to a dictionary to send requests/rejections to.
-                                send_msk_requests[recv_agent_id] = recv_label
-                                # Make a note of the best agent id in memory of this agent
-                                # We will use this later to get the mask from the best agent
-                                best_agent_id = np.around(recv_agent_id, 6)
-                                best_agent_rw[tuple(msg)] = recv_msk_rw
-                                # Make the selected flag true so we don't pick another agent
-                                selected = True
+                                data.append(ParallelComm.MSG_DATA_MSK_REQ)
+                                data.append(recv_emb)
+                                self.client(data, recv_address, recv_port)
+                                break
+    def request(self, data, queue_label_send, queue_mask_recv):
+        print(Fore.WHITE + 'Mask request:')
+        print(data)
+        print(f'Address: {data[0]}')
+        print(f'Port: {data[1]}')
+        print(f'Embedding: {data[4]}')
+        mask_req = {'response': True, 'embedding': data[4], 'address':data[0], 'port':data[1]}
+        #mask_req = {'response': False, 'address':data[0], 'port':data[1]}   # For the evaluation agent.
 
-                        else:
-                            # if this agent's reward is higher or the same as the other best agent
-                            # then reject the best agent
-                            recv_agent_id = results[idx]['agent_id']
-                            send_msk_requests[recv_agent_id] = None
+        # Get the label to mask conversion
+        mask_resp = self.proc_mask(mask_req, queue_label_send, queue_mask_recv)     # This will be a NoneType if no mask is available to be sent back. Comment out for evaluation agent
+        self.logger.info(f'Processes mask resp: {mask_resp}')
 
-                        # We have checked the response so set it to False until the next task change
-                        # and request loop begins
-                        await_response[idx] = False
+        mask_resp['reward'] = self.knowledge_base[tuple(mask_resp['embedding'].tolist())]
 
-            print(Fore.GREEN + 'Mask requests to send to other agents: ', send_msk_requests)
+        # Send the mask response back to the querying agent
+        self.send_mask(mask_resp)
+    def update_params(self, data):
+        _query_list = data[3]
+        _query_list.reverse()
+        for addr in _query_list:
+            if addr not in self.query_list:
+                self.query_list.insert(0, addr)
 
-            best_agent_id_ = best_agent_id  # temp variable for logging purposes
-            
-            #######################     COMMUNICATION STEP FOUR      #######################
-            ####################### SEND MASK REQUESTS OR REJECTIONS #######################
-            ### SEND MASK REQUEST OR REJECTION
-            msk_requests = []
-            print('Before send_recv_req():', send_msk_requests, expecting)
-            start_time = time.time()
-            dist.monitored_barrier(wait_all_ranks=True)
-            msk_requests = self.send_recv_mask_req(send_msk_requests, expecting)
-            END3 = time.time()-start_time
-            print('******** TIME TAKEN FOR SEND_RECV_MASK_REQ():', END3)
-            print()
-
-            print(Fore.GREEN + 'After send_recv_req():', msk_requests)
+        self.world_size.value = len(self.query_list) + 1
 
 
-            ####################### COMMUNICATION STEP FIVE #######################
-            # Now the agent needs to send a mask to each agent in the msk_requests list
-            # if it is not empty
+    # Event handler
+    def event(self, data, queue_mask, queue_mask_recv, queue_label_send):
+        ### EVENT HANDLING
+        # Agent is sending a query table
+        if data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_TABLE:
+            self.logger.info(Fore.CYAN + 'Data is a query table')
+            self.update_params(data)
+            for addr in self.query_list: print(f'{Fore.GREEN}{addr[0], addr[1]}')
+
+        # An agent is sending a query
+        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_QUERY:
+            self.logger.info(Fore.CYAN + 'Data is a query')
+            self.query(data)
+
+        # An agent is sending meta information in response to a query
+        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_META:
+            self.logger.info(Fore.CYAN + 'Data is metadata')
+            self.add_meta(data)
+
+        # An agent is sending a mask request
+        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_REQ:
+            self.logger.info(Fore.CYAN + 'Data is mask request')
+            self.request(data, queue_label_send, queue_mask_recv)
+
+        # An agent is sending a mask
+        elif data[ParallelComm.META_INF_IDX_MSG_TYPE] == ParallelComm.MSG_TYPE_SEND_MASK:
+            self.logger.info(Fore.CYAN + 'Data is a mask')
+            # Unpack the received data
+            received_mask, received_label, received_reward, ip, port = self.recv_mask(data)
+
+            self.logger.info(f'{received_mask, received_label, received_reward, ip, port}')
+            # Send the reeceived information back to the agent process if condition met
+            if received_mask is not None and received_label is not None and received_reward is not None:
+                self.logger.info('Sending mask data to agent')
+                queue_mask.put((received_mask, received_label, received_reward, ip, port))
+
+        print('\n')
+
+    # Listening server
+    def server(self, queue_mask, queue_mask_recv, queue_label_send):
+        """
+        Implementation of the listening server. Binds a socket to a specified port and listens for incoming communication requests. If the connection is accepted using SSL/TLS handshake
+        then the connection is secured and data is transferred. Once the data is received, an event is triggered based on the contents of the deserialised data.
+
+        Args:
+            knowledge_base: A shared memory dictionary containing the embedding-reward pairs for all observed tasks embeddings.
+            queue_mask: A shared memory queue to send received masks to the agent module.
+            queue_mask_recv: A shared memory queue to receive masks from the agent module.
+            queue_label_send: A shared memory queue to send embeddings to be converted by the agent module.
+            world_size: A shared memory variable indicating the size of the network in terms of how many nodes there are.
+        """
+
+        def _recvall(conn, n):
+            data = bytearray()
+            while len(data) < n:
+                packet = conn.recv(n - len(data))
+                if not packet: return None
+                data.extend(packet)
+            return data
+
+        def recv_msg(conn):
+            msg_length = _recvall(conn, 4)
+            if not msg_length: return None
+            msg = struct.unpack('>I', msg_length)[0]
+            return _recvall(conn, msg)
+
+        #context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        #context.load_cert_chain(certfile='certificates/certificate.pem', keyfile='certificates/key.pem')
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #s = ssl.wrap_socket(s, server_side=True, keyfile=ParallelCommV1.KEYPATH, certfile=ParallelCommV1.CERTPATH, ssl_version=ssl.PROTOCOL_TLSv1_2)    # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
+
+        # Bind the socket to the chosen address-port and start listening for connections
+        if self.init_address == '127.0.0.1': sock.bind(('127.0.0.1', self.init_port))
+        else: sock.bind(('', self.init_port))
+
+        # Set backlog to the world size
+        sock.listen(self.world_size.value)
+        
+        while True:
+            # Accept the connection
+            conn, addr = sock.accept()
+            #conn = context.wrap_socket(conn, server_side=True)
+
+            with conn:
+                self.logger.info('\n' + Fore.CYAN + f'Connected by {addr}')
+                while True:
+                    try:
+                        # Receive the data onto a buffer
+                        data = recv_msg(conn)
+                        if not data: break
+                        data = pickle.loads(data)
+                        self.logger.info(Fore.CYAN + f'Received {data!r}')
+
+                        # Potentially deprecated events. Leaving these here incase we need to use some of the code in the future.
+                        '''
+                        # Agent attempting to join the network
+                        #if data[ParallelCommV1.META_INF_IDX_MSG_TYPE] == ParallelCommV1.MSG_TYPE_SEND_JOIN:
+                        #    t_validation = mpd.Pool(processes=1)
+                        #    t_validation.apply_async(self.recv_join_net, (data, ))
+                        #    self.logger.info(Fore.CYAN + 'Data is a join request')
+                        #    t_validation.close()
+                        #    del t_validation
+
+                        #    for addr in self.query_list: print(f'{Fore.GREEN}{addr[0], addr[1]}')
+                        #    print(f'{Fore.GREEN}{self.world_size}')
+
+                        # Another agent is leaving the network
+                        #elif data[ParallelCommV1.META_INF_IDX_MSG_TYPE] == ParallelCommV1.MSG_TYPE_SEND_LEAVE:
+                        #    t_leave = mpd.Pool(processes=1)
+                        #    _address, _port = t_leave.apply_async(self.recv_exit_net, (data)).get()
+
+                        #    # Remove the ip-port from the query table for the agent that is leaving
+                        #    try: self.query_list.remove(next((x for x in self.query_list if x[0] == addr[0] and x[1] == addr[1])))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
+                        #    except: pass
+
+                        #    self.logger.info(Fore.CYAN + 'Data is a leave request')
+                        #    t_leave.close()
+                        #    del t_leave
+                        '''
+
+                        # Handle connection
+                        event_handler = mpd.Pool(processes=1)
+                        event_handler.apply_async(self.event, (data, queue_mask, queue_mask_recv, queue_label_send))
+
+                    # Handles a connection reset by peer error that I've noticed when running the code. For now it just catches 
+                    # the exception and moves on to the next connection.
+                    except socket.error as e:
+                        if e.errno != ECONNRESET: raise
+                        print(Fore.RED + f'Error raised while attempting to receive data from {addr}')
+                        pass
+
+    # Main loop + listening server initialisation
+    def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
+        """
+        Main communication loop. Sets up the server process, sends out a join request to a known network and begins sending queries to agents in the network.
+        Distributes queues for interactions between the communication and agent modules.
+        
+        Args:
+            queue_label: A shared memory queue to send embeddings from the agent module to the communication module.
+            queue_mask: A shared memory queue to send masks from the communication module to the agent module.
+            queue_label_send: A shared memory queue to send embeddings from the communication module to the agent module for conversion.
+            queue_loop: A shared memory queue to send iteration state variables from the communication module to the agent module. Currently the only variable that is sent over the queue is the agent module's iteration value.
+            knowledge_base: A shared memory dictionary containing embedding-reward pairs for all observed tasks.
+            world_size: A shared memory integer with value of the number of known agents in the network.
+        """
+
+        # Initialise the listening server
+        p_server = mp.Process(target=self.server, args=(queue_mask, queue_mask_recv, queue_label_send))
+        p_server.start()
+
+        # Attempt to join an existing network.
+        # TODO: Will have to figure how to heal a severed connection with the new method.
+        #self.logger.info(Fore.GREEN + 'Attempting to discover peers from reference...')
+        #p_discover = mp.Process(target=self.send_join_net)
+        #p_discover.start()
+
+        time.sleep(1)
+
+        # Initialise the client loop
+        while True:
+            # Attempt to connect to reference agent and get latest table. If the query table is reduced to original state then try to reconnect previous agents
+            # using the reference table.
+            # Unless there is no reference.
+            try:
+                print()
+                self.logger.info(Fore.GREEN + f'Knowledge base in this iteration:')
+                for key, val in self.knowledge_base.items(): print(f'{key} : {val}')
+                self.logger.info(Fore.GREEN + f'World size in comm: {self.world_size.value}')
+                #self.logger.info(Fore.GREEN + f'Query table in this iteration:')
+                #for addr in self.query_list: print(addr[0], addr[1])
+                #self.logger.info(Fore.GREEN + f'Reference table this iteration:')
+                #for addr in self.reference_list: print(addr[0], addr[1])
 
 
 
-            print()
-            print('Before mask exchange:', msk_requests, best_agent_id)
+                # Block operation until an embedding is received to query for
+                msg = queue_label.get()
 
-            masks_list = []
-            if msk_requests:
-                # Iterate through the requests
-                # Send the label to be converted, to the agent
+
+                # Get the world size based on the number of addresses in the query list
+                self.world_size.value = len(self.query_list) + 1
+
+
+                # Send out a query when shell iterations matches mask interval if the agent is working on a task
+                if self.world_size.value > 1:
+                    if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1 - ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss
+                        self.send_query(msg)
+
+
+
+            # Handles the agent crashing or stopping or whatever. Not sure if this is the right way to do this. Come back to this later.
+            except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
+                p_server.close()
+                #p_discover.close()
+                #self.send_exit_net()
+                sys.exit()
                 
-                _temp_labels = {}
-                for req in msk_requests:
-                    if type(req) is dict:
-                        print('Mask request: ', req, flush=True)
+    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
+        """
+        Parallelisation method for starting the communication loop inside a seperate process.
+        """
 
-                        # Send a mask to the requesting agent
-                        dst_agent_id = req['requester_agent_id']
-                        # Send label:id to agent
-                        _temp_labels[dst_agent_id] = req['task_label']
-
-                queue_label_send.put_nowait((_temp_labels))
-
-                print('Send label to be converted:', _temp_labels, flush=True)
-
-                # wait to receive a mask from the agent module. do not continue until you receive
-                # this mask. agent will see the request eventually and send back the converted mask.
-                
-                masks_list = queue_mask_recv.get()
-
-                #for item in conversions:
-                #    d = {}
-
-                #    for dst, mask in conversions.items():
-                #        d = {}
-                #        d['mask'] = mask
-                #        d['dst_agent_id'] = dst
-                        
-                #        masks_list.append(d)
-                
-
-
-            print()
-            print()
-            print('Masks to send:', masks_list)
-            received_mask = None
-            received_label = None
-            start_time = time.time()
-            dist.monitored_barrier(wait_all_ranks=True)
-            received_mask, best_agent_id, received_label = self.send_recv_mask(masks_list, best_agent_id)
-            END4 = time.time()-start_time
-            print('***** TIME TAKEN FRO SEND_RECV_MASK():', END4)
-            print(Fore.GREEN + 'Mask received for distillation', received_mask, best_agent_id, received_label, flush=True)
-            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw, best_agent_id_, received_label))
-
-            comm_iter += 1
-
-            END5 = time.time()-START
-            print('***** COMM ITERATION TIME ELAPSED:', END5)
-            timings.append([comm_iter, END1, END2, END3, END4, END5])
-            np.savetxt(self.logger.log_dir + '/timings_{0}.csv'.format(self.agent_id), timings, delimiter=',')
-
-    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check):
-        p = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check))
-        p.start()
-        return p
-
-
-
-
+        p_client = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv))
+        p_client.start()
 
 
 '''
-Evaluation agent variation of the parallelised communication module. Evaluation agent only
-returns null metaresponses so that other agents can ignore it.
+Evaluation agent implementation of the communication module. Works the same way as the learner, only it does not 
+respond with meta_responses as it is not designed to affect the network it is evaluating.
+
+TODO: Needs to be updated once the learner code has been fixed up.
 '''
 class ParallelCommEval(object):
+    ### COMMUNCIATION MODULE HYPERPARAMETERS
     # DETECT MODULE CONSTANTS
     # Threshold for embedding/tasklabel distance (similarity)
+    # This should be taken from the detect module eventually
     THRESHOLD = 0.0
 
+    # SSL/TLS PATHS
+    # Paths to the SSL/TLS certificates and key
+    CERTPATH = 'certificates/certificate.pem'
+    KEYPATH = 'certificates/key.pem'
+
+    # COMMUNICATION DROPOUT
+    # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
+    DROPOUT = 0.0  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
+
     # buffer indexes
-    META_INF_IDX_PROC_ID = 0
-    META_INF_IDX_MSG_TYPE = 1
-    META_INF_IDX_MSG_DATA = 2
+    META_INF_IDX_ADDRESS = 0
+    META_INF_IDX_PORT = 1
+    META_INF_IDX_MSG_TYPE = 2
+    META_INF_IDX_MSG_DATA = 3
 
-    META_INF_IDX_MSK_RW = 3
-    META_INF_IDX_TASK_SZ = 3 # only for the send_recv_request buffer
+    META_INF_IDX_MSK_RW = 4
+    META_INF_IDX_TASK_SZ = 4 # only for the send_recv_request buffer
 
-    META_INF_IDX_DIST = 4
-    META_INF_IDX_TASK_SZ_ = 5 # for the meta send recv buffer
-    
+    META_INF_IDX_DIST = 5
+    META_INF_IDX_TASK_SZ_ = 6 # for the meta send recv buffer
 
-    META_INF_IDX_MASK_SZ = 3
+    META_INF_IDX_MASK_SZ = 4
     
     # message type (META_INF_IDX_MSG_TYPE) values
-    MSG_TYPE_SEND_REQ = 0
-    MSG_TYPE_RECV_RESP = 1
-    MSG_TYPE_RECV_REQ = 2
-    MSG_TYPE_SEND_RESP = 3
+    MSG_TYPE_SEND_QUERY = 0
+    MSG_TYPE_SEND_META = 1
+    MSG_TYPE_SEND_REQ = 2
+    MSG_TYPE_SEND_MASK = 3
+    MSG_TYPE_SEND_JOIN = 4
+    MSG_TYPE_SEND_LEAVE = 5
+    MSG_TYPE_SEND_TABLE = 6
 
     # message data (META_INF_IDX_MSG_DATA) values
     MSG_DATA_NULL = 0 # an empty message
-    MSG_DATA_TSK = 1
-    MSG_DATA_MSK = 2
-    MSG_DATA_META = 3
-
-    # number of seconds to sleep/wait
-    SLEEP_DURATION = 1
+    MSG_DATA_QUERY = 1
+    MSG_DATA_MSK_REQ = 2
+    MSG_DATA_MSK = 3
+    MSG_DATA_META = 4
 
     # Task label size can be replaced with the embedding size.
-    def __init__(self, agent_id, num_agents, emb_label_sz, mask_sz, logger, init_address, init_port, mode):
+    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost):
         super(ParallelCommEval, self).__init__()
-        self.agent_id = agent_id
-        self.num_agents = num_agents
-        self.emb_label_sz = emb_label_sz
-        self.mask_sz = mask_sz
-        self.logger = logger
-        self.mode = mode
+        self.embd_dim = embd_dim            # Dimensions of the the embedding
+        self.mask_dim = mask_dim            # Dimensions of the mask for use in buffers. May no longer be needed
+        self.logger = logger                # Logger object for logging CLI outputs.
 
-        print('MASK SIZE IS: ', self.mask_sz)
+        # Address and port for this agent
+        if localhost: self.init_address = '127.0.0.1'
+        else: self.init_address = self.init_address = urllib.request.urlopen('https://v4.ident.me').read().decode('utf8') # Use this to get the public ip of the host server.
+        self.init_port = int(init_port)
+
+        # Shared memory variables. Make these into attributes of the communication module to make it easier to use across the many sub processes of the module.
+        self.query_list = manager.list([item for item in reference if item != (self.init_address, self.init_port)]) # manager.list(reference)
+        self.reference_list = manager.list(deepcopy(self.query_list))   # Weird thing was happening here so used deepcopy to recreate the manager ListProxy with the addresses.
+        self.knowledge_base = knowledge_base
         
-        # Setup init string for process group
-        if init_address in ['127.0.0.1', 'localhost']:
-            os.environ['MASTER_ADDR'] = init_address
-            os.environ['MASTER_PORT'] = init_port
-            self.comm_init_str = 'env://'
-        else:
-            self.comm_init_str = 'tcp://{0}:{1}'.format(init_address, init_port)
+        self.world_size = manager.Value('i', num_agents)
+        self.metadata = manager.list()
 
-        # Setup async communication handlers
-        self.handle_send_recv_req = None
-        self.handle_recv_resp = [None, ] * num_agents
-        self.handle_send_resp = [None, ] * num_agents
 
-        # Setup communication buffers
-        self.buff_send_recv_req = [torch.ones(ParallelCommEval.META_INF_IDX_TASK_SZ + emb_label_sz, dtype=torch.float32) \
-            * torch.inf for _ in range(num_agents)]
+        print(type(self.query_list))
+        print(type(self.reference_list))
 
-        self.buff_recv_meta = [torch.ones(ParallelCommEval.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
-            for _ in range(num_agents)]
-        self.buff_send_meta = [torch.ones(ParallelCommEval.META_INF_IDX_TASK_SZ_ + emb_label_sz, dtype=torch.float32) * torch.inf \
-            for _ in range(num_agents)]
+        # For debugging
+        print('Query table:')
+        for addr in self.query_list: print(addr[0], addr[1])
 
-        self.buff_recv_mask = torch.ones(ParallelCommEval.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf 
-        self.buff_send_mask = torch.ones(ParallelCommEval.META_INF_IDX_MASK_SZ + mask_sz, dtype=torch.float32) * torch.inf
-            
-    def init_dist(self):
-        '''
-        Initialise the process group for torch. Return boolean of is processes group initialised.
-        '''
-        self.logger.info('*****agent {0} / initialising transfer (communication) module'.format(self.agent_id))
-        dist.init_process_group(backend='gloo', init_method=self.comm_init_str, rank=self.agent_id, \
-            world_size=self.num_agents)
+        print('\nReference table:')
+        for addr in self.reference_list: print(addr[0], addr[1])
 
-        return dist.is_initialized()
+        print(f'\nlistening server params ->\naddress: {self.init_address}\nport: {self.init_port}\n')
+        print('mask size:', self.mask_dim)
+        print('embedding size:', self.embd_dim)
 
     def _null_message(self, msg):
+        """
+        Checks if a message contains null i.e, no data.
+
+        Args:
+            msg: A list received from another agent.
+
+        Returns:
+            A boolean indicating whether A list contains null data.
+        """
+
         # check whether message sent denotes or is none.
         if bool(msg[ParallelCommEval.META_INF_IDX_MSG_DATA] == ParallelCommEval.MSG_DATA_NULL):
             return True
+
         else:
             return False
 
-    # Original send and recv request of a tasklabel
-    def send_receive_request(self, emb_label):
-        '''
-        Setup up the communication buffer with the necessary flags and data.
-        Send buffer to all agents in the network.
-        Then listen for any requests from other agents and unpack the buffer.
-        Return the data to the main process for use in the next process.
-
-        Task label can be interchangeable with the task embedding. Just needs to be a numpy 
-        array to be compatible.
-
-        # Data buffer for communication looks like this
-        #   task label: [0, 0, 1]
-        #   [agentid, communication type, is data or null flag, 0, 0, 1]
-        '''
-        #### TO DO: Switch task labels with embeddings?
-        # or with new idea task labels are made for each embedding cluster?
-
-        if isinstance(emb_label, np.ndarray):
-            emb_label = torch.tensor(emb_label, dtype=torch.float32)
-
-            
-        self.logger.info('send_recv_req, req data: {0}'.format(emb_label))
-        # from message to send from agent (current node), can be NULL message or a valid
-        # request based on given task label
-        data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
-
-        # Send the task label or embedding to the other agents.
-        data[ParallelCommEval.META_INF_IDX_PROC_ID] = self.agent_id
-        data[ParallelCommEval.META_INF_IDX_MSG_TYPE] = ParallelCommEval.MSG_TYPE_SEND_REQ
-
-        if emb_label is None:
-            data[ParallelCommEval.META_INF_IDX_MSG_DATA] = ParallelCommEval.MSG_DATA_NULL
-        else:
-            data[ParallelCommEval.META_INF_IDX_MSG_DATA] = ParallelCommEval.MSG_DATA_TSK
-            data[ParallelCommEval.META_INF_IDX_TASK_SZ : ] = emb_label # NOTE deepcopy?
-
-
-        self.logger.info('actual send, recv')
-        # actual send/receive
-        self.handle_send_recv_req = dist.all_gather(tensor_list=self.buff_send_recv_req, \
-            tensor=data, async_op=True)
-
-
-        #time.sleep(ParallelCommEval.SLEEP_DURATION)
-        self.handle_send_recv_req.wait()
-        print(self.buff_send_recv_req, flush=True)
-
-
-        # briefly wait to see if other agents will send their request
-        #time.sleep(ParallelCommEval.SLEEP_DURATION)
+    # Client used by the server to send responses
+    def client(self, data, address, port):
+        """
+        Client implementation. Begins a TCP connection secured using SSL/TLS to a trusted server ip-port. Attempts to send the serialized bytes.
         
-        # check buffer for incoming requests
-        idxs = list(range(len(self.buff_send_recv_req)))
-        idxs.remove(self.agent_id)
-        ret = []
-        for idx in idxs :
-            buff = self.buff_send_recv_req[idx]
+        Args:
+            data: A list to be sent to another agent.
+            address: The ip of the destination.
+            port: The port of the destination.
+        """
+        _data = pickle.dumps(data, protocol=5)
 
-            if self._null_message(buff):
-                d = {}
-                d['sender_agent_id'] = int(buff[ParallelCommEval.META_INF_IDX_PROC_ID])
-                d['msg_data'] = None
-                ret.append(d)
-            else:
-                self.logger.info('send_recv_req: request received from agent {0}'.format(idx))
-                d = {}
-                d['sender_agent_id'] = int(buff[ParallelCommEval.META_INF_IDX_PROC_ID])
-                d['msg_type'] = int(buff[ParallelCommEval.META_INF_IDX_MSG_TYPE])
-                d['msg_data'] = int(buff[ParallelCommEval.META_INF_IDX_MSG_DATA])
-                d['task_label'] = buff[ParallelCommEval.META_INF_IDX_TASK_SZ : ]
-                ret.append(d)
-        return ret
+        # Attempt to send the data a number of times. If successful do not attempt to send again.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
 
-    # Multi-threaded handling of metadata send recv.
-    def send_meta_response(self, requesters):
-        '''
-        Sends either the mask or meta data to another agent.
-        '''
-        if len(requesters) > 0:
-            #self.logger.info('send_resp:')
-            for req_dict in requesters:
-                self.logger.info('send_resp {0}'.format(req_dict))
-                
-                dst_agent_id = req_dict['dst_agent_id']
-                mask_reward =req_dict['mask_reward']
-                distance = req_dict['dist']
-                distance = np.float64(distance)
-                emb_label = req_dict['resp_task_label'] #MAKE WORK WITH EMBEDDINGS!!!!!!!!!!!
+        try:
+            sock.connect((address, port))
 
-                #print(dst_agent_id, mask_reward, distance, emb_label)
-                #print(type(dst_agent_id), type(mask_reward), type(distance), type(emb_label))
+            #context = ssl.create_default_context()
+            #context.load_cert_chain(ParallelCommEval.CERTPATH, ParallelCommEval.KEYPATH)
+            #sock_ssl = context.wrap_socket(sock, server_side=False)
 
-                #print(dst_agent_id, mask_reward, emb_label, flush=True)
-                #print(type(dst_agent_id), type(mask_reward), type(emb_label), flush=True)
-
-                if isinstance(emb_label, np.ndarray):
-                    emb_label = torch.tensor(emb_label, dtype=torch.float32)
-
-                # Consider changing to local buffer
-                buff = torch.ones(ParallelCommEval.META_INF_IDX_TASK_SZ_ + self.emb_label_sz, dtype=torch.float32) * torch.inf
-                buff[ParallelCommEval.META_INF_IDX_PROC_ID] = self.agent_id
-                buff[ParallelCommEval.META_INF_IDX_MSG_TYPE] = ParallelCommEval.MSG_TYPE_SEND_RESP
-
-                #self.logger.info('send_resp: responding to agent {0} query'.format(dst_agent_id))
-                #self.logger.info('send_resp: mask (response) data type: {0}'.format(type(mask)))
-
-                # If mask is none then send back torch.inf
-                # otherwise send mask
-                if mask_reward is torch.inf:
-                    #print('Mask reward is None -> True', flush=True)
-                    buff[ParallelCommEval.META_INF_IDX_MSG_DATA] = ParallelCommEval.MSG_DATA_NULL
-
-                else:
-                    #print('Mask reward is None -> False', flush=True)
-                    #print(mask_reward, emb_label, distance, flush=True)
-                    #print(type(mask_reward), type(emb_label), type(distance), flush=True)
-                    # if the mask is none but there is a mask reward, then overwrite the buffer with
-                    # the meta data. Otherwise don't do anything.
-                    buff[ParallelCommEval.META_INF_IDX_MSG_DATA] = ParallelCommEval.MSG_DATA_META
-                    buff[ParallelCommEval.META_INF_IDX_MSK_RW] = mask_reward
-                    buff[ParallelCommEval.META_INF_IDX_DIST] = distance
-                    buff[ParallelCommEval.META_INF_IDX_TASK_SZ_ :] = emb_label
-
-                #self.logger.info('Sending metadata to agent {0}: {1}'.format(dst_agent_id, buff, buff.dtype))
-                # actual send
-                #print(buff)
-                #for idx, val in enumerate(buff):
-                    #print(type(val), val)
-                #print(type(buff))
-                #print(type(buff[0]), type(buff[1]), type(buff[2]), type(buff[3]), type(buff[4]), type(buff[5]))
-                #print('STARTING SEND')
-                req_send = dist.isend(tensor=buff, dst=dst_agent_id)
-                req_send.wait()
-    def receive_meta_response(self, await_response):
-        '''
-        Receives the response from all in the network agents.
-        '''
-        #print(await_response)
-        ret = []
-        _buff_list = []
-        if any(await_response):
-            #self.logger.info('recv_resp:')
-            for idx in range(self.num_agents):
-                #print(idx)
-                _buff_recv = torch.ones(ParallelCommEval.META_INF_IDX_TASK_SZ_ + self.emb_label_sz, dtype=torch.float32) * torch.inf
-                if idx == self.agent_id:
-                    _buff_list.append(_buff_recv)
-
-                else:
-                    req_recv = dist.irecv(tensor=_buff_recv, src=idx)
-                    req_recv.wait()
-                    _buff_list.append(_buff_recv)
-                    #print('COMPLETED RECEPTION from agent {0}'.format(idx), flush=True)
-
-            #time.sleep(ParallelCommEval.SLEEP_DURATION)
-
-            #print(_buff_list)
-            # check whether message has been received
-            for idx in range(self.num_agents):
-                _buff = _buff_list[idx]
-
-                if idx == self.agent_id:
-                    #print('recv buff self agent id')
-                    d = {}
-                    d['agent_id'] = self.agent_id
-                    d['mask_reward'] = torch.inf
-                    d['dist'] = torch.inf
-                    d['emb_label'] = _buff[5:].detach().cpu().numpy()
-                    ret.append(d)
-
-                else:
-                    if self._null_message(_buff):
-                        #print('recv buff is null')
-                        d = {}
-                        d['agent_id'] = int(_buff[0])
-                        d['mask_reward'] = torch.inf
-                        d['dist'] = torch.inf
-                        d['emb_label'] = _buff[5:].detach().cpu().numpy()
-                        ret.append(d)
-                        #self.logger.info('recv_resp: appending {0} response'.format(None))
-                    
-                    elif _buff[ParallelCommEval.META_INF_IDX_MSG_DATA] == torch.inf:
-                        #print('recv buff failed')
-                        ret.append(False)
-                        #self.logger.info('recv_resp: appending False response. All hope is lost')
-
-                    elif _buff[ParallelCommEval.META_INF_IDX_MSG_DATA] == ParallelCommEval.MSG_DATA_META:
-                        #print('recv buff success')
-                        d = {}
-                        d['agent_id'] = int(_buff[0])
-                        d['mask_reward'] = float(_buff[3])
-                        d['dist'] = float(_buff[4])
-                        d['emb_label'] = _buff[5:].detach().cpu().numpy()
-                        ret.append(d)
-        return ret
-
-    def send_recv_meta(self, requesters, await_response):
-        pool1 = mp.pool.ThreadPool(processes=1)
-        pool2 = mp.pool.ThreadPool(processes=1)
-
-        #self.logger.info('send_recv_meta():')
-
-        _ = pool1.apply_async(self.send_meta_response, (requesters,))
-        #self.send_meta_response(requesters)
-        #time.sleep(0.2)
-        result = pool2.apply_async(self.receive_meta_response, (await_response,))
-        #result = self.receive_meta_response(await_response)
-        #return result
-
-        pool1.close()
-        pool2.close()
-        return result.get()
+            _data = struct.pack('>I', len(_data)) + _data
+            sock.sendall(_data)
+            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
 
-    # Multi-threaded handling of mask request send recv
-    def send_mask_request(self, send_msk_requests):
-        # TODO: Merge this function with the other send_receive_mask function.
-        '''
-        Sends a request to the top three agents for masks using the their embeddings.
-        Checks for similar requests.
-        '''
-        print('SEND_MSK_REQ: ', send_msk_requests, flush=True)
-
-        if send_msk_requests:
-            for agent_id, emb_label in send_msk_requests.items():
-                print(agent_id, emb_label, flush=True)
-                
-                
-                #if agent_id == self.agent_id:
-                #    print('continue')
-                #    continue
-
-                #print('sending', flush=True)
-                # Convert embedding label to tensor
-                if isinstance(emb_label, np.ndarray):
-                    emb_label = torch.tensor(emb_label, dtype=torch.float32)
-
-                # Initialise a buffer for one agent embedding/tasklabel
-                data = torch.ones_like(self.buff_send_recv_req[0]) * torch.inf
-
-                # Populate the tensor with necessary data
-                data[ParallelCommEval.META_INF_IDX_PROC_ID] = self.agent_id
-                data[ParallelCommEval.META_INF_IDX_MSG_TYPE] = ParallelCommEval.MSG_TYPE_SEND_REQ
-                
-                if emb_label is None:
-                    # If emb_label is none it means we reject the agent
-                    data[ParallelCommEval.META_INF_IDX_MSG_DATA] = ParallelCommEval.MSG_DATA_NULL
-                        
-                else:
-                    # Otherwise we want the agent's mask
-                    data[ParallelCommEval.META_INF_IDX_MSG_DATA] = ParallelCommEval.MSG_DATA_TSK
-                    data[ParallelCommEval.META_INF_IDX_TASK_SZ : ] = emb_label # NOTE deepcopy?
-
-                # Send out the mask request or rejection to each agent that sent metadata
-                req = dist.isend(tensor=data, dst=agent_id)
-                req.wait()
-                print('SENDING: ', data, agent_id, '\n', flush=True)
-    def receive_mask_requests(self, expecting):
-        print('Inside recv_msk_req()', flush=True)
-        # Check for mask requests from other agents if expecting any requests
-        ret = []
-        _data_list = [torch.ones(ParallelCommEval.META_INF_IDX_TASK_SZ + self.emb_label_sz, dtype=torch.float32) \
-            * torch.inf for _ in range(self.num_agents)]
-
-        print('_DATA_LIST INITIAL STATE:', _data_list, flush=True)
-        if len(expecting) > 0:
-            # If expecting a request for a mask, check for each expected agent id
-            for idx in expecting:
-                print('idx:', idx, flush=True)
-                req = dist.irecv(tensor=_data_list[idx], src=idx)
-                req.wait()
-                print('received from successfully!', idx)
-            
-            print()
-            print('Data recevied in recv_mask_req(): ', _data_list, flush=True)
-            print()
-
-            for idx in expecting:
-                _data = _data_list[idx]
-
-                print('Parsing data {0}: {1}'.format(idx, _data))
-
-                # If response was null message then this agent has been rejected.
-                # If so, remove the idx from expecting and check the next id.
-                # if no more idxs then return the list of dictionaries. (can be empty)
-                if self._null_message(_data):
-                    pass
-
-                elif _data[ParallelCommEval.META_INF_IDX_MSG_DATA] == torch.inf:
-                    # failed
-                    pass
-
-                # If not rejected then we need to send the mask to the requester
-                else:
-                    d = {}
-                    d['requester_agent_id'] = int(_data[ParallelCommEval.META_INF_IDX_PROC_ID])
-                    d['msg_type'] = int(_data[ParallelCommEval.META_INF_IDX_MSG_TYPE])
-                    d['msg_data'] = int(_data[ParallelCommEval.META_INF_IDX_MSG_DATA])
-                    d['task_label'] = _data[ParallelCommEval.META_INF_IDX_TASK_SZ : ]
-                    ret.append(d)
-
-        # Return a list of dictionaries for each agent that wants a mask
-        return ret
+        except:
+            # Try to remove the ip and port that failed from the query table
+            try:
+                self.query_list.remove((address, port))
+                self.world_size.value = len(self.query_list) + 1
+            except:
+                pass
+            self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
+        finally: sock.close()
     
-    def send_recv_mask_req(self, send_msk_requests, expecting):
-        #print('SEND_MSK_REQ: ', send_msk_requests)
+    # Modified version of the client used by the send_query function. Has an additional bit of code to handle the mask response before querying the next agent in the query list
+    def query_client(self, data, address, port):
+        # Attempt to send the data a number of times. If successful do not attempt to send again.
+        
+        _data = pickle.dumps(data, protocol=5)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        
+        try:
+            sock.connect((address, port))
 
-        pool1 = mp.pool.ThreadPool(processes=1)
-        pool2 = mp.pool.ThreadPool(processes=1)
+            #context = ssl.create_default_context()
+            #context.load_cert_chain(ParallelCommEval.CERTPATH, ParallelCommEval.KEYPATH)
+            #sock = context.wrap_socket(sock, server_side=False)
 
-        #self.send_mask_request(send_msk_requests)
-        _ = pool1.apply_async(self.send_mask_request, (send_msk_requests,))
-        result = pool2.apply_async(self.receive_mask_requests, (expecting,))
+            _data = struct.pack('>I', len(_data)) + _data
+            sock.sendall(_data)
+            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
-        pool1.close()
-        pool2.close()
-        #return None, None
-        return result.get()
+        except:
+            # Try to remove the ip and port that failed from the query table
+            try:
+                self.query_list.remove((address, port))
+                self.world_size.value = len(self.query_list) + 1
+            except:
+                pass
+            self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
+        finally:
+            sock.close()
+
+    ### Query send and recv functions
+    def send_query(self, embedding):
+        """
+        Sends a query for knowledge for a given embedding to other agents known to this agent.
+        
+        Args:
+            embedding: A torch tensor containing an embedding
+        """
+
+        if isinstance(embedding, np.ndarray):
+            embedding = torch.tensor(embedding, dtype=torch.float32)
+            
+        #self.logger.info(Fore.GREEN + 'send_recv_req, req data: {0}'.format(embedding))
+
+        reward = 0.0
+        if tuple(embedding.tolist()) in self.knowledge_base:
+            reward = self.knowledge_base[tuple(embedding.tolist())]
 
 
-    # Multi-threaded handling of mask send recv
-    def send_mask(self, masks_list):
-        if len(masks_list) > 0:
-            print('Agent entered send_mask()', flush=True)
-            for mask_dict in masks_list:
-                self._send_mask(mask_dict)
-    def _send_mask(self, mask_dict):
-        print(mask_dict, flush=True)
-        dst_agent_id = int(mask_dict['dst_agent_id'])
-        emb_label = mask_dict['label']
-        mask = mask_dict['mask']
-
-        print(type(mask), mask.dtype, flush=True)
-
-        buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz + self.emb_label_sz, dtype=torch.float32) * torch.inf
-
-        buff[ParallelComm.META_INF_IDX_PROC_ID] = self.agent_id
-        buff[ParallelComm.META_INF_IDX_MSG_TYPE] = ParallelComm.MSG_TYPE_SEND_RESP
-
-        if mask is None:
-            buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_NULL
-            buff[ParallelComm.META_INF_IDX_MASK_SZ : ] = torch.inf
+        if embedding is None:
+            data = [self.init_address, self.init_port, ParallelCommEval.MSG_TYPE_SEND_QUERY, ParallelCommEval.MSG_DATA_NULL]
 
         else:
-            buff[ParallelComm.META_INF_IDX_MSG_DATA] = ParallelComm.MSG_DATA_MSK
-            buff[ParallelComm.META_INF_IDX_MASK_SZ : ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz] = mask # NOTE deepcopy?
-            buff[ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz : ] = emb_label
+            data = [self.init_address, self.init_port, ParallelCommEval.MSG_TYPE_SEND_QUERY, ParallelCommEval.MSG_DATA_QUERY, embedding, reward]
 
-        print('send_mask(): sending buffer', buff, flush=True)
-        req_send = dist.isend(tensor=buff, dst=dst_agent_id)
-        req_send.wait()
-        print('send_mask() completed. Returning', flush=True)
-    def receive_mask(self, best_agent_id):
+        # Try to send a query to all known destinations. Skip the ones that don't work
+        for addr in list(self.query_list):
+            self.query_client(data, addr[0], addr[1])
+
+        time.sleep(0.2)
+        self.pick_meta()
+        
+    def recv_mask(self, buffer):
+        """
+        Unpacks a received mask response from another agent.
+        
+        Args:
+            buffer: A list received from another agent.
+            best_agent_id: A shared memory variable of type dict() containing a ip-port pair for the best agent.
+            
+        Returns:
+            received_mask: A torch tensor containing the continous mask parameters.
+            received_label: A torch tensor containing the embedding.
+        """
+        
         received_mask = None
         received_label = None
+        received_reward = None
+        ip = None
+        port = None
 
-        if best_agent_id is not None:
-            print('Agent entered receive_mask()', flush=True)
-            # We want to get the mask from the best agent
-            _buff = torch.ones(ParallelComm.META_INF_IDX_MASK_SZ + self.mask_sz + self.emb_label_sz, dtype=torch.float32) * torch.inf
-            print(_buff, len(_buff))
-            # Receive the buffer containing the mask. Wait for 10 seconds to make sure mask is received
-            print('Mask recv start', flush=True)
+        if buffer[ParallelCommEval.META_INF_IDX_MSG_DATA] == ParallelCommEval.MSG_DATA_NULL:
+            pass
 
+        elif buffer[ParallelCommEval.META_INF_IDX_MSG_DATA] == ParallelCommEval.MSG_DATA_MSK:
+            received_mask = buffer[4]
+            received_label = buffer[5]
+            received_reward = buffer[6]
+            ip = buffer[0]
+            port = buffer[1]
+
+        return received_mask, received_label, received_reward, ip, port
+
+
+    def recv_query(self, buffer):
+        """
+        Unpacks the data buffer received from another agent for a query.
+        
+        Args:
+            buffer: A list received from another agent.
             
-            req_recv = dist.irecv(tensor=_buff, src=best_agent_id)
-            req_recv.wait()
-            print('Mask recv end', flush=True)
-            #time.sleep(ParallelComm.SLEEP_DURATION)
+        Returns:
+            ret: A dictionary containing the unpacked data.
+        """
 
-            # otherwise return the mask
-            if _buff[ParallelComm.META_INF_IDX_MSG_DATA] == torch.inf:
-                pass
+        ret = {}
+        ret['sender_address'] = str(buffer[ParallelCommEval.META_INF_IDX_ADDRESS])
+        ret['sender_port'] = int(buffer[ParallelCommEval.META_INF_IDX_PORT])
+        #ret['msg_type'] = int(buffer[ParallelCommEval.META_INF_IDX_MSG_TYPE])
+        #ret['msg_data'] = int(buffer[ParallelCommEval.META_INF_IDX_MSG_DATA])
+        ret['embedding'] = buffer[ParallelCommEval.META_INF_IDX_TASK_SZ]
+        ret['sender_reward'] = buffer[-1]
 
-            elif _buff[ParallelComm.META_INF_IDX_MSG_DATA] == ParallelComm.MSG_DATA_MSK:
-                print('MASK DATA RECEIVED', flush=True)
-                if _buff[ParallelComm.META_INF_IDX_PROC_ID] == best_agent_id:
-                    print('SENDER IS BEST AGENT', flush=True)
-                    received_mask = _buff[ParallelComm.META_INF_IDX_MASK_SZ : ParallelComm.META_INF_IDX_MASK_SZ+self.mask_sz]
-                    received_label = _buff[ParallelComm.META_INF_IDX_MASK_SZ+self.mask_sz : ]
+        # Handle when we receive a query from another agent that we do not have in our known list of agents (self.query_list)
+        if (ret['sender_address'], ret['sender_port']) not in self.query_list:
+            self.client([self.init_address, self.init_port, ParallelCommEval.MSG_TYPE_SEND_TABLE, list(self.query_list)], ret['sender_address'], ret['sender_port'])
+            self.query_list.append((ret['sender_address'], ret['sender_port']))
 
-            # Reset the best agent id for the next request
-            best_agent_id = None
+        self.world_size.value = len(self.query_list) + 1    # Refresh the world_size value
 
-        return received_mask, best_agent_id, received_label
+        return ret
+    def proc_meta(self, other_agent_req):
+        """
+        Processes a query for an embedding and produces a response to send back to the requesting agent.
+        
+        Args:
+            other_agent_req: A dictionary containing the information for the query request.
+            knowledge_base: A shared memory variable consisting of a dictionary to store the task embeddings and rewards accumulated.
+        
+        Returns:
+            meta_response: A dictionary containing the response information.
+        """
+
+        other_agent_req['response'] = False
+
+        '''if other_agent_req is not None:
+            np_embedding = other_agent_req['embedding'].detach().cpu().numpy()
+            sender_reward = other_agent_req['sender_reward']
+
+            # Iterate through the knowledge base and compute the distances
+            # If reward greater than 0
+            # If distance is less than or equal to threshold
+            # response = True (false by default)
+            for tlabel, treward in self.knowledge_base.items():
+                if treward > np.around(0.0, decimals=6):
+                    if 0.9 * round(treward, 6) > sender_reward:
+                        tdist = np.sum(abs(np.subtract(np_embedding, np.array(tlabel))))
+                        if tdist <= ParallelCommEval.THRESHOLD:
+                            other_agent_req['response'] = True
+                            other_agent_req['reward'] = treward         # Reward of the mask this agent has for the task
+                            other_agent_req['dist'] = tdist             # Distance between the embedding of this agent's closest mask and the embedding from the querying agent
+                            other_agent_req['resp_embedding'] = torch.tensor(tlabel)  # The closest embedding that this agent has to the one that the querying agent has queried for'''
+
+        # Return the query request
+        return other_agent_req
+    def send_meta(self, meta_resp):
+        if meta_resp:
+            data = [self.init_address, self.init_port, ParallelCommEval.MSG_TYPE_SEND_META]
+            if meta_resp['response']:
+                data.append(ParallelCommEval.MSG_DATA_META)
+                data.append(meta_resp.get('reward', None))
+                data.append(meta_resp.get('dist', None))
+                data.append(meta_resp.get('resp_embedding', None))
+
+            #else:
+            #    data.append(ParallelCommEval.MSG_DATA_NULL)
+
+                self.client(data, str(meta_resp['sender_address']), int(meta_resp['sender_port']))
+
+    def proc_mask(self, mask_req, queue_label_send, queue_mask_recv):
+        """
+        Processes the mask response to send to another agent.
+        
+        Args:
+            mask_req: A dictionary consisting of the response information to send to a specific agent.
+            queue_label_send: A shared memory queue to send an embedding to be converted by the agent module.
+            queue_mask_recv: A shared memory queue to receive a converted mask from the agent module.
+
+        Returns:
+            The mask_req dictionary with the converted mask now included. 
+        """
+
+        if mask_req['response']:
+            self.logger.info('Sending mask request to be converted')
+            queue_label_send.put((mask_req))
+            self.logger.info('Mask request sent')
+            return queue_mask_recv.get()        # Return the dictionary with the mask attached
+
+    def send_mask(self, mask_resp):
+        """
+        Sends a mask response to a specific agent.
+        
+        Args:
+            mask_resp: A dictionary consisting of the information to send to a specific agent.    
+        """
+        if mask_resp:
+            data = [self.init_address, self.init_port, ParallelCommEval.MSG_TYPE_SEND_MASK]
+
+            # if response is True then send the mask
+            if mask_resp['response']:
+                data.append(ParallelCommEval.MSG_DATA_MSK)
+                data.append(mask_resp.get('mask', None))
+                data.append(mask_resp.get('embedding', None))
+                data.append(mask_resp.get('reward', None))
+
+                self.logger.info(f'Sending mask response: {data}')
+                self.client(data, str(mask_resp['address']), int(mask_resp['port']))
+            
+            # otherwise send a null response
+            #else:
+            #    data.append(ParallelCommEval.MSG_DATA_NULL)
+            
+            
     
-    def send_recv_mask(self, masks_list, best_agent_id):
-        #print('Send Recv Mask Function', len(mask), dst_agent_id, best_agent_id)
-        pool1 = mp.pool.ThreadPool(processes=1)
-        pool2 = mp.pool.ThreadPool(processes=1)
+    # Event handler wrappers. This is done so the various functions for each event can be run in a single thread.
+    def query(self, data):
+        """
+        Event handler for receiving a query from another agent. Unpacks the buffer received from another agent, processes the request and sends some response if necessary.
+        
+        Args:
+            data: A list received from another agent.
+            knowledge_base: A shared memory variable of type dict() containing embedding-reward pairs for task embeddings observed by the agent.    
+        """
 
+        # Get the query from the other agent
+        other_agent_req = self.recv_query(data)
+        self.logger.info(f'Received query: {other_agent_req}')
 
-        print()
-        print('Inside send_recv_mask')
-        print(masks_list, best_agent_id)
+        # Check if this agent has any knowledge for the task
+        meta_resp = self.proc_meta(other_agent_req)
+        self.logger.info(f'Processes mask req: {meta_resp}')
 
-        #self.send_mask(masks_list)
-        #received_mask, best_agent_id = self.receive_mask(best_agent_id)
+        self.send_meta(meta_resp)
+    def add_meta(self, data):
+        print(Fore.YELLOW + 'Metadata:')
+        print(f'Address: {data[0]}')
+        print(f'Port: {data[1]}')
+        print(f'Reward: {data[4]}')
+        print(f'Distance: {data[5]}')
+        print(f'Embedding: {data[6]}')
+        # Append the received metadata to the global list
+        self.metadata.append({'address':data[0], 'port':data[1], 'reward':data[4], 'dist':data[5], 'embedding':data[6]})
+    def pick_meta(self):
+        data = [self.init_address, self.init_port, ParallelCommEval.MSG_TYPE_SEND_REQ]
+        # Time to pick the best agent
+        if len(self.metadata) > 0:
+            meta_copy = list(self.metadata)
+            self.metadata[:] = []   # Reset the metadata list now that we have a copy
 
-        #return received_mask, best_agent_id
-        #print('send_mask():', masks_list)
-        _ = pool1.apply_async(self.send_mask, (masks_list,))
-        result = pool2.apply_async(self.receive_mask, (best_agent_id,))
+            meta_copy = sorted(meta_copy, key=lambda d: (d['dist'], -d['reward']))      # bi-directional multikey sorting using the distance and reward
 
-        pool1.close()
-        pool2.close()
+            for meta_dict in meta_copy:
+                if meta_dict['reward'] == torch.inf: pass
+                else:
+                    recv_address = meta_dict['address']
+                    recv_port = meta_dict['port']
+                    recv_rw = meta_dict['reward']
+                    recv_dist = meta_dict['dist']
+                    recv_emb = meta_dict['embedding']
 
-        # If the recv was not run then return NoneType for mask and whatever was passed for
-        # best_agent_id (probably []).
-        return result.get()
-
-    ### Core functions
-    def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check):
-
-        # Initialise the process group for torch distributed
-        proc_check = self.init_dist()
-        queue_check.put(proc_check)
-
-        msg = None
-        # Store the best agent id for quick reference
-        best_agent_id = None
-        best_agent_rw = {}
-
-        # initial state of input variables to loop
-        comm_iter = 0
-        while True:
-            START = time.time()
-            expecting = list() # Come back to once all components are checked. Might cause issues
-
-            # Get the latest states of these variables
-            track_tasks, mask_rewards_dict, await_response = queue_loop.get()
-            print()
-            print()
-            print()
-            print(Fore.GREEN + 'COMMUNICATION ITERATION: ', comm_iter)
-            print(Fore.GREEN + '', track_tasks, mask_rewards_dict, await_response)
-            
-            # Try getting the label request, otherwise it will be NoneType
-            try:
-                # Initially msg will be populated with the first task label then set to None after the 
-                # first completed communication loop. After that the msg will be None until a new query
-                # is requested from the agent.
-                msg = queue_label.get_nowait()
-                print(Fore.GREEN + 'Comm Module msg this iter: ', msg)
-            except Empty:
-                print(Fore.GREEN + 'FAILED')
-                continue
-            
-            
-            #if self.mode == 'ondemand':
-            #######################   COMMUNICATION STEP ONE    #######################
-            ####################### REQUESTS BETWEEN ALL AGENTS #######################
-            # send out broadcast request to all other agents for task label
-            #print(Fore.GREEN + 'Doing request')
-            start_time = time.time()
-            dist.monitored_barrier(wait_all_ranks=True)
-            other_agents_request = self.send_receive_request(msg)
-            print('******** TIME TAKEN FOR SEND_RECV_REQ():', time.time()-start_time)
-            print()
-            print(Fore.GREEN + 'Other agent requests: ', other_agents_request)
-
-            
-            #######################   COMMUNICATION STEP TWO    #######################
-            ####################### SEND AND RECV META REPONSES #######################
-            # Respond to received queries with metadata.
-            # Meta data contains the reward for the similar task, distance and the similar 
-            # tasklabel/embedding.
-
-            ### SEND META RESPONSES
-            # Go through each request from the network of agents
-            meta_responses = []
-
-            # if populated prepare metadata responses
-            if other_agents_request:
-                for req in other_agents_request:
-                    # If the req is none, which it usually will be, just skip.
-                    if req['msg_data'] is None: continue
-
-
-                    # Evaluation agent response handling here
-                    #if req['sender_agent_id'] == -1:
-
+                    self.logger.info(recv_address)
+                    self.logger.info(recv_port)
+                    self.logger.info(recv_rw)
+                    self.logger.info(recv_dist)
+                    self.logger.info(recv_emb)
                     
-                    # If the message is None then the agent has already requested and begun
-                    # working the task. So there is no need to update this agents task tracking dictionary
-                    # If the other agents do task change then they will do a fresh request. This will make the
-                    # request not None and this agent can update their task track.
-                    track_tasks[req['sender_agent_id']] = req['task_label']
-
-                    # If this agent has not learned anything yet, then respond with nothing
-                    #if mask_rewards_dict:
-                    # Otherwise send what it knows if appropriate
-                    # Compute the embedding distance. Maybe there is a better way to achieve this
-                    req_label_as_np = req['task_label'].detach().cpu().numpy()
-                    print(Fore.GREEN + 'Requested label from agent {0}: {1}'.format(req['sender_agent_id'], req_label_as_np))
-                    print(Fore.GREEN + 'Current knowledge base for this agent: ', mask_rewards_dict)
-
-                    # For each embedding/tasklabel reward pair, calculate the distance to the
-                    # requested embedding/tasklabel.
-                    # If the distance is below the THRESHOLD then send it back
-                    # otherwise send nothing back.
-
-                    # Iterate through the knowledge base and compute the distances
-                    d = {}
-                    print('Knowledge base', mask_rewards_dict)
-                    d['dst_agent_id'] = req['sender_agent_id']
-                    d['mask_reward'] = torch.inf
-                    d['dist'] = torch.inf
-                    d['resp_task_label'] = torch.tensor([torch.inf] * 3)
-
-                    #expecting.append(d['dst_agent_id'])
-                    meta_responses.append(d)
-            #print()
-            #print(Fore.GREEN + 'Meta responses to send:', meta_responses)
-            print(Fore.GREEN + 'Expecting mask request from these agents:', expecting)
-
-
-            ### SEND RECV META RESPONSES
-            # Receive metadata response from other agents for a embedding/tasklabel request from 
-            # this agent.
-            #print(Fore.GREEN + 'Awaiting Responses? ', await_response)
-
-            results = []
-            start_time = time.time()
-            dist.monitored_barrier(wait_all_ranks=True)
-            results = self.send_recv_meta(meta_responses, await_response)
-            print('******** TIME TAKEN FOR SEND_RECV_META():', time.time()-start_time)
-            print()
-
-
-
-            send_msk_requests = dict()
-            
-            # if not results something bad has happened
-            if len(results) > 0:
-                # Sort received meta data by smallest distance (primary) and highest reward (secondary),
-                # using full bidirectional multikey sorting (fancy words for such a simple concept)
-                results = sorted(results, key=lambda d: (d['dist'], -d['mask_reward']))
-                print(Fore.GREEN + 'Metadata responses sorted: ')
-                for item in results:
-                    print(item)
-
-                # Iterate through the await_response list. Upon task change this is an array:
-                # [True,] * num_agents
-                selected = False    # flag to check if the best agent of the lot has been selected
-                for idx in range(len(await_response)):
-                    # Do some checks to remove to useless results
-                    if results[idx]['agent_id'] == self.agent_id:
-                        await_response[idx] = False
-                        continue
-
-                    if await_response[idx] is False:
-                        continue
-
-                    if results[idx] is False:
-                        continue
-
-                    elif results[idx]['mask_reward'] == torch.inf:
-                        await_response[idx] = False
-
-                    # Otherwise unpack the metadata
-                    else:
-                        recv_agent_id = results[idx]['agent_id']
-                        recv_msk_rw = results[idx]['mask_reward']
-                        recv_dist = results[idx]['dist']
-                        recv_label = results[idx]['emb_label']
-
-                        # If the recv_dist is lower or equal to the threshold and a best agent
-                        # hasn't been selected yet then continue
-                        if recv_dist <= ParallelCommEval.THRESHOLD and selected == False:
-                            # Check if the reward is greater than the current reward for the task
-                            # or if the knowledge even exists.
-                            if tuple(msg) in mask_rewards_dict.keys():
-                                if round(recv_msk_rw, 6) > mask_rewards_dict[tuple(msg)]:
-                                    # Add the agent id and embedding/tasklabel from the agent
-                                    # to a dictionary to send requests/rejections to.
-                                    send_msk_requests[recv_agent_id] = recv_label
-                                    # Make a note of the best agent id in memory of this agent
-                                    # We will use this later to get the mask from the best agent
-                                    best_agent_id = recv_agent_id
-                                    best_agent_rw[tuple(msg)] = np.around(recv_msk_rw, 6)
-                                    # Make the selected flag true so we don't pick another agent
-                                    selected = True
-
-
-                                else:
-                                    # if this agent's reward is higher or the same as the other best agent
-                                    # then reject the best agent
-                                    recv_agent_id = results[idx]['agent_id']
-                                    send_msk_requests[recv_agent_id] = None
-                                    
-
-                            # If we don't have any knowledge present for the task then get the mask 
-                            # anyway from the best agent.
+                    if recv_rw != 0.0:
+                        if recv_dist <= ParallelCommEval.THRESHOLD:
+                            if tuple(recv_emb) in self.knowledge_base.keys():
+                                if 0.9 * round(recv_rw, 6) > self.knowledge_base[tuple(recv_emb.tolist())]:
+                                    data.append(ParallelCommEval.MSG_DATA_MSK_REQ)
+                                    data.append(recv_emb)
+                                    self.client(data, recv_address, recv_port)
+                                    break
+                                
                             else:
-                                # Add the agent id and embedding/tasklabel from the agent
-                                # to a dictionary to send requests/rejections to.
-                                send_msk_requests[recv_agent_id] = recv_label
-                                # Make a note of the best agent id in memory of this agent
-                                # We will use this later to get the mask from the best agent
-                                best_agent_id = np.around(recv_agent_id, 6)
-                                best_agent_rw[tuple(msg)] = recv_msk_rw
-                                # Make the selected flag true so we don't pick another agent
-                                selected = True
+                                data.append(ParallelCommEval.MSG_DATA_MSK_REQ)
+                                data.append(recv_emb)
+                                self.client(data, recv_address, recv_port)
+                                break
+    def request(self, data, queue_label_send, queue_mask_recv):
+        print(Fore.WHITE + 'Mask request:')
+        print(data)
+        print(f'Address: {data[0]}')
+        print(f'Port: {data[1]}')
+        print(f'Embedding: {data[4]}')
+        mask_req = {'response': True, 'embedding': data[4], 'address':data[0], 'port':data[1]}
+        #mask_req = {'response': False, 'address':data[0], 'port':data[1]}   # For the evaluation agent.
 
-                        else:
-                            # if this agent's reward is higher or the same as the other best agent
-                            # then reject the best agent
-                            recv_agent_id = results[idx]['agent_id']
-                            send_msk_requests[recv_agent_id] = None
+        # Get the label to mask conversion
+        mask_resp = self.proc_mask(mask_req, queue_label_send, queue_mask_recv)     # This will be a NoneType if no mask is available to be sent back. Comment out for evaluation agent
+        self.logger.info(f'Processes mask resp: {mask_resp}')
 
-                        # We have checked the response so set it to False until the next task change
-                        # and request loop begins
-                        await_response[idx] = False
+        mask_resp['reward'] = self.knowledge_base[tuple(mask_resp['embedding'].tolist())]
 
-            print(Fore.GREEN + 'Mask requests to send to other agents: ', send_msk_requests)
+        # Send the mask response back to the querying agent
+        self.send_mask(mask_resp)
+    def update_params(self, data):
+        _query_list = data[3]
+        _query_list.reverse()
+        for addr in _query_list:
+            if addr not in self.query_list:
+                self.query_list.insert(0, addr)
 
-            best_agent_id_ = best_agent_id  # temp variable for logging purposes
+        self.world_size.value = len(self.query_list) + 1
+
+
+    # Event handler
+    def event(self, data, queue_mask, queue_mask_recv, queue_label_send):
+        ### EVENT HANDLING
+        # Agent is sending a query table
+        if data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_TABLE:
+            self.logger.info(Fore.CYAN + 'Data is a query table')
+            self.update_params(data)
+            for addr in self.query_list: print(f'{Fore.GREEN}{addr[0], addr[1]}')
+
+        # An agent is sending a query
+        elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_QUERY:
+            self.logger.info(Fore.CYAN + 'Data is a query')
+            self.query(data)
+
+        # An agent is sending meta information in response to a query
+        elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_META:
+            self.logger.info(Fore.CYAN + 'Data is metadata')
+            self.add_meta(data)
+
+        # An agent is sending a mask request
+        elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_REQ:
+            self.logger.info(Fore.CYAN + 'Data is mask request')
+            self.request(data, queue_label_send, queue_mask_recv)
+
+        # An agent is sending a mask
+        elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_MASK:
+            self.logger.info(Fore.CYAN + 'Data is a mask')
+            # Unpack the received data
+            received_mask, received_label, received_reward, ip, port = self.recv_mask(data)
+
+            self.logger.info(f'{received_mask, received_label, received_reward, ip, port}')
+            # Send the reeceived information back to the agent process if condition met
+            if received_mask is not None and received_label is not None and received_reward is not None:
+                self.logger.info('Sending mask data to agent')
+                queue_mask.put((received_mask, received_label, received_reward, ip, port))
+
+        print('\n')
+
+    # Listening server
+    def server(self, queue_mask, queue_mask_recv, queue_label_send):
+        """
+        Implementation of the listening server. Binds a socket to a specified port and listens for incoming communication requests. If the connection is accepted using SSL/TLS handshake
+        then the connection is secured and data is transferred. Once the data is received, an event is triggered based on the contents of the deserialised data.
+
+        Args:
+            knowledge_base: A shared memory dictionary containing the embedding-reward pairs for all observed tasks embeddings.
+            queue_mask: A shared memory queue to send received masks to the agent module.
+            queue_mask_recv: A shared memory queue to receive masks from the agent module.
+            queue_label_send: A shared memory queue to send embeddings to be converted by the agent module.
+            world_size: A shared memory variable indicating the size of the network in terms of how many nodes there are.
+        """
+
+        def _recvall(conn, n):
+            data = bytearray()
+            while len(data) < n:
+                packet = conn.recv(n - len(data))
+                if not packet: return None
+                data.extend(packet)
+            return data
+
+        def recv_msg(conn):
+            msg_length = _recvall(conn, 4)
+            if not msg_length: return None
+            msg = struct.unpack('>I', msg_length)[0]
+            return _recvall(conn, msg)
+
+        #context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        #context.load_cert_chain(certfile='certificates/certificate.pem', keyfile='certificates/key.pem')
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #s = ssl.wrap_socket(s, server_side=True, keyfile=ParallelCommV1.KEYPATH, certfile=ParallelCommV1.CERTPATH, ssl_version=ssl.PROTOCOL_TLSv1_2)    # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
+
+        # Bind the socket to the chosen address-port and start listening for connections
+        if self.init_address == '127.0.0.1': sock.bind(('127.0.0.1', self.init_port))
+        else: sock.bind(('', self.init_port))
+
+        # Set backlog to the world size
+        sock.listen(self.world_size.value)
+        
+        while True:
+            # Accept the connection
+            conn, addr = sock.accept()
+            #conn = context.wrap_socket(conn, server_side=True)
+
+            with conn:
+                self.logger.info('\n' + Fore.CYAN + f'Connected by {addr}')
+                while True:
+                    try:
+                        # Receive the data onto a buffer
+                        data = recv_msg(conn)
+                        if not data: break
+                        data = pickle.loads(data)
+                        self.logger.info(Fore.CYAN + f'Received {data!r}')
+
+                        # Potentially deprecated events. Leaving these here incase we need to use some of the code in the future.
+                        '''
+                        # Agent attempting to join the network
+                        #if data[ParallelCommV1.META_INF_IDX_MSG_TYPE] == ParallelCommV1.MSG_TYPE_SEND_JOIN:
+                        #    t_validation = mpd.Pool(processes=1)
+                        #    t_validation.apply_async(self.recv_join_net, (data, ))
+                        #    self.logger.info(Fore.CYAN + 'Data is a join request')
+                        #    t_validation.close()
+                        #    del t_validation
+
+                        #    for addr in self.query_list: print(f'{Fore.GREEN}{addr[0], addr[1]}')
+                        #    print(f'{Fore.GREEN}{self.world_size}')
+
+                        # Another agent is leaving the network
+                        #elif data[ParallelCommV1.META_INF_IDX_MSG_TYPE] == ParallelCommV1.MSG_TYPE_SEND_LEAVE:
+                        #    t_leave = mpd.Pool(processes=1)
+                        #    _address, _port = t_leave.apply_async(self.recv_exit_net, (data)).get()
+
+                        #    # Remove the ip-port from the query table for the agent that is leaving
+                        #    try: self.query_list.remove(next((x for x in self.query_list if x[0] == addr[0] and x[1] == addr[1])))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
+                        #    except: pass
+
+                        #    self.logger.info(Fore.CYAN + 'Data is a leave request')
+                        #    t_leave.close()
+                        #    del t_leave
+                        '''
+
+                        # Handle connection
+                        event_handler = mpd.Pool(processes=1)
+                        event_handler.apply_async(self.event, (data, queue_mask, queue_mask_recv, queue_label_send))
+
+                    # Handles a connection reset by peer error that I've noticed when running the code. For now it just catches 
+                    # the exception and moves on to the next connection.
+                    except socket.error as e:
+                        if e.errno != ECONNRESET: raise
+                        print(Fore.RED + f'Error raised while attempting to receive data from {addr}')
+                        pass
+
+    # Main loop + listening server initialisation
+    def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
+        """
+        Main communication loop. Sets up the server process, sends out a join request to a known network and begins sending queries to agents in the network.
+        Distributes queues for interactions between the communication and agent modules.
+        
+        Args:
+            queue_label: A shared memory queue to send embeddings from the agent module to the communication module.
+            queue_mask: A shared memory queue to send masks from the communication module to the agent module.
+            queue_label_send: A shared memory queue to send embeddings from the communication module to the agent module for conversion.
+            queue_loop: A shared memory queue to send iteration state variables from the communication module to the agent module. Currently the only variable that is sent over the queue is the agent module's iteration value.
+            knowledge_base: A shared memory dictionary containing embedding-reward pairs for all observed tasks.
+            world_size: A shared memory integer with value of the number of known agents in the network.
+        """
+
+        # Initialise the listening server
+        p_server = mp.Process(target=self.server, args=(queue_mask, queue_mask_recv, queue_label_send))
+        p_server.start()
+
+        # Attempt to join an existing network.
+        # TODO: Will have to figure how to heal a severed connection with the new method.
+        #self.logger.info(Fore.GREEN + 'Attempting to discover peers from reference...')
+        #p_discover = mp.Process(target=self.send_join_net)
+        #p_discover.start()
+
+        time.sleep(1)
+
+        # Initialise the client loop
+        while True:
+            # Attempt to connect to reference agent and get latest table. If the query table is reduced to original state then try to reconnect previous agents
+            # using the reference table.
+            # Unless there is no reference.
+            try:
+                print()
+                self.logger.info(Fore.GREEN + f'Knowledge base in this iteration:')
+                for key, val in self.knowledge_base.items(): print(f'{key} : {val}')
+                self.logger.info(Fore.GREEN + f'World size in comm: {self.world_size.value}')
+                #self.logger.info(Fore.GREEN + f'Query table in this iteration:')
+                #for addr in self.query_list: print(addr[0], addr[1])
+                #self.logger.info(Fore.GREEN + f'Reference table this iteration:')
+                #for addr in self.reference_list: print(addr[0], addr[1])
+
+
+
+                # Block operation until an embedding is received to query for
+                msg = queue_label.get()
+
+
+                # Get the world size based on the number of addresses in the query list
+                self.world_size.value = len(self.query_list) + 1
+
+
+                # Send out a query when shell iterations matches mask interval if the agent is working on a task
+                if self.world_size.value > 1:
+                    if int(np.random.choice(2, 1, p=[ParallelCommEval.DROPOUT, 1 - ParallelCommEval.DROPOUT])) == 1:  # Condition to simulate % communication loss
+                        self.send_query(msg)
+
+
+
+            # Handles the agent crashing or stopping or whatever. Not sure if this is the right way to do this. Come back to this later.
+            except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
+                p_server.close()
+                #p_discover.close()
+                #self.send_exit_net()
+                sys.exit()
+                
+    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
+        """
+        Parallelisation method for starting the communication loop inside a seperate process.
+        """
+
+        p_client = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv))
+        p_client.start() 
+
+
+'''
+Omniscient agent implementation of the communication module. Works in a similar fashion as the learner. Has an
+additional querying component that handles the collection of all knowledge from the collective based on what has
+been observed by the network. This is done by tracking all the embeddings from incoming queries. Using this, the agent
+queries for the knowledge at the communication interval.
+
+TODO: Needs to be tested with a modified trainer_shell script. Also need to modify the code to be able to switch between omniscient mode and standard learner mode on the fly.
+'''
+class ParallelCommOmniscient(object):
+    ### COMMUNCIATION MODULE HYPERPARAMETERS
+    # DETECT MODULE CONSTANTS
+    # Threshold for embedding/tasklabel distance (similarity)
+    # This should be taken from the detect module eventually
+    THRESHOLD = 0.0
+
+    # SSL/TLS PATHS
+    # Paths to the SSL/TLS certificates and key
+    CERTPATH = 'certificates/certificate.pem'
+    KEYPATH = 'certificates/key.pem'
+
+    # COMMUNICATION DROPOUT
+    # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
+    DROPOUT = 0.0  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
+
+    # buffer indexes
+    META_INF_IDX_ADDRESS = 0
+    META_INF_IDX_PORT = 1
+    META_INF_IDX_MSG_TYPE = 2
+    META_INF_IDX_MSG_DATA = 3
+
+    META_INF_IDX_MSK_RW = 4
+    META_INF_IDX_TASK_SZ = 4 # only for the send_recv_request buffer
+
+    META_INF_IDX_DIST = 5
+    META_INF_IDX_TASK_SZ_ = 6 # for the meta send recv buffer
+
+    META_INF_IDX_MASK_SZ = 4
+    
+    # message type (META_INF_IDX_MSG_TYPE) values
+    MSG_TYPE_SEND_QUERY = 0
+    MSG_TYPE_SEND_META = 1
+    MSG_TYPE_SEND_REQ = 2
+    MSG_TYPE_SEND_MASK = 3
+    MSG_TYPE_SEND_JOIN = 4
+    MSG_TYPE_SEND_LEAVE = 5
+    MSG_TYPE_SEND_TABLE = 6
+
+    # message data (META_INF_IDX_MSG_DATA) values
+    MSG_DATA_NULL = 0 # an empty message
+    MSG_DATA_QUERY = 1
+    MSG_DATA_MSK_REQ = 2
+    MSG_DATA_MSK = 3
+    MSG_DATA_META = 4
+
+    # Task label size can be replaced with the embedding size.
+    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost, mode):
+        super(ParallelCommOmniscient, self).__init__()
+        self.embd_dim = embd_dim            # Dimensions of the the embedding
+        self.mask_dim = mask_dim            # Dimensions of the mask for use in buffers. May no longer be needed
+        self.logger = logger                # Logger object for logging CLI outputs.
+        self.mode = mode                    # Toggle flag for omniscient mode
+
+        # Address and port for this agent
+        if localhost: self.init_address = '127.0.0.1'
+        else: self.init_address = self.init_address = urllib.request.urlopen('https://v4.ident.me').read().decode('utf8') # Use this to get the public ip of the host server.
+        self.init_port = int(init_port)
+
+        # Shared memory variables. Make these into attributes of the communication module to make it easier to use across the many sub processes of the module.
+        self.query_list = manager.list([item for item in reference if item != (self.init_address, self.init_port)]) # manager.list(reference)
+        self.reference_list = manager.list(deepcopy(self.query_list))   # Weird thing was happening here so used deepcopy to recreate the manager ListProxy with the addresses.
+        self.knowledge_base = knowledge_base
+        
+        self.world_size = manager.Value('i', num_agents)
+        self.metadata = manager.list()
+
+        # Omniscient task tracker. Makes a collection of all observed tasks by the visible network.
+        # When a query is received by this agent, the list is updated with the embedding.
+        # The list is also updated when this agent observes a new task.
+        # The agent then uses this to query for everything after querying for its current task at every interval
+        # This is because the gather all operation is not as time sensitive as the query specific to this agent's task
+        self.task_tracker = manager.dict()
+
+        print('RUNNING IN OMNISCIENT MODE :D')
+
+        print(type(self.query_list))
+        print(type(self.reference_list))
+
+        # For debugging
+        print('Query table:')
+        for addr in self.query_list: print(addr[0], addr[1])
+
+        print('\nReference table:')
+        for addr in self.reference_list: print(addr[0], addr[1])
+
+        print(f'\nlistening server params ->\naddress: {self.init_address}\nport: {self.init_port}\n')
+        print('mask size:', self.mask_dim)
+        print('embedding size:', self.embd_dim)
+
+    def _null_message(self, msg):
+        """
+        Checks if a message contains null i.e, no data.
+
+        Args:
+            msg: A list received from another agent.
+
+        Returns:
+            A boolean indicating whether A list contains null data.
+        """
+
+        # check whether message sent denotes or is none.
+        if bool(msg[ParallelCommOmniscient.META_INF_IDX_MSG_DATA] == ParallelCommOmniscient.MSG_DATA_NULL):
+            return True
+
+        else:
+            return False
+
+    # Client used by the server to send responses
+    def client(self, data, address, port):
+        """
+        Client implementation. Begins a TCP connection secured using SSL/TLS to a trusted server ip-port. Attempts to send the serialized bytes.
+        
+        Args:
+            data: A list to be sent to another agent.
+            address: The ip of the destination.
+            port: The port of the destination.
+        """
+        _data = pickle.dumps(data, protocol=5)
+
+        # Attempt to send the data a number of times. If successful do not attempt to send again.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+
+        try:
+            sock.connect((address, port))
+
+            #context = ssl.create_default_context()
+            #context.load_cert_chain(ParallelCommOmniscient.CERTPATH, ParallelCommOmniscient.KEYPATH)
+            #sock_ssl = context.wrap_socket(sock, server_side=False)
+
+            _data = struct.pack('>I', len(_data)) + _data
+            sock.sendall(_data)
+            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
+
+
+        except:
+            # Try to remove the ip and port that failed from the query table
+            try:
+                self.query_list.remove((address, port))
+                self.world_size.value = len(self.query_list) + 1
+            except:
+                pass
+            self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
+        finally: sock.close()
+    
+    # Modified version of the client used by the send_query function. Has an additional bit of code to handle the mask response before querying the next agent in the query list
+    def query_client(self, data, address, port):
+        # Attempt to send the data a number of times. If successful do not attempt to send again.
+        
+        _data = pickle.dumps(data, protocol=5)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        
+        try:
+            sock.connect((address, port))
+
+            #context = ssl.create_default_context()
+            #context.load_cert_chain(ParallelCommOmniscient.CERTPATH, ParallelCommOmniscient.KEYPATH)
+            #sock = context.wrap_socket(sock, server_side=False)
+
+            _data = struct.pack('>I', len(_data)) + _data
+            sock.sendall(_data)
+            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
+
+        except:
+            # Try to remove the ip and port that failed from the query table
+            try:
+                self.query_list.remove((address, port))
+                self.world_size.value = len(self.query_list) + 1
+            except:
+                pass
+            self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
+        finally:
+            sock.close()
+
+    ### Query send and recv functions
+    def send_query(self, embedding):
+        """
+        Sends a query for knowledge for a given embedding to other agents known to this agent.
+        
+        Args:
+            embedding: A torch tensor containing an embedding
+        """
+
+        if isinstance(embedding, np.ndarray):
+            embedding = torch.tensor(embedding, dtype=torch.float32)
             
-            #######################     COMMUNICATION STEP FOUR      #######################
-            ####################### SEND MASK REQUESTS OR REJECTIONS #######################
-            ### SEND MASK REQUEST OR REJECTION
-            msk_requests = []
-            print('Before send_recv_req():', send_msk_requests, expecting)
-            start_time = time.time()
-            dist.monitored_barrier(wait_all_ranks=True)
-            msk_requests = self.send_recv_mask_req(send_msk_requests, expecting)
-            print('******** TIME TAKEN FOR SEND_RECV_MASK_REQ():', time.time()-start_time)
-            print()
+        #self.logger.info(Fore.GREEN + 'send_recv_req, req data: {0}'.format(embedding))
 
-            print(Fore.GREEN + 'After send_recv_req():', msk_requests)
+        reward = 0.0
+        if tuple(embedding.tolist()) in self.knowledge_base:
+            reward = self.knowledge_base[tuple(embedding.tolist())]
 
 
-            ####################### COMMUNICATION STEP FIVE #######################
-            # Now the agent needs to send a mask to each agent in the msk_requests list
-            # if it is not empty
+        if embedding is None:
+            data = [self.init_address, self.init_port, ParallelCommOmniscient.MSG_TYPE_SEND_QUERY, ParallelCommOmniscient.MSG_DATA_NULL]
+
+        else:
+            data = [self.init_address, self.init_port, ParallelCommOmniscient.MSG_TYPE_SEND_QUERY, ParallelCommOmniscient.MSG_DATA_QUERY, embedding, reward]
+
+        # Try to send a query to all known destinations. Skip the ones that don't work
+        for addr in list(self.query_list):
+            self.query_client(data, addr[0], addr[1])
+
+        time.sleep(0.2)        # Originally 2
+        self.pick_meta()
+        
+    def recv_mask(self, buffer):
+        """
+        Unpacks a received mask response from another agent.
+        
+        Args:
+            buffer: A list received from another agent.
+            best_agent_id: A shared memory variable of type dict() containing a ip-port pair for the best agent.
+            
+        Returns:
+            received_mask: A torch tensor containing the continous mask parameters.
+            received_label: A torch tensor containing the embedding.
+        """
+        
+        received_mask = None
+        received_label = None
+        received_reward = None
+        ip = None
+        port = None
+
+        if buffer[ParallelCommOmniscient.META_INF_IDX_MSG_DATA] == ParallelCommOmniscient.MSG_DATA_NULL:
+            pass
+
+        elif buffer[ParallelCommOmniscient.META_INF_IDX_MSG_DATA] == ParallelCommOmniscient.MSG_DATA_MSK:
+            received_mask = buffer[4]
+            received_label = buffer[5]
+            received_reward = buffer[6]
+            ip = buffer[0]
+            port = buffer[1]
+
+        return received_mask, received_label, received_reward, ip, port
+
+
+    def recv_query(self, buffer):
+        """
+        Unpacks the data buffer received from another agent for a query.
+        
+        Args:
+            buffer: A list received from another agent.
+            
+        Returns:
+            ret: A dictionary containing the unpacked data.
+        """
+
+        ret = {}
+        ret['sender_address'] = str(buffer[ParallelCommOmniscient.META_INF_IDX_ADDRESS])
+        ret['sender_port'] = int(buffer[ParallelCommOmniscient.META_INF_IDX_PORT])
+        #ret['msg_type'] = int(buffer[ParallelCommOmniscient.META_INF_IDX_MSG_TYPE])
+        #ret['msg_data'] = int(buffer[ParallelCommOmniscient.META_INF_IDX_MSG_DATA])
+        ret['embedding'] = buffer[ParallelCommOmniscient.META_INF_IDX_TASK_SZ]
+        ret['sender_reward'] = buffer[-1]
+
+        if ret['embedding'] not in self.task_tracker:
+            self.task_tracker[f"{ret['sender_address']}, {ret['sender_port']}"] = (ret['embedding'], ret['sender_reward'])      # A hacky way to store unique embeddings in a 'set' using a dictionary instead of a set. Python multiprocessing does not have a set proxy in manager objects.
+
+        # Handle when we receive a query from another agent that we do not have in our known list of agents (self.query_list)
+        if (ret['sender_address'], ret['sender_port']) not in self.query_list:
+            self.client([self.init_address, self.init_port, ParallelCommOmniscient.MSG_TYPE_SEND_TABLE, list(self.query_list)], ret['sender_address'], ret['sender_port'])
+            self.query_list.append((ret['sender_address'], ret['sender_port']))
+
+        self.world_size.value = len(self.query_list) + 1    # Refresh the world_size value
+
+        return ret
+    def proc_meta(self, other_agent_req):
+        """
+        Processes a query for an embedding and produces a response to send back to the requesting agent.
+        
+        Args:
+            other_agent_req: A dictionary containing the information for the query request.
+            knowledge_base: A shared memory variable consisting of a dictionary to store the task embeddings and rewards accumulated.
+        
+        Returns:
+            meta_response: A dictionary containing the response information.
+        """
+
+        other_agent_req['response'] = False
+
+        if other_agent_req is not None:
+            np_embedding = other_agent_req['embedding'].detach().cpu().numpy()
+            sender_reward = other_agent_req['sender_reward']
+
+            # Iterate through the knowledge base and compute the distances
+            # If reward greater than 0
+            # If distance is less than or equal to threshold
+            # response = True (false by default)
+            for tlabel, treward in self.knowledge_base.items():
+                if treward > np.around(0.0, decimals=6):
+                    if 0.9 * round(treward, 6) > sender_reward:
+                        tdist = np.sum(abs(np.subtract(np_embedding, np.array(tlabel))))
+                        if tdist <= ParallelCommOmniscient.THRESHOLD:
+                            other_agent_req['response'] = True
+                            other_agent_req['reward'] = treward         # Reward of the mask this agent has for the task
+                            other_agent_req['dist'] = tdist             # Distance between the embedding of this agent's closest mask and the embedding from the querying agent
+                            other_agent_req['resp_embedding'] = torch.tensor(tlabel)  # The closest embedding that this agent has to the one that the querying agent has queried for
+
+        # Return the query request
+        return other_agent_req
+    def send_meta(self, meta_resp):
+        if meta_resp:
+            data = [self.init_address, self.init_port, ParallelCommOmniscient.MSG_TYPE_SEND_META]
+            if meta_resp['response']:
+                data.append(ParallelCommOmniscient.MSG_DATA_META)
+                data.append(meta_resp.get('reward', None))
+                data.append(meta_resp.get('dist', None))
+                data.append(meta_resp.get('resp_embedding', None))
+
+            #else:
+            #    data.append(ParallelCommOmniscient.MSG_DATA_NULL)
+
+                self.client(data, str(meta_resp['sender_address']), int(meta_resp['sender_port']))
+
+    def proc_mask(self, mask_req, queue_label_send, queue_mask_recv):
+        """
+        Processes the mask response to send to another agent.
+        
+        Args:
+            mask_req: A dictionary consisting of the response information to send to a specific agent.
+            queue_label_send: A shared memory queue to send an embedding to be converted by the agent module.
+            queue_mask_recv: A shared memory queue to receive a converted mask from the agent module.
+
+        Returns:
+            The mask_req dictionary with the converted mask now included. 
+        """
+
+        if mask_req['response']:
+            self.logger.info('Sending mask request to be converted')
+            queue_label_send.put((mask_req))
+            self.logger.info('Mask request sent')
+            return queue_mask_recv.get()        # Return the dictionary with the mask attached
+
+    def send_mask(self, mask_resp):
+        """
+        Sends a mask response to a specific agent.
+        
+        Args:
+            mask_resp: A dictionary consisting of the information to send to a specific agent.    
+        """
+        if mask_resp:
+            data = [self.init_address, self.init_port, ParallelCommOmniscient.MSG_TYPE_SEND_MASK]
+
+            # if response is True then send the mask
+            if mask_resp['response']:
+                data.append(ParallelCommOmniscient.MSG_DATA_MSK)
+                data.append(mask_resp.get('mask', None))
+                data.append(mask_resp.get('embedding', None))
+                data.append(mask_resp.get('reward', None))
+
+                self.logger.info(f'Sending mask response: {data}')
+                self.client(data, str(mask_resp['address']), int(mask_resp['port']))
+            
+            # otherwise send a null response
+            #else:
+            #    data.append(ParallelCommOmniscient.MSG_DATA_NULL)
+            
+    def gather_all(self, msg):
+        #if msg is not None:
+        #    self.logger.info('QUERYING FOR CURRENT TASK')
+        #    self.send_query(msg)
+
+        # Lots of queries :'))) Lets hope the system doesnt die. Perform a query with all agents for every embedding in that has been tracked.
+        for destination, (embedding, reward) in self.task_tracker.items():
+            src_addr = str(destination.split(', ')[0])
+            src_port = int(destination.split(', ')[1])
+
+            if src_addr == self.init_address and src_port == self.init_port: continue # If we were the last one to learn this task then there is no need to get new knowledge
+
+
+            if reward <= self.knowledge_base.get(tuple(embedding.tolist()), 0.0): continue
+            
+            #reward = 0.0
+            #if tuple(embedding.tolist()) in self.knowledge_base:
+            #    reward = self.knowledge_base[tuple(embedding.tolist())]
+
+            data = [self.init_address, self.init_port, ParallelCommOmniscient.MSG_TYPE_SEND_REQ, ParallelCommOmniscient.MSG_DATA_MSK_REQ, embedding]
+
+            try:
+                self.logger.info(f'{Fore.YELLOW}Running self.client() for {src_addr}, {src_port}')
+                self.client(data, src_addr, src_port)
+            except Exception as e:
+                self.logger.info(traceback.format_exc())
+        
+    
+    # Event handler wrappers. This is done so the various functions for each event can be run in a single thread.
+    def query(self, data):
+        """
+        Event handler for receiving a query from another agent. Unpacks the buffer received from another agent, processes the request and sends some response if necessary.
+        
+        Args:
+            data: A list received from another agent.
+            knowledge_base: A shared memory variable of type dict() containing embedding-reward pairs for task embeddings observed by the agent.    
+        """
+
+        # Get the query from the other agent
+        other_agent_req = self.recv_query(data)
+        self.logger.info(f'Received query: {other_agent_req}')
+
+        # Check if this agent has any knowledge for the task
+        meta_resp = self.proc_meta(other_agent_req)
+        self.logger.info(f'Processes mask req: {meta_resp}')
+
+        self.send_meta(meta_resp)
+    def add_meta(self, data):
+        print(Fore.YELLOW + 'Metadata:')
+        print(f'Address: {data[0]}')
+        print(f'Port: {data[1]}')
+        print(f'Reward: {data[4]}')
+        print(f'Distance: {data[5]}')
+        print(f'Embedding: {data[6]}')
+        # Append the received metadata to the global list
+        self.metadata.append({'address':data[0], 'port':data[1], 'reward':data[4], 'dist':data[5], 'embedding':data[6]})
+    def pick_meta(self):
+        data = [self.init_address, self.init_port, ParallelCommOmniscient.MSG_TYPE_SEND_REQ]
+        # Time to pick the best agent
+        if len(self.metadata) > 0:
+            meta_copy = list(self.metadata)
+            #self.metadata[:] = []   # Reset the metadata list now that we have a copy
+
+            meta_copy = sorted(meta_copy, key=lambda d: (d['dist'], -d['reward']))      # bi-directional multikey sorting using the distance and reward
+
+            for meta_dict in meta_copy:
+                if meta_dict['reward'] == torch.inf: pass
+                else:
+                    recv_address = meta_dict['address']
+                    recv_port = meta_dict['port']
+                    recv_rw = meta_dict['reward']
+                    recv_dist = meta_dict['dist']
+                    recv_emb = meta_dict['embedding']
+
+                    self.logger.info(recv_address)
+                    self.logger.info(recv_port)
+                    self.logger.info(recv_rw)
+                    self.logger.info(recv_dist)
+                    self.logger.info(recv_emb)
+                    
+                    if recv_rw != 0.0:
+                        if recv_dist <= ParallelCommOmniscient.THRESHOLD:
+                            if tuple(recv_emb) in self.knowledge_base.keys():
+                                if 0.9 * round(recv_rw, 6) > self.knowledge_base[tuple(recv_emb.tolist())]:
+                                    data.append(ParallelCommOmniscient.MSG_DATA_MSK_REQ)
+                                    data.append(recv_emb)
+                                    self.client(data, recv_address, recv_port)
+                                    break
+                                
+                            else:
+                                data.append(ParallelCommOmniscient.MSG_DATA_MSK_REQ)
+                                data.append(recv_emb)
+                                self.client(data, recv_address, recv_port)
+                                break
+    def request(self, data, queue_label_send, queue_mask_recv):
+        print(Fore.WHITE + 'Mask request:')
+        print(data)
+        print(f'Address: {data[0]}')
+        print(f'Port: {data[1]}')
+        print(f'Embedding: {data[4]}')
+        mask_req = {'response': True, 'embedding': data[4], 'address':data[0], 'port':data[1]}
+        #mask_req = {'response': False, 'address':data[0], 'port':data[1]}   # For the evaluation agent.
+
+        # Get the label to mask conversion
+        mask_resp = self.proc_mask(mask_req, queue_label_send, queue_mask_recv)     # This will be a NoneType if no mask is available to be sent back. Comment out for evaluation agent
+        self.logger.info(f'Processes mask resp: {mask_resp}')
+
+        mask_resp['reward'] = self.knowledge_base[tuple(mask_resp['embedding'].tolist())]
+
+        # Send the mask response back to the querying agent
+        self.send_mask(mask_resp)
+    def update_params(self, data):
+        _query_list = data[3]
+        _query_list.reverse()
+        for addr in _query_list:
+            if addr not in self.query_list:
+                self.query_list.insert(0, addr)
+
+        self.world_size.value = len(self.query_list) + 1
+
+    # Listening server
+    def server(self, queue_mask, queue_mask_recv, queue_label_send):
+        """
+        Implementation of the listening server. Binds a socket to a specified port and listens for incoming communication requests. If the connection is accepted using SSL/TLS handshake
+        then the connection is secured and data is transferred. Once the data is received, an event is triggered based on the contents of the deserialised data.
+
+        Args:
+            knowledge_base: A shared memory dictionary containing the embedding-reward pairs for all observed tasks embeddings.
+            queue_mask: A shared memory queue to send received masks to the agent module.
+            queue_mask_recv: A shared memory queue to receive masks from the agent module.
+            queue_label_send: A shared memory queue to send embeddings to be converted by the agent module.
+            world_size: A shared memory variable indicating the size of the network in terms of how many nodes there are.
+        """
+
+        def _recvall(conn, n):
+            data = bytearray()
+            while len(data) < n:
+                packet = conn.recv(n - len(data))
+                if not packet: return None
+                data.extend(packet)
+            return data
+
+        def recv_msg(conn):
+            msg_length = _recvall(conn, 4)
+            if not msg_length: return None
+            msg = struct.unpack('>I', msg_length)[0]
+            return _recvall(conn, msg)
+
+        #context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        #context.load_cert_chain(certfile='certificates/certificate.pem', keyfile='certificates/key.pem')
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #s = ssl.wrap_socket(s, server_side=True, keyfile=ParallelCommV1.KEYPATH, certfile=ParallelCommV1.CERTPATH, ssl_version=ssl.PROTOCOL_TLSv1_2)    # Uncomment to enable SSL/TLS security. Currently breaks when transferring masks.
+
+        # Bind the socket to the chosen address-port and start listening for connections
+        if self.init_address == '127.0.0.1': sock.bind(('127.0.0.1', self.init_port))
+        else: sock.bind(('', self.init_port))
+
+        # Set backlog to the world size
+        sock.listen(self.world_size.value)
+        
+        while True:
+            # Accept the connection
+            conn, addr = sock.accept()
+            #conn = context.wrap_socket(conn, server_side=True)
+
+            with conn:
+                self.logger.info('\n' + Fore.CYAN + f'Connected by {addr}')
+                while True:
+                    try:
+                        # Receive the data onto a buffer
+                        data = recv_msg(conn)
+                        if not data: break
+                        data = pickle.loads(data)
+                        self.logger.info(Fore.CYAN + f'Received {data!r}')
+
+                        # Potentially deprecated events. Leaving these here incase we need to use some of the code in the future.
+                        '''
+                        # Agent attempting to join the network
+                        #if data[ParallelCommV1.META_INF_IDX_MSG_TYPE] == ParallelCommV1.MSG_TYPE_SEND_JOIN:
+                        #    t_validation = mpd.Pool(processes=1)
+                        #    t_validation.apply_async(self.recv_join_net, (data, ))
+                        #    self.logger.info(Fore.CYAN + 'Data is a join request')
+                        #    t_validation.close()
+                        #    del t_validation
+
+                        #    for addr in self.query_list: print(f'{Fore.GREEN}{addr[0], addr[1]}')
+                        #    print(f'{Fore.GREEN}{self.world_size}')
+
+                        # Another agent is leaving the network
+                        #elif data[ParallelCommV1.META_INF_IDX_MSG_TYPE] == ParallelCommV1.MSG_TYPE_SEND_LEAVE:
+                        #    t_leave = mpd.Pool(processes=1)
+                        #    _address, _port = t_leave.apply_async(self.recv_exit_net, (data)).get()
+
+                        #    # Remove the ip-port from the query table for the agent that is leaving
+                        #    try: self.query_list.remove(next((x for x in self.query_list if x[0] == addr[0] and x[1] == addr[1])))  # Finds the next Address object with inet4==address and port==port and removes it from the query table.
+                        #    except: pass
+
+                        #    self.logger.info(Fore.CYAN + 'Data is a leave request')
+                        #    t_leave.close()
+                        #    del t_leave
+                        '''
+
+                        ### EVENT HANDLING
+                        # Agent is sending a query table
+                        if data[ParallelCommOmniscient.META_INF_IDX_MSG_TYPE] == ParallelCommOmniscient.MSG_TYPE_SEND_TABLE:
+                            self.logger.info(Fore.CYAN + 'Data is a query table')
+                            self.update_params(data)
+                            for addr in self.query_list: print(f'{Fore.GREEN}{addr[0], addr[1]}')
+
+                        # An agent is sending a query
+                        elif data[ParallelCommOmniscient.META_INF_IDX_MSG_TYPE] == ParallelCommOmniscient.MSG_TYPE_SEND_QUERY:
+                            self.logger.info(Fore.CYAN + 'Data is a query')
+                            self.query(data)
+
+                        # An agent is sending meta information in response to a query
+                        elif data[ParallelCommOmniscient.META_INF_IDX_MSG_TYPE] == ParallelCommOmniscient.MSG_TYPE_SEND_META:
+                            self.logger.info(Fore.CYAN + 'Data is metadata')
+                            self.add_meta(data)
+
+                        # An agent is sending a mask request
+                        elif data[ParallelCommOmniscient.META_INF_IDX_MSG_TYPE] == ParallelCommOmniscient.MSG_TYPE_SEND_REQ:
+                            self.logger.info(Fore.CYAN + 'Data is mask request')
+                            self.request(data, queue_label_send, queue_mask_recv)
+
+                        # An agent is sending a mask
+                        elif data[ParallelCommOmniscient.META_INF_IDX_MSG_TYPE] == ParallelCommOmniscient.MSG_TYPE_SEND_MASK:
+                            self.logger.info(Fore.CYAN + 'Data is a mask')
+                            # Unpack the received data
+                            received_mask, received_label, received_reward, ip, port = self.recv_mask(data)
+
+                            
+                            self.knowledge_base[tuple(received_label.tolist())] = received_reward
+
+                            self.logger.info(f'{received_mask, received_label, received_reward, ip, port}')
+                            # Send the reeceived information back to the agent process if condition met
+                            if received_mask is not None and received_label is not None and received_reward is not None:
+                                self.logger.info('Sending mask data to agent')
+                                queue_mask.put((received_mask, received_label, received_reward, ip, port))
+
+                        print('\n')
+
+                    # Handles a connection reset by peer error that I've noticed when running the code. For now it just catches 
+                    # the exception and moves on to the next connection.
+                    except socket.error as e:
+                        if e.errno != ECONNRESET: raise
+                        print(Fore.RED + f'Error raised while attempting to receive data from {addr}')
+                        pass
+
+    # Main loop + listening server initialisation
+    def communication(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
+        """
+        Main communication loop. Sets up the server process, sends out a join request to a known network and begins sending queries to agents in the network.
+        Distributes queues for interactions between the communication and agent modules.
+        
+        Args:
+            queue_label: A shared memory queue to send embeddings from the agent module to the communication module.
+            queue_mask: A shared memory queue to send masks from the communication module to the agent module.
+            queue_label_send: A shared memory queue to send embeddings from the communication module to the agent module for conversion.
+            queue_mask_recv: A shared memory queue to send masks from the communication module to the agent module for distillation.
+        """
+
+        # Initialise the listening server
+        p_server = mp.Process(target=self.server, args=(queue_mask, queue_mask_recv, queue_label_send))
+        p_server.start()
+
+        # Attempt to join an existing network.
+        # TODO: Will have to figure how to heal a severed connection with the new method.
+        #self.logger.info(Fore.GREEN + 'Attempting to discover peers from reference...')
+        #p_discover = mp.Process(target=self.send_join_net)
+        #p_discover.start()
+
+        time.sleep(1)
+
+
+        # Initialise the client loop
+        while True:
+            # Attempt to connect to reference agent and get latest table. If the query table is reduced to original state then try to reconnect previous agents
+            # using the reference table.
+            # Unless there is no reference.
+            try:
+                print()
+                self.logger.info(Fore.GREEN + f'Knowledge base in this iteration:')
+                for key, val in self.knowledge_base.items(): self.logger.info(f'{key} : {val}')
+                self.logger.info(Fore.GREEN + f'World size in comm: {self.world_size.value}')
+                #self.logger.info(Fore.GREEN + f'Query table in this iteration:')
+                #for addr in self.query_list: print(addr[0], addr[1])
+                #self.logger.info(Fore.GREEN + f'Reference table this iteration:')
+                #for addr in self.reference_list: print(addr[0], addr[1])
 
 
 
-            print()
-            print('Before mask exchange:', msk_requests, best_agent_id)
+                # Block operation until an embedding is received to query for
+                msg = queue_label.get()
 
-            masks_list = []
-            #if msk_requests:
-                # Iterate through the requests
-                # Send the label to be converted, to the agent
+                #print(msg, type(msg))
+                # Update the tracked tasks with the ones that this agent also observes
+                #self.task_tracker[f"{self.init_address}, {self.init_port}"] = (torch.tensor(msg), self.knowledge_base.get(tuple(msg), 0.0))
+
+                # Get the world size based on the number of addresses in the query list
+                self.world_size.value = len(self.query_list) + 1
+
+
+                # Send out a query when shell iterations matches mask interval if the agent is working on a task
+                if self.world_size.value > 1:
+                    if int(np.random.choice(2, 1, p=[ParallelCommOmniscient.DROPOUT, 1 - ParallelCommOmniscient.DROPOUT])) == 1:  # Condition to simulate % communication loss
+                        #if msg is not None:
+                        #    self.send_query(msg)
+
+                        
+                        try:
+                            if self.mode.value:
+                                self.logger.info(f'{Fore.YELLOW}ACTIVATING GATHER ALL OPERATION')
+                                self.logger.info(f'{Fore.YELLOW}TRACKED TASK LABELS: {self.task_tracker}')
+                                self.gather_all(msg)
+                        except Exception as e:
+                            self.logger.info(traceback.format_exc())
+
+
+                        time.sleep(1)
+                        self.metadata[:] = []
+
+
+            # Handles the agent crashing or stopping or whatever. Not sure if this is the right way to do this. Come back to this later.
+            except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
+                p_server.close()
+                #p_discover.close()
+                #self.send_exit_net()
+                sys.exit()
                 
-            #    _temp_labels = {}
-            #    for req in msk_requests:
-            #        if type(req) is dict:
-            #            print('Mask request: ', req, flush=True)
+    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
+        """
+        Parallelisation method for starting the communication loop inside a seperate process.
+        """
 
-                        # Send a mask to the requesting agent
-            #            dst_agent_id = req['requester_agent_id']
-                        # Send label:id to agent
-            #            _temp_labels[dst_agent_id] = req['task_label']
-
-            #    queue_label_send.put_nowait((_temp_labels))
-
-            #    print('Send label to be converted:', _temp_labels, flush=True)
-
-                # wait to receive a mask from the agent module. do not continue until you receive
-                # this mask. agent will see the request eventually and send back the converted mask.
-                
-            #    masks_list = queue_mask_recv.get()
-                #for dst, mask in conversions.items():
-                #    d = {}
-                #    d['mask'] = mask
-                #    d['dst_agent_id'] = dst
-
-                #    masks_list.append(d)
-                
-
-
-            print()
-            print()
-            print('Masks to send:', masks_list)
-            received_mask = None
-            received_label = None
-            start_time = time.time()
-            dist.monitored_barrier(wait_all_ranks=True)
-            received_mask, best_agent_id, received_label = self.send_recv_mask(masks_list, best_agent_id)
-
-            print(Fore.GREEN + 'Mask received for distillation', received_mask, best_agent_id, received_label, flush=True)
-            queue_mask.put_nowait((received_mask, track_tasks, await_response, best_agent_rw, best_agent_id_, received_label))
-
-            comm_iter += 1
-
-            print('***** COMM ITERATION TIME ELAPSED:', time.time() - START)
-
-    def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check):
-        p = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv, queue_loop, queue_check))
-        p.start()
-        return p
+        p_client = mp.Process(target=self.communication, args=(queue_label, queue_mask, queue_label_send, queue_mask_recv))
+        p_client.start()
