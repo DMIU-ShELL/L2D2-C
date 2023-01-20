@@ -223,9 +223,8 @@ def main(args):
 
 
     mypaths = {
-        '4 @ LU' : 'log_temp/deliverable/LU2_VB2_CT8/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230106-185129/',
-        '4 @ VU' : 'log_temp/deliverable/LU2_VB2_CT8/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230106-185131/',
-        '2 @ LU + 2 @ VU' : 'log_temp/deliverable/LU4_CT8/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230106-172305/'
+        'baseline' : 'log_temp/dropoutCT16/baseline/seed3/MetaCTgraph-shell-eval-upz-seed-3481/agent_0/230119-170238',
+        '25% dropout' : 'log/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230120-103213/',
     }
 
 

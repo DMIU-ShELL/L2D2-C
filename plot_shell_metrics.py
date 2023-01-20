@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from math import floor
 import matplotlib.transforms as transforms
 import pandas as pd
+import scipy.stats as st
 
 def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label=''):
     fig = plt.figure(figsize=(9, 6))
@@ -166,6 +167,22 @@ def load_ll_data(path, interval):
         metrics_tpot = np.asarray(metrics_tpot)
         return raw_data, metrics_icr, metrics_tpot, wall_clock_time
 
+def cfi_delta(data, conf_int_param=0.90): # confidence interval
+    mean = np.mean(data, axis=0)
+    if data.ndim == 1:
+        std_error_of_mean = st.sem(data, axis=0)
+        lb, ub = st.t.interval(conf_int_param, df=len(data)-1, loc=mean, scale=std_error_of_mean)
+        cfi_delta = ub - mean
+    elif data.ndim == 2:
+        std_error_of_mean = st.sem(data, axis=0)
+        print(std_error_of_mean)
+        lb, ub = st.t.interval(conf_int_param, df=data.shape[0]-1, loc=mean, scale=std_error_of_mean)
+        cfi_delta = ub - mean
+        cfi_delta[np.isnan(cfi_delta)] = 0.
+    else:
+        raise ValueError('`data` with > 2 dim not expected. Expect either a 1 or 2 dimensional tensor.')
+    return cfi_delta
+
 def main(args):
     exp_name = args.exp_name
     #save_path = './log/plots/' + os.path.basename(args.path[ : -1]) + '/'
@@ -232,7 +249,18 @@ def main(args):
     data['icr']['shell'] = {}
     data['icr']['shell']['xdata'] = np.arange(num_evals)
     data['icr']['shell']['ydata'] = np.mean(shell_icr, axis=0) # average across seeds
-    data['icr']['shell']['ydata_cfi'] = np.std(shell_tpot, axis=0)
+    cfi = cfi_delta(shell_icr)
+   #print(cfi)
+    data['icr']['shell']['ydata_cfi'] = cfi#np.std(shell_icr, axis=0)
+    
+
+    # Confidence Interval implementation. Overwrites the standard deviation data.
+    #dof = len(data['icr']['shell']['xdata']) - 1
+    #confidence = 0.95
+    #t_crit = np.abs(t.ppf((1-confidence)/2,dof))
+    #data['icr']['shell']['ydata_cfi'] = (data['icr']['shell']['ydata']-data['icr']['shell']['ydata_cfi'] * t_crit / np.sqrt(len(data['icr']['shell']['xdata'])), data['icr']['shell']['ydata']-data['icr']['shell']['ydata_cfi'] * t_crit / np.sqrt(len(data['icr']['shell']['xdata'])))
+
+
     data['icr']['shell']['plot_colour'] = 'green'
 
     maximum_icr_ = max(maximum_icr_, np.max(data['icr']['shell']['ydata']))
@@ -245,8 +273,9 @@ def main(args):
     data['tpot']['shell']['plot_colour'] = 'green'
 
 
-    '''
+    
     ### BAR CHARTS
+    '''
     ### Performance at 20%, 50% and 70% of MAX
     #print(data['icr']['shell']['ydata'])
     #print('max icr')

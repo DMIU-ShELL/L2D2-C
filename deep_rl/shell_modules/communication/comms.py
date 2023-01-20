@@ -44,7 +44,7 @@ class ParallelComm(object):
 
     # COMMUNICATION DROPOUT
     # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
-    DROPOUT = 0.0  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
+    DROPOUT = 0.25  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
 
     # buffer indexes
     META_INF_IDX_ADDRESS = 0
@@ -147,15 +147,16 @@ class ParallelComm(object):
         sock.settimeout(2)
 
         try:
-            sock.connect((address, port))
+            if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1 - ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss
+                sock.connect((address, port))
 
-            #context = ssl.create_default_context()
-            #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
-            #sock_ssl = context.wrap_socket(sock, server_side=False)
+                #context = ssl.create_default_context()
+                #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
+                #sock_ssl = context.wrap_socket(sock, server_side=False)
 
-            _data = struct.pack('>I', len(_data)) + _data
-            sock.sendall(_data)
-            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
+                _data = struct.pack('>I', len(_data)) + _data
+                sock.sendall(_data)
+                self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
 
         except:
@@ -177,15 +178,16 @@ class ParallelComm(object):
         sock.settimeout(2)
         
         try:
-            sock.connect((address, port))
+            if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1 - ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss
+                sock.connect((address, port))
 
-            #context = ssl.create_default_context()
-            #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
-            #sock = context.wrap_socket(sock, server_side=False)
+                #context = ssl.create_default_context()
+                #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
+                #sock = context.wrap_socket(sock, server_side=False)
 
-            _data = struct.pack('>I', len(_data)) + _data
-            sock.sendall(_data)
-            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
+                _data = struct.pack('>I', len(_data)) + _data
+                sock.sendall(_data)
+                self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
         except:
             # Try to remove the ip and port that failed from the query table
@@ -640,7 +642,7 @@ class ParallelComm(object):
             # Attempt to connect to reference agent and get latest table. If the query table is reduced to original state then try to reconnect previous agents
             # using the reference table.
             # Unless there is no reference.
-            try:
+            #try:
                 print()
                 self.logger.info(Fore.GREEN + f'Knowledge base in this iteration:')
                 for key, val in self.knowledge_base.items(): print(f'{key} : {val}')
@@ -662,17 +664,16 @@ class ParallelComm(object):
 
                 # Send out a query when shell iterations matches mask interval if the agent is working on a task
                 if self.world_size.value > 1:
-                    if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1 - ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss
-                        self.send_query(msg)
+                    self.send_query(msg)
 
 
 
             # Handles the agent crashing or stopping or whatever. Not sure if this is the right way to do this. Come back to this later.
-            except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
-                p_server.close()
-                #p_discover.close()
-                #self.send_exit_net()
-                sys.exit()
+            #except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
+            #    p_server.close()
+            #    #p_discover.close()
+            #    #self.send_exit_net()
+            #    sys.exit()
                 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
         """
@@ -1298,7 +1299,7 @@ class ParallelCommEval(object):
             # Attempt to connect to reference agent and get latest table. If the query table is reduced to original state then try to reconnect previous agents
             # using the reference table.
             # Unless there is no reference.
-            try:
+            #try:
                 print()
                 self.logger.info(Fore.GREEN + f'Knowledge base in this iteration:')
                 for key, val in self.knowledge_base.items(): print(f'{key} : {val}')
@@ -1326,11 +1327,11 @@ class ParallelCommEval(object):
 
 
             # Handles the agent crashing or stopping or whatever. Not sure if this is the right way to do this. Come back to this later.
-            except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
-                p_server.close()
-                #p_discover.close()
-                #self.send_exit_net()
-                sys.exit()
+            #except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
+            #    p_server.close()
+            #    #p_discover.close()
+            #    #self.send_exit_net()
+            #    sys.exit()
                 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
         """
