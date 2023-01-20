@@ -23,6 +23,7 @@ import time
 import datetime
 import torch
 from .torch_utils import *
+from torch.utils.tensorboard import SummaryWriter
 from ..shell_modules import *
 
 import multiprocessing.dummy as mpd
@@ -798,10 +799,17 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
 shell evaluation: concurrent processing for event-based communication.
 '''
 def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_base):
+
+    #Create a SmumaryWriter object for the Evaluation Agent
+
+    
+
     logger = agent.config.logger
     #print()
 
     logger.info(Fore.BLUE + '*****start shell training')
+
+    tb_writer = SummaryWriter(logger.log_dir + '/DMIU-ShELL_metrics')
 
     shell_done = False
     shell_iterations = 0
@@ -952,6 +960,23 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
             _record = np.concatenate([shell_eval_data[-1],np.array(shell_eval_end_time).reshape(1,)])
             np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
             del _record
+
+
+
+            _metrics = shell_eval_data[-1]
+            # compute icr
+            icr = _metrics.sum()
+            shell_metric_icr.append(icr)
+            tb_writer.add_scalar('ShELL-ICR', icr, len(shell_eval_data))
+            
+            # log eval to file/screen and tensorboard
+            logger.info('*****shell evaluation:')
+            logger.info('shell eval ICR: {0}'.format(icr, shell_iterations))
+            logger.info('shell eval TP: {0}'.format(np.sum(shell_metric_icr)))
+            logger.scalar_summary('shell_eval/icr', icr)
+            logger.scalar_summary('shell_eval/tpot', np.sum(shell_metric_icr))
+            tb_writer.add_scalar('ShELL-TPOT', np.sum(shell_metric_icr), len(shell_eval_data))
+
 
             # reset eval tracker and add new buffer to save next eval metrics
             shell_eval_tracker = False

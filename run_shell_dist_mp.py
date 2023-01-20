@@ -224,6 +224,10 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
 
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
+    config_detect_reference_num = shell_config['detect_reference_num'] #Chris
+    config_detect_num_samples = shell_config['detect_num_samples'] #Chris
+    config_emb_dist_threshold = shell_config['emb_dist_threshold'] #Chris
+    config_detect_module_activation_frequency = shell_config['detect_module_activation_frequency'] #Chris
     init_port = args.port
 
     # set up config
@@ -233,6 +237,12 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
 
     # set seed
     config.seed = 9157#config_seed              # Chris
+
+    #set varibles for the detect module in the config object. #Chris
+    config.detect_reference_num = config_detect_reference_num #Chris
+    config.detect_num_samples = config_detect_num_samples #Chris
+    config.emb_dist_threshold = config_emb_dist_threshold #Chris
+    config.detect_module_activation_frequency = config_detect_module_activation_frequency #Chris
     
     # set up logging system
     #exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
@@ -264,9 +274,13 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
 
+
+    config.detect_fn = lambda reference_num, input_dim, num_samples: Detect(reference_num, input_dim, num_samples, one_hot=False, normalized=False) #Chris
+
+
     #task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
     task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)          # Chris
-    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
     #eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
     eval_task_fn= lambda log_dir: MetaCTgraphFlatObs(name, env_config_path,log_dir)            # Chris
     config.eval_task_fn = eval_task_fn
