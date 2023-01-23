@@ -176,6 +176,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     config.seed = config_seed       # Chris
 
+    config.use_task_label = False #Chris
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
@@ -294,6 +295,7 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
 
     config.seed = config_seed       # Chris
 
+    config.use_task_label = False #Chris
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 

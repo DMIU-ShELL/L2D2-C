@@ -132,7 +132,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         tasks = [tasks_[task_id] for task_id in config.task_ids]
         del tasks_
         self.config.cl_tasks_info = tasks
-        label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label']) #CHANGE THAT FOR THE
+        label_dim = None if not config.use_task_label else len(tasks[0]['task_label'])
+        #label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label']) #CHANGE THAT FOR THE
         self.task_label_dim = label_dim
 
         '''#Create a Refernce for the Wasserstain Embeddings
@@ -192,6 +193,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         _params = list(self.network.parameters())
         self.opt = config.optimizer_fn(_params, config.lr)
         self.total_steps = 0
+        for name, para in self.network.named_parameters():
+            print('{}: {}'.format(name, para.shape))
 
         random_seed(config.seed)    # Chris
 
