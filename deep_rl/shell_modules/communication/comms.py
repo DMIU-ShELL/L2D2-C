@@ -161,11 +161,11 @@ class ParallelComm(object):
 
         except:
             # Try to remove the ip and port that failed from the query table
-            try:
-                self.query_list.remove((address, port))
-                self.world_size.value = len(self.query_list) + 1
-            except:
-                pass
+            #try:
+            #    self.query_list.remove((address, port))
+            #    self.world_size.value = len(self.query_list) + 1
+            #except:
+            #    pass
             self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
         finally: sock.close()
     
@@ -191,11 +191,11 @@ class ParallelComm(object):
 
         except:
             # Try to remove the ip and port that failed from the query table
-            try:
-                self.query_list.remove((address, port))
-                self.world_size.value = len(self.query_list) + 1
-            except:
-                pass
+            #try:
+            #    self.query_list.remove((address, port))
+            #    self.world_size.value = len(self.query_list) + 1
+            #except:
+            #    pass
             self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
         finally:
             sock.close()
@@ -819,11 +819,11 @@ class ParallelCommEval(object):
 
         except:
             # Try to remove the ip and port that failed from the query table
-            try:
-                self.query_list.remove((address, port))
-                self.world_size.value = len(self.query_list) + 1
-            except:
-                pass
+            #try:
+            #    self.query_list.remove((address, port))
+            #    self.world_size.value = len(self.query_list) + 1
+            #except:
+            #    pass
             self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
         finally: sock.close()
     
@@ -848,11 +848,11 @@ class ParallelCommEval(object):
 
         except:
             # Try to remove the ip and port that failed from the query table
-            try:
-                self.query_list.remove((address, port))
-                self.world_size.value = len(self.query_list) + 1
-            except:
-                pass
+            #try:
+            #    self.query_list.remove((address, port))
+            #    self.world_size.value = len(self.query_list) + 1
+            #except:
+            #    pass
             self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
         finally:
             sock.close()

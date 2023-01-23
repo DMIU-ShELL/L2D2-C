@@ -53,21 +53,21 @@ commands.append(f'python run_shell_dist_mp.py 0 {ports_s[1]} -r reference_single
 # FOCCAL
 commands = [
     # MIG 1 (0-7)
-    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 0 9000'],
-    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 1 9001'],
-    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 2 9002'],
-    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 3 9003'],
-    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 56 9004'],
+    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 0 9001 -o -r reference_o.csv'],
+    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 1 9002 -o -r reference_o.csv'],
+    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 2 9003 -o -r reference_o.csv'],
+    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 3 9004 -o -r reference_o.csv'],
+    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 56 9005 -o -r reference_o.csv'],
 
     # MIG 2 (0-8)
-    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 4 9005'],
-    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 5 9006'],
-    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 6 9007'],
-    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 7 9008'],
-    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 57 9009'],
+    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 4 9006 -o -r reference_o.csv'],
+    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 5 9007 -o -r reference_o.csv'],
+    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 6 9008 -o -r reference_o.csv'],
+    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 7 9009 -o -r reference_o.csv'],
+    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 57 9010 -o -r reference_o.csv'],
 
     # MIG 3 (0-9)
-    ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', 'python run_shell_dist_mp.py 8 9010'],
+    ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', 'python run_shell_dist_mp.py 8 29508'],
     ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', 'python run_shell_dist_mp.py 9 29509'],
     ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', 'python run_shell_dist_mp.py 10 29510'],
     ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', 'python run_shell_dist_mp.py 11 29511'],
@@ -151,6 +151,7 @@ commands = [
     ['MIG-3045e3dd-28b6-5ee8-96b5-60a085c9fcf1', 'python run_shell_dist_mp.py 69 29569']
 ]
 
+'''
 # JAMMY
 commands = [
     # GPU 0
@@ -231,7 +232,7 @@ commands = [
     # Shell Evaluator
     ['4', 'python run_shell_dist_mp.py 0 29500 -e'],
 ]
-
+'''
 
 env = dict(os.environ)
 # Run the commands in seperate terminals
