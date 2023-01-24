@@ -563,7 +563,9 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
     del states_
 
 
-
+    tb_writer_emb = SummaryWriter(logger.log_dir + '/Detect_Component_Generated_Embeddings') #Chris
+    ql = []
+    ll =[]
 
     # Msg can be embedding or task label.
     # Set msg to first task. The agents will then request knowledge on the first task.
@@ -677,16 +679,34 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         dict_logs = agent.iteration()
         shell_iterations += 1
 
+        
+
 
         activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency(), agent)   #Chris
         #str_task_chng_msg, task_change_flag, emb_dist, emb_bool, 
-        new_emb = run_detect_module(agent, activation_flag)   #Chris
+        new_emb , ground_truth_task_label= run_detect_module(agent, activation_flag)   #Chris
+        
+        
 
             #Logging of the detect operations!!!   #Chris
         if activation_flag:
-            #print(Fore.GREEN)
-            detect_module_activations.append([shell_iterations, activation_flag, agent.detect.get_num_samples(), "I AM THE NEW EMBEDIIIIIIIIIIIIIING!!!!!!!!!!!!:", new_emb])#str_task_chng_msg, task_change_flag, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool, "HI I AM EMB:", new_emb])
+            print(Fore.GREEN)
+            detect_module_activations.append([shell_iterations, activation_flag, agent.detect.get_num_samples(), "I AM THE NEW EMBEDIIIIIIIIIIIIIING!!!!!!!!!!!!:", new_emb, 'Hi I am the GroundTruth LABEL:', ground_truth_task_label])#str_task_chng_msg, task_change_flag, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool, "HI I AM EMB:", new_emb])
             np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
+            if new_emb is not None:
+                q = new_emb#torch.Tensor.unsqueeze(new_emb, 0)
+                l = torch.tensor([ground_truth_task_label])
+                ql.append(q)
+                ll.append(l)
+                qlt = tuple(ql)
+                llt = tuple(ll)
+                emb_t = torch.stack(qlt)
+                l_t = torch.stack(llt)
+                print("EMB_T:", emb_t)
+                print(f"L_T: {l_t}")
+                print("HELLO FROM THE DARK SIDE... {}, I MUST HAVE CALL A THOUSAND TIMES: {}".format(q, l))
+                tb_writer_emb.add_embedding(emb_t, metadata=ll)
+                #tb_writer_emb.close()
 
 
 
@@ -1029,7 +1049,7 @@ def run_detect_module(an_agent, activation_check_flag):
     so the approprate embeddings are generated for each batch of SAR data'''
     
     #Initilize the retun varibles with None values in the case of the detect module not being appropriate to run.
-    str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb = None, None, None, None, None
+    str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, ground_truth_task_label = None, None, None, None, None, torch.tensor(0)
     
     if activation_check_flag:
         sar_data = an_agent.sar_data_extraction()
@@ -1042,9 +1062,12 @@ def run_detect_module(an_agent, activation_check_flag):
         #print("CURR_EMB:", current_embedding)
         print("NEW_EMB:", new_emb)
         print("EMBEDDING SIZE:", len(new_emb))
+        ground_truth_task_label = an_agent.get_current_task_label()
+        print("Ground_Truth_Task_Label:", ground_truth_task_label)
+        print(type(ground_truth_task_label))
         #emb_bool = current_embedding == new_emb
         #emb_dist = an_agent.calculate_emb_distance(current_embedding, new_emb)
         #emb_dist_thrshld = an_agent.get_emb_dist_threshold()
         #str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
 
-    return new_emb#str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    
+    return new_emb, ground_truth_task_label#str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    

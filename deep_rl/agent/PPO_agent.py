@@ -558,6 +558,10 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.task_emb_size = len(task_embedding)
         return task_embedding
 
+    
+    def get_current_task_label(self):
+        ''''''
+        return self.task.get_task()['task_label']
 
     def get_task_action_space_size(self):
         '''A getter method for retreiving the task action space.'''
