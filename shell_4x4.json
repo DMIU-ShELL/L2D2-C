@@ -2,7 +2,7 @@
     "seed": [9157, 9158, 9159, 9160, 9161, 9162, 9163, 9164, 9165, 9166, 9167, 9168, 9169, 9170, 9171, 9172, 9173, 9174, 9175, 9176, 9177, 9178, 9179, 9180, 9181, 9182, 9183, 9184, 9185, 9186],
     "detect_reference_num": 50,
     "detect_num_samples": 128,
-    "emb_dist_threshold": 20,
+    "emb_dist_threshold": 11,
     "detect_module_activation_frequency": 5,
     "agents": [
         {
@@ -10,11 +10,11 @@
             "max_steps": 25600
         },
         {
-            "task_ids": [0, 4, 8, 12],
+            "task_ids": [0, 4, 8, 12, 0, 4, 8, 12],
             "max_steps": 25600
         },
         {
-            "task_ids": [4, 8, 12, 0],
+            "task_ids": [4, 8, 12, 0, 0, 4, 8, 12],
             "max_steps": 25600
         },
         {

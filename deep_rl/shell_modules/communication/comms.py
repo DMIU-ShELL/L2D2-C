@@ -315,7 +315,8 @@ class ParallelComm(object):
             for tlabel, treward in self.knowledge_base.items():
                 if treward > np.around(0.0, decimals=6):
                     if 0.9 * round(treward, 6) > sender_reward:
-                        tdist = float(torch.linalg.vector_norm(embedding - torch.tensdor(tlabel)))
+                        tdist = float(torch.linalg.vector_norm(embedding - torch.tensor(tlabel)))
+                        self.logger.info(f'{tdist} meta distance')
                         if tdist <= self.threshold:
                             other_agent_req['response'] = True
                             other_agent_req['reward'] = treward         # Reward of the mask this agent has for the task

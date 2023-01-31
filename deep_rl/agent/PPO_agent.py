@@ -741,6 +741,11 @@ class LLAgent(PPOContinualLearnerAgent):
         self.curr_train_task_emb = None
         self.curr_eval_task_emb = None
 
+    def get_seen_tasks(self):
+        '''A getter method for deriving which tasks the DMIU agent has encountered.'''
+        return self.seen_tasks
+    
+
     def _label_to_idx(self, task_label):
         eps = 1e-5
         found_task_idx = None

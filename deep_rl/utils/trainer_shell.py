@@ -29,6 +29,7 @@ from ..shell_modules import *
 import multiprocessing.dummy as mpd
 from queue import Empty
 from colorama import Fore
+import traceback
 
 try:
     # python >= 3.5
@@ -690,7 +691,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         #Logging of the detect operations!!!   #Chris
         if activation_flag:
             print(Fore.GREEN)
-            detect_module_activations.append([shell_iterations, activation_flag, agent.detect.get_num_samples(), "I AM THE NEW EMBEDIIIIIIIIIIIIIING!!!!!!!!!!!!:", new_emb, 'Hi I am the GroundTruth LABEL:', ground_truth_task_label, "Hi I AM THE CURRENTNTNTNTNTNTNT TASK EMBEDDINGGGGGGGGGGG!!!!!!!!!!!!!", current_task_embedding, str_task_chng_msg, task_change_flag, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool])
+            detect_module_activations.append([shell_iterations, activation_flag, str_task_chng_msg, task_change_flag, "Number of Samples for detection:", agent.detect.get_num_samples(), "I AM THE NEW EMBEDING!:", new_emb, 'Hi I am the GroundTruth LABEL:', ground_truth_task_label, "Hi I AM THE CURRENT TASK EMBEDDING!", current_task_embedding, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool])
             np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
             if new_emb is not None:
                 q = new_emb#torch.Tensor.unsqueeze(new_emb, 0)
@@ -716,10 +717,13 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         if shell_iterations % agent.config.iteration_log_interval == 0:
             itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, dict_logs)
             
-            # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
-            # logging cycle. Take average of all worker averages as the most recent reward score for a given task
-            knowledge_base[tuple(shell_tasks[shell_task_counter]['task_label'])] = np.around(np.mean(agent.iteration_rewards), decimals=6)
-
+            
+            if msg is not None:
+                # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
+                # logging cycle. Take average of all worker averages as the most recent reward score for a given task
+                knowledge_base[tuple(msg.tolist())] = np.around(np.mean(agent.iteration_rewards), decimals=6)
+                logger.info(f'{msg} is logged to knowledge base')
+                
             # Save agent model
             agent.save(agent.config.log_dir + '/%s-%s-model-%s.bin' % (agent.config.agent_name, agent.config.tag, \
                     agent.task.name))
@@ -1069,5 +1073,7 @@ def run_detect_module(an_agent, activation_check_flag):
         emb_dist_thrshld = an_agent.get_emb_dist_threshold()
         str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
         current_task_embedding = an_agent.get_current_task_embedding()
+        an_agent_seen_tasks = an_agent.get_seen_tasks()
+        print("/n/n/nAgent SEEN TASKS:", an_agent_seen_tasks, "/n/n/n/n")
 
     return str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, ground_truth_task_label#str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    
