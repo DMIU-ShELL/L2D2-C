@@ -42,10 +42,7 @@ class ParallelComm(object):
     CERTPATH = 'certificates/certificate.pem'
     KEYPATH = 'certificates/key.pem'
 
-    # COMMUNICATION DROPOUT
-    # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
-    DROPOUT = 0.0  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
-
+    
     # buffer indexes
     META_INF_IDX_ADDRESS = 0
     META_INF_IDX_PORT = 1
@@ -77,12 +74,13 @@ class ParallelComm(object):
     MSG_DATA_META = 4
 
     # Task label size can be replaced with the embedding size.
-    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost, mode):
+    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost, mode, dropout, threshold):
         super(ParallelComm, self).__init__()
         self.embd_dim = embd_dim            # Dimensions of the the embedding
         self.mask_dim = mask_dim            # Dimensions of the mask for use in buffers. May no longer be needed
         self.logger = logger                # Logger object for logging CLI outputs.
         self.mode = mode                    # Communication operation mode. Currently only ondemand knowledge is implemented
+        self.threshold = threshold
 
         # Address and port for this agent
         if localhost: self.init_address = '127.0.0.1'
@@ -96,6 +94,9 @@ class ParallelComm(object):
         
         self.world_size = manager.Value('i', num_agents)
         self.metadata = manager.list()
+
+
+        self.dropout = dropout
 
 
         print(type(self.query_list))
@@ -147,16 +148,16 @@ class ParallelComm(object):
         sock.settimeout(2)
 
         try:
-            sock.connect((address, port))
+            if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1 - ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss       
+                sock.connect((address, port))
 
-            #context = ssl.create_default_context()
-            #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
-            #sock_ssl = context.wrap_socket(sock, server_side=False)
+                #context = ssl.create_default_context()
+                #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
+                #sock_ssl = context.wrap_socket(sock, server_side=False)
 
-            _data = struct.pack('>I', len(_data)) + _data
-            sock.sendall(_data)
-            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
-
+                _data = struct.pack('>I', len(_data)) + _data
+                sock.sendall(_data)
+                self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
         except:
             # Try to remove the ip and port that failed from the query table
@@ -304,7 +305,7 @@ class ParallelComm(object):
         other_agent_req['response'] = False
 
         if other_agent_req is not None:
-            np_embedding = other_agent_req['embedding'].detach().cpu().numpy()
+            embedding = other_agent_req['embedding']
             sender_reward = other_agent_req['sender_reward']
 
             # Iterate through the knowledge base and compute the distances
@@ -314,8 +315,8 @@ class ParallelComm(object):
             for tlabel, treward in self.knowledge_base.items():
                 if treward > np.around(0.0, decimals=6):
                     if 0.9 * round(treward, 6) > sender_reward:
-                        tdist = np.sum(abs(np.subtract(np_embedding, np.array(tlabel))))
-                        if tdist <= ParallelComm.THRESHOLD:
+                        tdist = float(torch.linalg.vector_norm(embedding - torch.tensdor(tlabel)))
+                        if tdist <= self.threshold:
                             other_agent_req['response'] = True
                             other_agent_req['reward'] = treward         # Reward of the mask this agent has for the task
                             other_agent_req['dist'] = tdist             # Distance between the embedding of this agent's closest mask and the embedding from the querying agent
@@ -435,7 +436,7 @@ class ParallelComm(object):
                     self.logger.info(recv_emb)
                     
                     if recv_rw != 0.0:
-                        if recv_dist <= ParallelComm.THRESHOLD:
+                        if recv_dist <= self.threshold:
                             if tuple(recv_emb) in self.knowledge_base.keys():
                                 if 0.9 * round(recv_rw, 6) > self.knowledge_base[tuple(recv_emb.tolist())]:
                                     data.append(ParallelComm.MSG_DATA_MSK_REQ)
@@ -662,8 +663,7 @@ class ParallelComm(object):
 
                 # Send out a query when shell iterations matches mask interval if the agent is working on a task
                 if self.world_size.value > 1:
-                    if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1 - ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss
-                        self.send_query(msg)
+                    self.send_query(msg)
 
 
 
@@ -962,7 +962,7 @@ class ParallelCommEval(object):
         other_agent_req['response'] = False
 
         '''if other_agent_req is not None:
-            np_embedding = other_agent_req['embedding'].detach().cpu().numpy()
+            embedding = other_agent_req['embedding'].detach().cpu().numpy()
             sender_reward = other_agent_req['sender_reward']
 
             # Iterate through the knowledge base and compute the distances
@@ -972,7 +972,7 @@ class ParallelCommEval(object):
             for tlabel, treward in self.knowledge_base.items():
                 if treward > np.around(0.0, decimals=6):
                     if 0.9 * round(treward, 6) > sender_reward:
-                        tdist = np.sum(abs(np.subtract(np_embedding, np.array(tlabel))))
+                        tdist = np.sum(abs(np.subtract(embedding, np.array(tlabel))))
                         if tdist <= ParallelCommEval.THRESHOLD:
                             other_agent_req['response'] = True
                             other_agent_req['reward'] = treward         # Reward of the mask this agent has for the task
@@ -1361,10 +1361,6 @@ class ParallelCommOmniscient(object):
     CERTPATH = 'certificates/certificate.pem'
     KEYPATH = 'certificates/key.pem'
 
-    # COMMUNICATION DROPOUT
-    # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
-    DROPOUT = 0.0  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
-
     # buffer indexes
     META_INF_IDX_ADDRESS = 0
     META_INF_IDX_PORT = 1
@@ -1396,7 +1392,7 @@ class ParallelCommOmniscient(object):
     MSG_DATA_META = 4
 
     # Task label size can be replaced with the embedding size.
-    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost, mode):
+    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost, mode, dropout):
         super(ParallelCommOmniscient, self).__init__()
         self.embd_dim = embd_dim            # Dimensions of the the embedding
         self.mask_dim = mask_dim            # Dimensions of the mask for use in buffers. May no longer be needed
@@ -1415,6 +1411,9 @@ class ParallelCommOmniscient(object):
         
         self.world_size = manager.Value('i', num_agents)
         self.metadata = manager.list()
+
+
+        self.dropout = dropout
 
         # Omniscient task tracker. Makes a collection of all observed tasks by the visible network.
         # When a query is received by this agent, the list is updated with the embedding.
@@ -1474,16 +1473,16 @@ class ParallelCommOmniscient(object):
         sock.settimeout(2)
 
         try:
-            sock.connect((address, port))
+            if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1 - ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss
+                sock.connect((address, port))
 
-            #context = ssl.create_default_context()
-            #context.load_cert_chain(ParallelCommOmniscient.CERTPATH, ParallelCommOmniscient.KEYPATH)
-            #sock_ssl = context.wrap_socket(sock, server_side=False)
+                #context = ssl.create_default_context()
+                #context.load_cert_chain(ParallelCommOmniscient.CERTPATH, ParallelCommOmniscient.KEYPATH)
+                #sock_ssl = context.wrap_socket(sock, server_side=False)
 
-            _data = struct.pack('>I', len(_data)) + _data
-            sock.sendall(_data)
-            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
-
+                _data = struct.pack('>I', len(_data)) + _data
+                sock.sendall(_data)
+                self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
         except:
             # Try to remove the ip and port that failed from the query table
@@ -1634,7 +1633,7 @@ class ParallelCommOmniscient(object):
         other_agent_req['response'] = False
 
         if other_agent_req is not None:
-            np_embedding = other_agent_req['embedding'].detach().cpu().numpy()
+            embedding = other_agent_req['embedding'].detach().cpu().numpy()
             sender_reward = other_agent_req['sender_reward']
 
             # Iterate through the knowledge base and compute the distances
@@ -1644,7 +1643,7 @@ class ParallelCommOmniscient(object):
             for tlabel, treward in self.knowledge_base.items():
                 if treward > np.around(0.0, decimals=6):
                     if 0.9 * round(treward, 6) > sender_reward:
-                        tdist = np.sum(abs(np.subtract(np_embedding, np.array(tlabel))))
+                        tdist = np.sum(abs(np.subtract(embedding, np.array(tlabel))))
                         if tdist <= ParallelCommOmniscient.THRESHOLD:
                             other_agent_req['response'] = True
                             other_agent_req['reward'] = treward         # Reward of the mask this agent has for the task

@@ -169,10 +169,10 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
         phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
-        hidden_units=(200, 200, 200), num_tasks=num_tasks),
+        hidden_units=(200, 200, 200), num_tasks=10),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
-        num_tasks=num_tasks)
+        num_tasks=10)
 
     config.seed = config_seed       # Chris
 
@@ -210,11 +210,11 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     # If True then run the omnisicent mode agent, otherwise run the normal agent.
     if mode.value:
-        comm = ParallelCommOmniscient(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode)
+        comm = ParallelCommOmniscient(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
         shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
     
     
-    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode)
+    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
 
     # start training
     shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
@@ -738,6 +738,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--device', help='select device 1 for GPU or 0 for CPU. default is GPU', type=int, default=1)   # Used to select device. By default system will try to use the GPU. Currently PyTorch is only compatible with NVIDIA GPUs or Apple M Series processors.
     parser.add_argument('--reference', '--r', '-r', help='reference.csv file path', type=str, default='reference.csv')
+    parser.add_argument('--dropout', '--d', '-d', help='Comunication dropout parameter', type=float, default=0.0)
     args = parser.parse_args()
 
     select_device(args.device)

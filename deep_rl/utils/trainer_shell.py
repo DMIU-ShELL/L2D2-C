@@ -571,7 +571,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
     # Set msg to first task. The agents will then request knowledge on the first task.
     # this will ensure that other agents are aware that this agent is now working this task
     # until a task change happens.
-    msg = shell_tasks[0]['task_label']
+    msg = None#shell_tasks[0]['task_label']
 
     # Track which agents are working which tasks. This will be resized every time a new agent is added
     # to the network. Every time there is a communication step 1, we will check if it is none otherwise update
@@ -662,8 +662,9 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         for addr in comm.query_list: print(f'{Fore.RED}{addr[0]}, {addr[1]}')
 
         # Send label/embedding to the communication module to query for relevant knowledge from other peers.
-        if shell_iterations % mask_interval == 0:
-            queue_label.put(msg)
+        if msg is not None:
+            if shell_iterations % mask_interval == 0:
+                queue_label.put(msg)
 
         
         ### AGENT ITERATION (training step): collect on policy data and optimise the agent
@@ -683,15 +684,13 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
 
 
         activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency(), agent)   #Chris
-        #str_task_chng_msg, task_change_flag, emb_dist, emb_bool, 
-        new_emb , ground_truth_task_label= run_detect_module(agent, activation_flag)   #Chris
-        
-        
+        str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, ground_truth_task_label= run_detect_module(agent, activation_flag)   #Chris
+        msg = current_task_embedding
 
-            #Logging of the detect operations!!!   #Chris
+        #Logging of the detect operations!!!   #Chris
         if activation_flag:
             print(Fore.GREEN)
-            detect_module_activations.append([shell_iterations, activation_flag, agent.detect.get_num_samples(), "I AM THE NEW EMBEDIIIIIIIIIIIIIING!!!!!!!!!!!!:", new_emb, 'Hi I am the GroundTruth LABEL:', ground_truth_task_label])#str_task_chng_msg, task_change_flag, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool, "HI I AM EMB:", new_emb])
+            detect_module_activations.append([shell_iterations, activation_flag, agent.detect.get_num_samples(), "I AM THE NEW EMBEDIIIIIIIIIIIIIING!!!!!!!!!!!!:", new_emb, 'Hi I am the GroundTruth LABEL:', ground_truth_task_label, "Hi I AM THE CURRENTNTNTNTNTNTNT TASK EMBEDDINGGGGGGGGGGG!!!!!!!!!!!!!", current_task_embedding, str_task_chng_msg, task_change_flag, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool])
             np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
             if new_emb is not None:
                 q = new_emb#torch.Tensor.unsqueeze(new_emb, 0)
@@ -766,7 +765,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         if agent.total_steps >= task_steps_limit:
             task_counter_ = shell_task_counter
             logger.info('\n' + Fore.BLUE + '*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
-            agent.task_train_end()
+            #MOVED to Assing EMB in PPO agent.task_train_end()
 
             task_counter_ += 1
             shell_task_counter = task_counter_
@@ -781,7 +780,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
                 logger.info(Fore.BLUE + 'task_label: {0}'.format(shell_tasks[task_counter_]['task_label']))
                 states_ = agent.task.reset_task(shell_tasks[task_counter_]) # set new task
                 agent.states = agent.config.state_normalizer(states_)
-                agent.task_train_start(shell_tasks[task_counter_]['task_label'])
+                #MOVED to Assing EMB in PPO agent agent.task_train_start(shell_tasks[task_counter_]['task_label'])
 
                 # set message (task_label) that will be sent to other agent as a request for
                 # task knowledge (mask) about current task. this will be sent in the next
@@ -790,7 +789,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
                     .format(agent_id))
 
                 # Update the msg, track_tasks dict for this agent and reset await_responses for new task
-                msg = shell_tasks[task_counter_]['task_label']
+                #msg = shell_tasks[task_counter_]['task_label']
                 #track_tasks[agent_id] = torch.from_numpy(msg)       # remove later
                 await_response = [True,] * num_agents
                 del states_
@@ -1049,7 +1048,7 @@ def run_detect_module(an_agent, activation_check_flag):
     so the approprate embeddings are generated for each batch of SAR data'''
     
     #Initilize the retun varibles with None values in the case of the detect module not being appropriate to run.
-    str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, ground_truth_task_label = None, None, None, None, None, torch.tensor(0)
+    str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, ground_truth_task_label = None, None, None, None, None, None, torch.tensor(0)
     
     if activation_check_flag:
         sar_data = an_agent.sar_data_extraction()
@@ -1058,16 +1057,17 @@ def run_detect_module(an_agent, activation_check_flag):
         print(sar_data)
         #print("CURR_EMB:", current_embedding)
         new_emb = an_agent.compute_task_embedding(sar_data, an_agent.get_task_action_space_size())
-        #current_embedding = an_agent.get_current_task_embedding()
-        #print("CURR_EMB:", current_embedding)
+        current_embedding = an_agent.get_current_task_embedding()
+        print("CURR_EMB:", current_embedding)
         print("NEW_EMB:", new_emb)
         print("EMBEDDING SIZE:", len(new_emb))
         ground_truth_task_label = an_agent.get_current_task_label()
         print("Ground_Truth_Task_Label:", ground_truth_task_label)
         print(type(ground_truth_task_label))
-        #emb_bool = current_embedding == new_emb
-        #emb_dist = an_agent.calculate_emb_distance(current_embedding, new_emb)
-        #emb_dist_thrshld = an_agent.get_emb_dist_threshold()
-        #str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
+        emb_bool = current_embedding == new_emb
+        emb_dist = an_agent.calculate_emb_distance(current_embedding, new_emb)
+        emb_dist_thrshld = an_agent.get_emb_dist_threshold()
+        str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
+        current_task_embedding = an_agent.get_current_task_embedding()
 
-    return new_emb, ground_truth_task_label#str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    
+    return str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, ground_truth_task_label#str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    
