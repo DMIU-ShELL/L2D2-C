@@ -42,10 +42,6 @@ class ParallelComm(object):
     CERTPATH = 'certificates/certificate.pem'
     KEYPATH = 'certificates/key.pem'
 
-    # COMMUNICATION DROPOUT
-    # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
-    DROPOUT = 0.25  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
-
     # buffer indexes
     META_INF_IDX_ADDRESS = 0
     META_INF_IDX_PORT = 1
@@ -77,7 +73,7 @@ class ParallelComm(object):
     MSG_DATA_META = 4
 
     # Task label size can be replaced with the embedding size.
-    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost, mode):
+    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost, mode, dropout):
         super(ParallelComm, self).__init__()
         self.embd_dim = embd_dim            # Dimensions of the the embedding
         self.mask_dim = mask_dim            # Dimensions of the mask for use in buffers. May no longer be needed
@@ -96,6 +92,10 @@ class ParallelComm(object):
         
         self.world_size = manager.Value('i', num_agents)
         self.metadata = manager.list()
+
+        # COMMUNICATION DROPOUT
+        # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
+        self.dropout = dropout  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
 
 
         print(type(self.query_list))
@@ -147,7 +147,7 @@ class ParallelComm(object):
         sock.settimeout(2)
 
         try:
-            if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1 - ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss
+            if int(np.random.choice(2, 1, p=[self.dropout, 1 - self.dropout])) == 1:  # Condition to simulate % communication loss
                 sock.connect((address, port))
 
                 #context = ssl.create_default_context()
@@ -157,7 +157,6 @@ class ParallelComm(object):
                 _data = struct.pack('>I', len(_data)) + _data
                 sock.sendall(_data)
                 self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
-
 
         except:
             # Try to remove the ip and port that failed from the query table
@@ -178,16 +177,15 @@ class ParallelComm(object):
         sock.settimeout(2)
         
         try:
-            if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1 - ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss
-                sock.connect((address, port))
+            sock.connect((address, port))
 
-                #context = ssl.create_default_context()
-                #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
-                #sock = context.wrap_socket(sock, server_side=False)
+            #context = ssl.create_default_context()
+            #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
+            #sock = context.wrap_socket(sock, server_side=False)
 
-                _data = struct.pack('>I', len(_data)) + _data
-                sock.sendall(_data)
-                self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
+            _data = struct.pack('>I', len(_data)) + _data
+            sock.sendall(_data)
+            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
         except:
             # Try to remove the ip and port that failed from the query table
@@ -1397,7 +1395,7 @@ class ParallelCommOmniscient(object):
     MSG_DATA_META = 4
 
     # Task label size can be replaced with the embedding size.
-    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost, mode):
+    def __init__(self, num_agents, embd_dim, mask_dim, logger, init_port, reference, knowledge_base, manager, localhost, mode, dropout):
         super(ParallelCommOmniscient, self).__init__()
         self.embd_dim = embd_dim            # Dimensions of the the embedding
         self.mask_dim = mask_dim            # Dimensions of the mask for use in buffers. May no longer be needed
@@ -1416,6 +1414,10 @@ class ParallelCommOmniscient(object):
         
         self.world_size = manager.Value('i', num_agents)
         self.metadata = manager.list()
+
+        # COMMUNICATION DROPOUT
+        # Used to simulate percentage communication dropout in the network. Currently only limits the amount of queries and not a total communication blackout.
+        self.dropout = dropout  # Value between 0 and 1 i.e, 0.25=25% dropout, 1=100% dropout, 0=no dropout
 
         # Omniscient task tracker. Makes a collection of all observed tasks by the visible network.
         # When a query is received by this agent, the list is updated with the embedding.
