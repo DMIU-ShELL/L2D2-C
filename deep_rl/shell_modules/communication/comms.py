@@ -645,7 +645,7 @@ class ParallelComm(object):
             try:
                 print()
                 self.logger.info(Fore.GREEN + f'Knowledge base in this iteration:')
-                for key, val in self.knowledge_base.items(): print(f'{key} : {val}')
+                for key, val in self.knowledge_base.items(): self.logger.info(f'{key[0:5]} : {val}')
                 self.logger.info(Fore.GREEN + f'World size in comm: {self.world_size.value}')
                 #self.logger.info(Fore.GREEN + f'Query table in this iteration:')
                 #for addr in self.query_list: print(addr[0], addr[1])

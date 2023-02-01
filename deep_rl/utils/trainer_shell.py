@@ -371,7 +371,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
         for req in other_agents_request:
             #print(req)
             if req is None: continue
-            req['mask'] = agent.label_to_mask(req['task_label'])
+            req['mask'] = agent.embedding_to_mask(req['task_label'])
             requests.append(req)
         if len(requests) > 0:
             comm.send_response(requests)
@@ -614,7 +614,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
                 # Update the knowledge base with the expected reward
                 knowledge_base.update({tuple(label.tolist()): reward})
                 # Update the network with the mask
-                agent.distil_task_knowledge_single(mask, label)
+                agent.distil_task_knowledge_single_embedding(mask, label)
 
                 logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
 
@@ -631,7 +631,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
             logger.info('Got label to convert to mask')
             print(convert['embedding'], type(convert['embedding']))
 
-            convert['mask'] = agent.label_to_mask(convert['embedding'].detach().cpu().numpy())
+            convert['mask'] = agent.embedding_to_mask(convert['embedding'].detach().cpu().numpy())
             queue_mask_recv.put((convert))
 
     # Start threads for the mask and conversion handlers.
@@ -823,7 +823,7 @@ shell evaluation: concurrent processing for event-based communication.
 '''
 def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_base):
 
-    #Create a SmumaryWriter object for the Evaluation Agent
+    
 
     
 
@@ -832,6 +832,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
 
     logger.info(Fore.BLUE + '*****start shell training')
 
+    #Create a SmumaryWriter object for the Evaluation Agent
     tb_writer = SummaryWriter(logger.log_dir + '/DMIU-ShELL_metrics')
 
     shell_done = False
@@ -909,7 +910,7 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
                 # Update the knowledge base with the expected reward
                 knowledge_base.update({label: reward})
                 # Update the network with the mask
-                agent.distil_task_knowledge_single(mask, label)
+                agent.distil_task_knowledge_single_embedding(mask, label)
 
                 logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
 
@@ -1074,6 +1075,6 @@ def run_detect_module(an_agent, activation_check_flag):
         str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
         current_task_embedding = an_agent.get_current_task_embedding()
         an_agent_seen_tasks = an_agent.get_seen_tasks()
-        print("/n/n/nAgent SEEN TASKS:", an_agent_seen_tasks, "/n/n/n/n")
+        print("/n /n /n /n /n /n /n /n /n  Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEN TASKS:/n", an_agent_seen_tasks, "/n /n /n /n /n /n /n /n /n /n /n")
 
     return str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, ground_truth_task_label#str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    

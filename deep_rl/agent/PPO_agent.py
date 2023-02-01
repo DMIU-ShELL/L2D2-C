@@ -950,6 +950,20 @@ class ShellAgent_DP(LLAgent):
             mask = self.mask_to_vec(mask)
         return mask
 
+    def embedding_to_mask(self, a_task_embedding):
+        '''A method for finding the correspoding mask for the task tha it is currently encountered
+        based on the agents task/mask registry (seen tasks dictionary)'''
+        task_idx =self._embedding_to_idx(a_task_embedding)
+        #get the stored correspoding mask for that specific task
+        if task_idx is None:
+            mask = None
+        else:
+            #function from ssmask_utils.py
+            mask = get_mask(self.network, task_idx)
+            mask = self.mask_to_vec(mask)
+        return mask
+
+
     def distil_task_knowledge(self, masks):
         # TODO fix algorithm. Current solution invloves selecting the first mask 
         # that is not Noneand using it as the knowledge from which the agent can 
@@ -986,6 +1000,27 @@ class ShellAgent_DP(LLAgent):
         else:
             return False
 
+    def distil_task_knowledge_single_embedding(self, a_mask, a_task_embedding):
+        '''Method performs the distilation of task knowledge based on embeddings. The alorithmic approach
+        is identical to the "distil_task_knowledge_single.'''
+
+        # New distil task knowledge algorithm
+        # this function receives only one mask
+        # which is the best mask.
+        #print(mask)
+
+        #task_label = self.curr_train_task_label
+        task_idx = self._embedding_to_idx(a_task_embedding)
+
+        # Process the single mask as opposed to multiple
+        mask = self.vec_to_mask(a_mask.to(self.config.DEVICE))
+
+        if mask is not None:
+            set_mask(self.network, mask, task_idx)
+            return True
+        else:
+            return False
+
     def distil_task_knowledge_single_eval(self, mask, task_label):
         # New distil task knowledge algorithm
         # this function receives only one mask
@@ -999,6 +1034,31 @@ class ShellAgent_DP(LLAgent):
 
         # Process the single mask as opposed to multiple
         mask = self.vec_to_mask(mask.to(self.config.DEVICE))
+
+        if mask is not None:
+            set_mask(self.network, mask, task_idx)
+            return True
+        else:
+            return False
+
+
+    def distil_task_knowledge_single_eval(self, a_mask, a_task_embedding):
+        
+        '''This metehod performs the distilation of mask based on task embedding 
+        for the evaluator agent.' The aglorithmic apporach is identical to the
+        "distil_task_knowledge_single" method.'''
+        # New distil task knowledge algorithm
+        # this function receives only one mask
+        # which is the best mask.
+        #print(mask)
+
+        #task_label = self.curr_eval_task_label
+        #print(task_label)
+        task_idx = self._embedding_to_idx(a_task_embedding)
+        #print(task_idx)
+
+        # Process the single mask as opposed to multiple
+        mask = self.vec_to_mask(a_mask.to(self.config.DEVICE))
 
         if mask is not None:
             set_mask(self.network, mask, task_idx)
