@@ -559,7 +559,7 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
     logger.info(Fore.BLUE + '*****agent {0} / setting first task (task 0)'.format(agent_id))
     logger.info(Fore.BLUE + 'task: {0}'.format(shell_tasks[0]['task']))
     logger.info(Fore.BLUE + 'task_label: {0}'.format(shell_tasks[0]['task_label']))
-    agent.task_train_start(shell_tasks[0]['task_label'])
+    agent.task_train_start(torch.zeros(agent.get_task_emb_size()))#shell_tasks[0]['task_label'])
     #print()
     del states_
 
