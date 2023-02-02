@@ -685,13 +685,13 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
 
 
         activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency(), agent)   #Chris
-        str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, ground_truth_task_label= run_detect_module(agent, activation_flag)   #Chris
+        str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, agent_seen_tasks, ground_truth_task_label= run_detect_module(agent, activation_flag)   #Chris
         msg = current_task_embedding
 
         #Logging of the detect operations!!!   #Chris
         if activation_flag:
             print(Fore.GREEN)
-            detect_module_activations.append([shell_iterations, activation_flag, str_task_chng_msg, task_change_flag, "Number of Samples for detection:", agent.detect.get_num_samples(), "I AM THE NEW EMBEDING!:", new_emb, 'Hi I am the GroundTruth LABEL:', ground_truth_task_label, "Hi I AM THE CURRENT TASK EMBEDDING!", current_task_embedding, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool])
+            detect_module_activations.append([shell_iterations, activation_flag, str_task_chng_msg, task_change_flag, "Number of Samples for detection:", agent.detect.get_num_samples(), "I AM THE NEW EMBEDING!:", new_emb, 'Hi I am the GroundTruth LABEL:', ground_truth_task_label, "Hi I AM THE CURRENT TASK EMBEDDING!", current_task_embedding, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool, "\n\nAgent SEEN TASKS: \n", agent_seen_tasks, "\n \n \n \n \n \n"])
             np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
             if new_emb is not None:
                 q = new_emb#torch.Tensor.unsqueeze(new_emb, 0)
@@ -1053,7 +1053,7 @@ def run_detect_module(an_agent, activation_check_flag):
     so the approprate embeddings are generated for each batch of SAR data'''
     
     #Initilize the retun varibles with None values in the case of the detect module not being appropriate to run.
-    str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, ground_truth_task_label = None, None, None, None, None, None, torch.tensor(0)
+    str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, an_agent_seen_tasks, ground_truth_task_label = None, None, None, None, None, None, None, torch.tensor(0)
     
     if activation_check_flag:
         sar_data = an_agent.sar_data_extraction()
@@ -1075,6 +1075,6 @@ def run_detect_module(an_agent, activation_check_flag):
         str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
         current_task_embedding = an_agent.get_current_task_embedding()
         an_agent_seen_tasks = an_agent.get_seen_tasks()
-        print("/n /n /n /n /n /n /n /n /n  Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEN TASKS:/n", an_agent_seen_tasks, "/n /n /n /n /n /n /n /n /n /n /n")
+        print("\n \n \n \n \n \n \n \n \n  Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEN TASKS:\n", an_agent_seen_tasks, "\n \n \n \n \n \n \n \n \n \n \n")
 
-    return str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, ground_truth_task_label#str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    
+    return str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, an_agent_seen_tasks, ground_truth_task_label#str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    

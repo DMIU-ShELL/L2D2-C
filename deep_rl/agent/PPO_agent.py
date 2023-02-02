@@ -771,7 +771,7 @@ class LLAgent(PPOContinualLearnerAgent):
 
         found_task_idx = None
         for task_idx, seen_task_embedding in self.seen_tasks.items():
-            if np.linalg.norm((a_task_embedding - seen_task_embedding), ord=2) < an_embedding_embedding_distance_threshold:
+            if np.linalg.norm((a_task_embedding - seen_task_embedding)) < an_embedding_embedding_distance_threshold:
                 found_task_idx = task_idx
                 break
         return found_task_idx
