@@ -141,6 +141,7 @@ class ParallelComm(object):
             address: The ip of the destination.
             port: The port of the destination.
         """
+        print("HI Frm COMMS ISSUE01:", data, address, port)
         _data = pickle.dumps(data, protocol=5)
 
         # Attempt to send the data a number of times. If successful do not attempt to send again.
@@ -148,8 +149,11 @@ class ParallelComm(object):
         sock.settimeout(2)
 
         try:
-            if int(np.random.choice(2, 1, p=[ParallelComm.DROPOUT, 1 - ParallelComm.DROPOUT])) == 1:  # Condition to simulate % communication loss       
+           # print('HELLLLLLLLLLLLLLLLLLLLLOOOOOOOOOOOOO0000000000000000000001')
+            if int(np.random.choice(2, 1, p=[self.dropout, 1 - self.dropout])) == 1:  # Condition to simulate % communication loss
+                #print('HI AFTTTERRRR CHHHHHHHHHHHHHHHHHHHHHHHHECKINGGGGGGGGGNIGNDISGNDS \\\\\\\\\\\\\\\\\ififififififiifififififiifififififif')       
                 sock.connect((address, port))
+               # print('HHHHHHHHIHIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIHHHHHHHHHHHHHHHHHHHHHHHIIIIIIIIIIIIIIIIIIIIIII AAAAAAAAAAAAAFTTTTTTTTEEEEEEEEEEEEEEEEEETRRRRRR SOCKEEEEEEEEEEEET')
 
                 #context = ssl.create_default_context()
                 #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
@@ -635,7 +639,7 @@ class ParallelComm(object):
         #p_discover = mp.Process(target=self.send_join_net)
         #p_discover.start()
 
-        time.sleep(1)
+        time.sleep(2)
 
         # Initialise the client loop
         while True:
