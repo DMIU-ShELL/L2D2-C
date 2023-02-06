@@ -5,7 +5,7 @@
 #######################################################################
 import copy
 from .atari_wrapper import *
-import multiprocess as mp
+import multiprocessing as mp
 #from pathos.multiprocessing import ProcessingPool
 import sys
 from .bench import Monitor

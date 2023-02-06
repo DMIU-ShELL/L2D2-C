@@ -100,6 +100,14 @@ class ParallelComm(object):
         self.dropout = dropout
 
 
+        
+        access_token = '8ad435f2bc1b48'
+        self.handler = ipinfo.getHandler(access_token)
+
+        details = self.handler.getDetails(self.init_address)
+        self.connections = [[details.hostname, details.ip, self.init_port, details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude]]
+            
+
         print(type(self.query_list))
         print(type(self.reference_list))
 
@@ -291,6 +299,11 @@ class ParallelComm(object):
         if (ret['sender_address'], ret['sender_port']) not in self.query_list:
             self.client([self.init_address, self.init_port, ParallelComm.MSG_TYPE_SEND_TABLE, list(self.query_list)], ret['sender_address'], ret['sender_port'])
             self.query_list.append((ret['sender_address'], ret['sender_port']))
+            
+            
+            details = self.handler.getDetails(ret['sender_address'])
+            self.connections.append([details.hostname, details.ip, ret['sender_port'], details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude])
+            np.savetxt(self.logger.log_dir + '/connections.csv', self.connections, delimiter=', ', fmt='%s')
 
         self.world_size.value = len(self.query_list) + 1    # Refresh the world_size value
 
@@ -561,20 +574,11 @@ class ParallelComm(object):
 
         # Set backlog to the world size
         sock.listen(self.world_size.value)
-        
-        connections = []
-        access_token = '8ad435f2bc1b48'
-        handler = ipinfo.getHandler(access_token)
+
         while True:
             # Accept the connection
             conn, addr = sock.accept()
             #conn = context.wrap_socket(conn, server_side=True)
-
-            for connection_dat in connections:
-                if addr[0] not in connection_dat:
-                    details = handler.getDetails(addr[0])
-                    connections.append([details.hostname, details.ip, details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude])
-                    np.savetxt(self.logger.log_dir + '/connections.csv', connections, delimiter=',', fmt='%s')
 
             with conn:
                 self.logger.info('\n' + Fore.CYAN + f'Connected by {addr}')

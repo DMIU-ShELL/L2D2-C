@@ -14,7 +14,7 @@
 #
 
 from copy import deepcopy
-import multiprocess as mp
+import multiprocessing as mp
 import torch
 import torch.nn as nn
 import numpy as np
