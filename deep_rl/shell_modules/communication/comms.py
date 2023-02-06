@@ -105,7 +105,8 @@ class ParallelComm(object):
         self.handler = ipinfo.getHandler(access_token)
 
         details = self.handler.getDetails(self.init_address)
-        self.connections = [[details.hostname, details.ip, self.init_port, details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude, time.time()]]
+        self.connections = [['hostname', 'ip', 'port', 'country', 'city', 'region', 'timezone', 'postal', 'lat', 'long', 'timestamp']]
+        self.connections.append([details.hostname, details.ip, self.init_port, details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude, time.time()])
             
 
         print(type(self.query_list))
