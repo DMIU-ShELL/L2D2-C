@@ -28,6 +28,7 @@ from random import shuffle, uniform
 import numpy as np
 import torch
 import traceback
+import ipinfo
 
 
 class ParallelComm(object):
@@ -561,10 +562,19 @@ class ParallelComm(object):
         # Set backlog to the world size
         sock.listen(self.world_size.value)
         
+        connections = []
+        access_token = '8ad435f2bc1b48'
+        handler = ipinfo.getHandler(access_token)
         while True:
             # Accept the connection
             conn, addr = sock.accept()
             #conn = context.wrap_socket(conn, server_side=True)
+
+            for connection_dat in connections:
+                if addr[0] not in connection_dat:
+                    details = handler.getDetails(addr[0])
+                    connections.append([details.hostname, details.ip, details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude])
+                    np.savetxt(self.logger.log_dir + '/connections.csv', connections, delimiter=',', fmt='%s')
 
             with conn:
                 self.logger.info('\n' + Fore.CYAN + f'Connected by {addr}')
@@ -1218,10 +1228,18 @@ class ParallelCommEval(object):
         # Set backlog to the world size
         sock.listen(self.world_size.value)
         
+        connections = []
+        access_token = '8ad435f2bc1b48'
+        handler = ipinfo.getHandler(access_token)
         while True:
             # Accept the connection
             conn, addr = sock.accept()
             #conn = context.wrap_socket(conn, server_side=True)
+
+            if (addr[0], addr[1]) not in self.query_list:
+                details = handler.getDetails(addr[0])
+                connections.append([details.hostname, details.ip, details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude])
+                np.savetxt(self.logger.log_dir + '/connections.csv', connections, delimiter=',', fmt='%s')
 
             with conn:
                 self.logger.info('\n' + Fore.CYAN + f'Connected by {addr}')
