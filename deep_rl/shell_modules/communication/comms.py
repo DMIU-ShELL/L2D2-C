@@ -105,8 +105,8 @@ class ParallelComm(object):
         self.handler = ipinfo.getHandler(access_token)
 
         details = self.handler.getDetails(self.init_address)
-        self.connections = [['hostname', 'ip', 'port', 'country', 'city', 'region', 'timezone', 'postal', 'lat', 'long', 'timestamp']]
-        self.connections.append([details.hostname, details.ip, self.init_port, details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude, time.time()])
+        self.connections = [['ip', 'port', 'country', 'city', 'region', 'timezone', 'postal', 'lat', 'long', 'timestamp']]
+        self.connections.append([details.ip, self.init_port, details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude, time.time()])
             
 
         print(type(self.query_list))
@@ -303,7 +303,7 @@ class ParallelComm(object):
             
             
             details = self.handler.getDetails(ret['sender_address'])
-            self.connections.append([details.hostname, details.ip, ret['sender_port'], details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude, time.time()])
+            self.connections.append([details.ip, ret['sender_port'], details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude, time.time()])
             np.savetxt(self.logger.log_dir + '/connections.csv', self.connections, delimiter=', ', fmt='%s')
 
         self.world_size.value = len(self.query_list) + 1    # Refresh the world_size value
