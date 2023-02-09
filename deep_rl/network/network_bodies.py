@@ -120,6 +120,7 @@ class FCBody_CL(nn.Module): # fcbody for continual learning setup
         return x, ret_act
 
 from ..shell_modules.mmn.ssmask_utils import MultitaskMaskLinear
+from ..shell_modules.mmn.ssmask_utils import MultitaskMaskConv2d
 from ..shell_modules.mmn.ssmask_utils import NEW_MASK_RANDOM
 from ..shell_modules.mmn.ssmask_utils import NEW_MASK_LINEAR_COMB
 class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learning algorithm
@@ -152,6 +153,89 @@ class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learn
             for layer in self.layers:
                 x = self.gate(layer(x))
         return x, ret_act
+
+class GazeboConvBody_SS(nn.Module): # conv body for supermask lifelong learning algorithm
+    def __init__(self, state_shape=[3, 64, 64], feature_dim=512, task_label_dim=None, \
+        gate=F.relu, discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM):
+        super(GazeboConvBody_SS, self).__init__()
+
+        in_channels = state_shape[0] # assumes state_state with dim: num_channels x height x width
+        self.conv1 = MultitaskMaskConv2d(in_channels, 32, kernel_size=8, stride=4, num_tasks=num_tasks, new_mask_type=new_task_mask)
+        self.conv2 = MultitaskMaskConv2d(32, 64, kernel_size=4, stride=2, num_tasks=num_tasks, new_mask_type=new_task_mask)
+        self.conv3 = MultitaskMaskConv2d(64, 64, kernel_size=3, stride=1, num_tasks=num_tasks, new_mask_type=new_task_mask)
+
+        if task_label_dim is not None: body_dim = (4 * 4 * 64) + task_label_dim
+        else: body_dim = 4 * 4 * 64
+        self.fc = MultitaskMaskLinear(body_dim, feature_dim, num_tasks=num_tasks, new_mask_type=new_task_mask)
+
+        self.gate = gate
+        self.feature_dim = feature_dim
+        self.task_label_dim = task_label_dim
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+
+        ret_act = []
+        y = self.gate(self.conv1(x))
+        if return_layer_output:
+            ret_act.append(('{0}.conv.1'.format(prefix), y.detach().cpu().reshape(-1,)))
+        y = self.gate(self.conv2(y))
+        if return_layer_output:
+            ret_act.append(('{0}.conv.2'.format(prefix), y.detach().cpu().reshape(-1,)))
+        y = self.gate(self.conv3(y))
+        if return_layer_output:
+            ret_act.append(('{0}.conv.3'.format(prefix), y.detach().cpu().reshape(-1,)))
+
+        # flatten
+        y = y.view(y.shape[0], -1)
+        if self.task_label_dim is not None:
+            y = torch.cat([y, task_label], dim=1)
+        y = self.gate(self.fc(y))
+        if return_layer_output:
+            ret_act.append(('{0}.fc.1'.format(prefix), y.detach().cpu().reshape(-1,)))
+        return y, ret_act
+
+class GazeboConvBody_CL(nn.Module):
+    def __init__(self, state_shape=[3, 64, 64], feature_dim=512, task_label_dim=None, gate=F.relu):
+        super(GazeboConvBody_CL, self).__init__()
+
+        in_channels = state_shape[0] # assumes state_state with dim: num_channels x height x width
+        self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+
+        if task_label_dim is not None: body_dim = (4 * 4 * 64) + task_label_dim
+        else: body_dim = 4 * 4 * 64
+        self.fc = nn.Linear(body_dim, feature_dim)
+
+        self.gate = gate
+        self.feature_dim = feature_dim
+        self.task_label_dim = task_label_dim
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+
+        ret_act = []
+        y = self.gate(self.conv1(x))
+        if return_layer_output:
+            ret_act.append(('{0}.conv.1'.format(prefix), y.detach().cpu().reshape(-1,)))
+        y = self.gate(self.conv2(y))
+        if return_layer_output:
+            ret_act.append(('{0}.conv.2'.format(prefix), y.detach().cpu().reshape(-1,)))
+        y = self.gate(self.conv3(y))
+        if return_layer_output:
+            ret_act.append(('{0}.conv.3'.format(prefix), y.detach().cpu().reshape(-1,)))
+
+        # flatten
+        y = y.view(y.shape[0], -1)
+        if self.task_label_dim is not None:
+            y = torch.cat([y, task_label], dim=1)
+        y = self.gate(self.fc(y))
+        if return_layer_output:
+            ret_act.append(('{0}.fc.1'.format(prefix), y.detach().cpu().reshape(-1,)))
+        return y, ret_act
 
 class TwoLayerFCBodyWithAction(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_units=(64, 64), gate=F.relu):

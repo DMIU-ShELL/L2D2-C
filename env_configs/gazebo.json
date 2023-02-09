@@ -1,0 +1,5 @@
+{
+"tasks": ["GazeboT1"],
+"label_dim": 1,
+"action_dim": 3
+}

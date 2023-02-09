@@ -442,6 +442,130 @@ class MetaCTgraphFlatObs(MetaCTgraph):
         state = self.env.reset()
         return state.ravel()
 
+import gym
+class Gazebo(gym.Env):
+    # TODO UCR team. You will need to modify this class to specify the correct gym wrapper for
+    # Gazebo. At the moment, it is setup up as dummy environment.
+    def __init__(self):
+        super(Gazebo, self).__init__()
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(3, 64, 64), dtype=np.float32)
+        num_actions = 3 # TODO please change to reflect number of actions in Gazebo
+        self.action_space = gym.spaces.Discrete(num_actions)
+
+        np.random.seed(64)
+        self._obs_list = [np.random.randint(low=0, high=256, size=(3, 64, 64), dtype=np.uint8) for _ in range(4)]
+        self._crash_obs = np.random.randint(low=0, high=256, size=(3, 64, 64), dtype=np.uint8)
+        self._success_obs = np.random.randint(low=0, high=256, size=(3, 64, 64), dtype=np.uint8)
+        self.curr_pos = 0
+
+        self.needs_reset = False
+
+    def step(self, action):
+        if self.needs_reset:
+            raise ValueError('env needs to be reset')
+
+        if self.curr_pos < len(self._obs_list) - 1:
+            if action != 0:
+                done = True
+                self.needs_reset = True
+                reward = 0
+                info = {'log': 'wrong action'}
+                self.curr_pos += 1
+                obs = self._crash_obs
+            else:
+                done = False
+                reward = 0
+                info = {'log': 'correct action'}
+                self.curr_pos += 1
+                obs = self._obs_list[self.curr_pos]
+        else:
+            if action != 0:
+                done = True
+                self.needs_reset = True
+                reward = 1
+                info = {'log': 'correct action'}
+                self.curr_pos += 1
+                obs = self._success_obs
+            else:
+                done = True
+                self.needs_reset = True
+                reward = 0
+                info = {'log': 'wrong action'}
+                self.curr_pos += 1
+                obs = self._crash_obs
+        return obs, reward, done, info
+
+    def reset(self):
+        self.needs_reset = False
+        self.curr_pos = 0
+        return self._obs_list[self.curr_pos]
+
+class GazeboEnvWrapper(gym.Env, BaseTask):
+    def __init__(self, name, env_config_path, log_dir=None):
+        BaseTask.__init__(self)
+        self.name = name
+
+        # create all environment instances
+        with open(env_config_path, 'r') as f:
+            env_config = json.load(f)
+        envs = {task_name: Gazebo() for task_name in env_config['tasks']}
+        _first_task_name = env_config['tasks'][0]
+
+        # observation/action space configuration
+        self.observation_space = envs[_first_task_name].observation_space
+        self.action_space = envs[_first_task_name].action_space
+        self.action_dim = envs[_first_task_name].action_space.n
+        self.state_dim = envs[_first_task_name].observation_space.shape
+
+        # generate tasks from all instantiated environments
+        all_tasks = []
+        for task_name in envs.keys():
+            all_tasks.append({'name': task_name, 'task': task_name, 'task_label': None})
+
+        # set monitor
+        for task_name, env in envs.items():
+            envs[task_name] = self.set_monitor(env, log_dir)
+        self.envs = envs
+        self.tasks = all_tasks
+        self.env = None
+
+        # task label config
+        self.task_label_dim = env_config['label_dim']
+
+        # generate label for each task
+        for idx in range(len(self.tasks)):
+            label = np.zeros((self.task_label_dim,)).astype(np.float32)
+            label[idx] = 1.
+            self.tasks[idx]['task_label'] = label
+        # set default task
+        self.set_task(self.tasks[0])
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done: state = self.reset()
+        return state, reward, done, info
+
+    def reset(self):
+        state = self.env.reset()
+        return state
+
+    def reset_task(self, taskinfo):
+        self.set_task(taskinfo)
+        return self.reset()
+
+    def set_task(self, taskinfo):
+        self.current_task = taskinfo
+        self.env = self.envs[taskinfo['task']]
+
+    def get_task(self):
+        return self.current_task
+
+    def get_all_tasks(self, requires_task_label=True):
+        return self.tasks
+
+    def random_tasks(self, num_tasks, requires_task_label=True):
+        raise NotImplementedError
+
 class MiniGrid(BaseTask):
     TIME_LIMIT=200
     def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
