@@ -49,6 +49,7 @@ import random
 
 # helper function
 def global_config(config, name):
+    # ctgraph config
     config.env_name = name
     config.env_config_path = None
     config.lr = 0.00015
@@ -57,7 +58,7 @@ def global_config(config, name):
     random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
-    config.num_workers = 4
+    config.num_workers = 1
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
@@ -80,6 +81,39 @@ def global_config(config, name):
     config.network_fn = None 
     config.eval_interval = None#1
     return config
+
+    # minigrid config
+    '''config.env_name = name
+    config.env_config_path = None
+    config.lr = 0.00015
+    config.cl_preservation = 'supermask'
+    config.seed = 9157
+    random_seed(config.seed)
+    config.log_dir = None
+    config.logger = None 
+    config.num_workers = 1
+    config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
+
+    config.policy_fn = SamplePolicy
+    config.state_normalizer = ImageNormalizer()
+    config.discount = 0.99
+    config.use_gae = True
+    config.gae_tau = 0.99
+    config.entropy_weight = 0.1 #0.75
+    config.rollout_length = 128*8
+    config.optimization_epochs = 8
+    config.num_mini_batches = 64
+    config.ppo_ratio_clip = 0.1
+    config.iteration_log_interval = 1
+    config.gradient_clip = 5
+    config.max_steps = 25600
+    config.evaluation_episodes = 5#50
+    config.cl_requires_task_label = True
+    config.task_fn = None
+    config.eval_task_fn = None
+    config.network_fn = None 
+    config.eval_interval = None
+    return config'''
 
 '''
 ShELL distributed system with multiprocessing.
@@ -294,13 +328,13 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
 
 ##### Minigrid environment
 def shell_dist_minigrid_mp(name, args, shell_config):
-    shell_config_path = args.shell_config_path
-    num_agents = args.num_agents
+    #shell_config_path = args.shell_config_path
+    #num_agents = args.num_agents
 
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
     # address and port number of the master/first agent (rank/id 0) in the pool of agents
-    init_address = args.ip#shell_config['dist_only']['init_address']
+    #init_address = args.ip#shell_config['dist_only']['init_address']
     init_port = args.port#shell_config['dist_only']['init_port']
 
     # set up config
@@ -364,12 +398,10 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     agent = ShellAgent_DP(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
+    # Uncomment to print out the network parameters for visualisation. Can be useful for debugging.
     #for k, v in agent.network.named_parameters():       # Chris
     #    print(k, " : ", v)
 
-
-    # For optimal performance the mask interval should be divisible by the number of iterations per task
-    # i..e, set max_steps to multiple of 512
     querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
     addresses, ports = [], []
@@ -392,22 +424,28 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
     manager = mp.Manager()
     knowledge_base = manager.dict()
+    mode = manager.Value('b', args.omni)
 
-    mode = 'ondemand'
-    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, mode, zip(addresses, ports), knowledge_base, manager, args.localhost)
+    # If True then run the omnisicent mode agent, otherwise run the normal agent.
+    if mode.value:
+        comm = ParallelCommOmniscient(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout)
+        shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
+    
+    
+    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout)
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency)
+    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
 
 def shell_dist_minigrid_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path
-    num_agents = args.num_agents
+    #num_agents = args.num_agents
 
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
     # address and port number of the master/first agent (rank/id 0) in the pool of agents
-    init_address = shell_config['dist_only']['init_address']
-    init_port = shell_config['dist_only']['init_port']
+    #init_address = shell_config['dist_only']['init_address']
+    init_port = args.port#shell_config['dist_only']['init_port']
 
     # set up config
     config = Config()
@@ -427,7 +465,13 @@ def shell_dist_minigrid_eval(name, args, shell_config):
     config.log_dir = log_dir
 
     # save shell config and env config
-    shutil.copy(shell_config_path, log_dir)
+    #shutil.copy(shell_config_path, log_dir)
+    try:
+        with open(log_dir + '/shell_config.json', 'w') as f:
+            json.dump(shell_config, f, indent=4)
+            print('Shell configuration saved to shell_config.json')
+    except:
+        print('Something went terribly wrong. Unable to save shell configuration JSON')
     shutil.copy(env_config_path, log_dir)
 
     # create/initialise agent
@@ -464,23 +508,31 @@ def shell_dist_minigrid_eval(name, args, shell_config):
     #for k, v in agent.network.named_parameters():       # Chris
     #    print(k, " : ", v)
 
-    addresses = []
-    ports = []
-    file1 = open('./addresses_eval.csv', 'r')
-    lines = file1.readlines()
-    for line in lines:
-        line = line.strip('\n')
-        line = line.split(', ')
-        addresses.append(line[0])
-        ports.append(int(line[1]))
+    addresses, ports = [], []
+    reference_file = open(args.reference, 'r')
+    lines = reference_file.readlines()
+    
+    if args.quick_start:
+        for i in range(args.agent_id + 1):
+            line = lines[i].strip('\n').split(', ')
+            addresses.append(line[0])
+            ports.append(int(line[1]))
 
+    else:
+        for line in lines:
+            line = line.strip('\n').split(', ')
+            addresses.append(line[0])
+            ports.append(int(line[1]))
+
+    manager = mp.Manager()
+    knowledge_base = manager.dict()
+
+    # set up communication (transfer module)
     mode = 'ondemand'
-    comm = ParallelCommEval(args.agent_id, args.num_agents, agent.task_label_dim, \
-        agent.model_mask_dim, logger, init_address, init_port, mode, ports)
+    comm = ParallelCommEval(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost)
 
-
-    # start evaluation on curriculum
-    shell_dist_eval_mp(agent, comm, args.agent_id, args.num_agents)
+    # start training
+    shell_dist_eval_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base)
 
 
 ##### ContinualWorld environment
@@ -677,7 +729,7 @@ if __name__ == '__main__':
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
     parser.add_argument('--num_agents', help='world: total number of agents', type=int, default=1)                      # Will eventually be deprecated. Currently used to set the communication module initial world size.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_CT16.json')                       # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_8x8.json')                       # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
@@ -689,7 +741,7 @@ if __name__ == '__main__':
     parser.add_argument('--localhost', '--ls', '-ls', help='used to run DMIU in localhost mode', action='store_true')   # Flag used to start the system using localhost instead of public IP. Can be useful for debugging network related problems.
     parser.add_argument('--shuffle', '--s', '-s', help='randomise the task curriculum', action='store_true')            # Not required. If you want to randomise the order of tasks in the curriculum then you can change to 1
     parser.add_argument('--comm_interval', '--i', '-i', help='integer value indicating the number of communications '\
-        'to perform per task', type= int, default=5)                                                                    # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
+        'to perform per task', type= int, default=200)                                                                    # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
                                                                                                                         # Please do not modify this value unless you know what you're doing as it may cause unexpected results.
 
     parser.add_argument('--quick_start', '--qs', '-qs', help='use this to take advantage of the quick start method ' \

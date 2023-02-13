@@ -147,6 +147,11 @@ class MultitaskMaskLinear(nn.Linear):
 
     @torch.no_grad()
     def consolidate_mask(self):
+        self.scores[self.task].data = self._consolidate_mask()
+        return
+
+    @torch.no_grad()
+    def _consolidate_mask(self):
         # catch scenarios where consolidation of mask is NOT needed.
         if self.new_mask_type == NEW_MASK_RANDOM: return
         if self.task <= 0: return
@@ -167,8 +172,8 @@ class MultitaskMaskLinear(nn.Linear):
         _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
         # element wise sum of various masks (weighted sum)
         _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
-        self.scores[self.task].data = _subnet_linear_comb.data
-        return
+        return _subnet_linear_comb.data
+        
         
     def __repr__(self):
         return f"MultitaskMaskLinear({self.in_dims}, {self.out_dims})"
@@ -180,7 +185,24 @@ class MultitaskMaskLinear(nn.Linear):
         # agents. the binary masks would not be trained but rather
         # generated from raw scores in other agents
         if raw_score:
-            return self.scores[task]
+            # Check if we are using MASK RI or MASK LC
+            if self.new_mask_type == NEW_MASK_RANDOM:
+                return self.scores[task]
+
+            # MASK LC
+            else:
+                # If mask requested is being trained on then
+                if task < self.task:
+                    return self.scores[task]
+
+                elif task == self.task:
+                    # Assuming two agents are combining 
+                    return self.consolidate_mask()
+
+                else:
+                    # Requesting a mask where the agent hasn't trained for the task
+                    raise ValueError('sanity check')
+                    # return self.scores[task]  # Return random initialised mask
         else:
             return self._subnet_class.apply(self.scores[task])
 
@@ -355,6 +377,11 @@ class MultitaskMaskLinearSparse(nn.Linear):
 
     @torch.no_grad()
     def consolidate_mask(self):
+        self.scores[self.task].data = self._consolidate_mask()
+        return
+
+    @torch.no_grad()
+    def _consolidate_mask(self):
         # catch scenarios where consolidation of mask is NOT needed.
         if self.new_mask_type == NEW_MASK_RANDOM: return
         if self.task <= 0: return
@@ -375,8 +402,8 @@ class MultitaskMaskLinearSparse(nn.Linear):
         _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
         # element wise sum of various masks (weighted sum)
         _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
-        self.scores[self.task].data = _subnet_linear_comb.data
-        return
+        return _subnet_linear_comb.data
+        
 
     def __repr__(self):
         return f"MultitaskMaskLinearSparse({self.in_dims}, {self.out_dims})"
@@ -388,7 +415,24 @@ class MultitaskMaskLinearSparse(nn.Linear):
         # agents. the binary masks would not be trained but rather
         # generated from raw scores in other agents
         if raw_score:
-            return self.scores[task]
+            # Check if we are using MASK RI or MASK LC
+            if self.new_mask_type == NEW_MASK_RANDOM:
+                return self.scores[task]
+
+            # MASK LC
+            else:
+                # If mask requested is being trained on then
+                if task < self.task:
+                    return self.scores[task]
+
+                elif task == self.task:
+                    # Assuming two agents are combining 
+                    return self.consolidate_mask()
+
+                else:
+                    # Requesting a mask where the agent hasn't trained for the task
+                    raise ValueError('sanity check')
+                    # return self.scores[task]  # Return random initialised mask
         else:
             return self._subnet_class.apply(self.scores[task])
 
@@ -588,6 +632,11 @@ class MultitaskMaskConv2d(nn.Conv2d):
 
     @torch.no_grad()
     def consolidate_mask(self):
+        self.scores[self.task].data = self._consolidate_mask()
+        return
+
+    @torch.no_grad()
+    def _consolidate_mask(self):
         # catch scenarios where consolidation of mask is NOT needed.
         if self.new_mask_type == NEW_MASK_RANDOM: return
         if self.task <= 0: return
@@ -608,8 +657,8 @@ class MultitaskMaskConv2d(nn.Conv2d):
         _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
         # element wise sum of various masks (weighted sum)
         _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
-        self.scores[self.task].data = _subnet_linear_comb.data
-        return
+        return _subnet_linear_comb.data
+        
 
     def __repr__(self):
         return f"MultitaskMaskConv2d({self.in_channels}, {self.out_channels})"
@@ -621,7 +670,24 @@ class MultitaskMaskConv2d(nn.Conv2d):
         # agents. the binary masks would not be trained but rather
         # generated from raw scores in other agents
         if raw_score:
-            return self.scores[task]
+            # Check if we are using MASK RI or MASK LC
+            if self.new_mask_type == NEW_MASK_RANDOM:
+                return self.scores[task]
+
+            # MASK LC
+            else:
+                # If mask requested is being trained on then
+                if task < self.task:
+                    return self.scores[task]
+
+                elif task == self.task:
+                    # Assuming two agents are combining 
+                    return self.consolidate_mask()
+
+                else:
+                    # Requesting a mask where the agent hasn't trained for the task
+                    raise ValueError('sanity check')
+                    # return self.scores[task]  # Return random initialised mask
         else:
             return self._subnet_class.apply(self.scores[task])
 
@@ -743,6 +809,11 @@ class MultitaskMaskConv2dSparse(nn.Conv2d):
 
     @torch.no_grad()
     def consolidate_mask(self):
+        self.scores[self.task].data = self._consolidate_mask()
+        return
+
+    @torch.no_grad()
+    def _consolidate_mask(self):
         # catch scenarios where consolidation of mask is NOT needed.
         if self.new_mask_type == NEW_MASK_RANDOM: return
         if self.task <= 0: return
@@ -763,8 +834,7 @@ class MultitaskMaskConv2dSparse(nn.Conv2d):
         _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
         # element wise sum of various masks (weighted sum)
         _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
-        self.scores[self.task].data = _subnet_linear_comb.data
-        return
+        return _subnet_linear_comb.data
 
     def __repr__(self):
         return f"MultitaskMaskConv2dSparse({self.in_channels}, {self.out_channels})"
@@ -776,7 +846,24 @@ class MultitaskMaskConv2dSparse(nn.Conv2d):
         # agents. the binary masks would not be trained but rather
         # generated from raw scores in other agents
         if raw_score:
-            return self.scores[task]
+            # Check if we are using MASK RI or MASK LC
+            if self.new_mask_type == NEW_MASK_RANDOM:
+                return self.scores[task]
+
+            # MASK LC
+            else:
+                # If mask requested is being trained on then
+                if task < self.task:
+                    return self.scores[task]
+
+                elif task == self.task:
+                    # Assuming two agents are combining 
+                    return self.consolidate_mask()
+
+                else:
+                    # Requesting a mask where the agent hasn't trained for the task
+                    raise ValueError('sanity check')
+                    # return self.scores[task]  # Return random initialised mask
         else:
             return self._subnet_class.apply(self.scores[task])
 

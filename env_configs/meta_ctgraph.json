@@ -1,5 +1,5 @@
 {
-"config_paths": ["ctgraph_d2_imgseed1.json", "ctgraph_d2_imgseed2.json", "ctgraph_d2_imgseed3.json", "ctgraph_d2_imgseed4.json"],
+"config_paths": ["ctgraph_d2_imgseed1.json"],
 "task_order": "default",
 "one_hot": true,
 "label_dim": 16,

@@ -223,10 +223,9 @@ def main(args):
 
 
     mypaths = {
-        'baseline' : 'log_temp/dropout_new/baseline/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230125-003847/',
-        '25% dropout' : 'log_temp/dropout_new/25_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230125-101016/',
-        '50% dropout' : 'log_temp/dropout_new/50_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230125-105212/',
-        '75% dropout' : 'log_temp/dropout_new/75_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230125-111945/'
+        'shellx8' : 'log/Minigrid-shell-eval-upz-seed-9157/agent_0/230210-143455/',
+        'll128x8' : 'log/Minigrid-shell-eval-upz-seed-9157/agent_0/230210-144054/',
+        'll128' : 'log/Minigrid-shell-eval-upz-seed-9157/agent_0/230210-142736/',
         #'isolated w/ no dropout' : 'log_temp/dropout_new/100_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230125-093714/'
     }
 
