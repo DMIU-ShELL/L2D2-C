@@ -147,11 +147,31 @@ class MultitaskMaskLinear(nn.Linear):
 
     @torch.no_grad()
     def consolidate_mask(self):
-        self.scores[self.task].data = self._consolidate_mask()
+        # catch scenarios where consolidation of mask is NOT needed.
+        if self.new_mask_type == NEW_MASK_RANDOM: return
+        if self.task <= 0: return
+        if self.task < self.num_tasks_learned:
+            # re-visiting a task that has been previously learnt (no need to consolidate)
+            # which should not get here though, because this secanrio should have been caught
+            # task_train_end(...) method in supermask_policy.py class.
+            # assert False, 'sanity check'
+            return
+
+        _subnet = self.scores[self.task]
+        _subnets = [self.scores[idx].detach() for idx in range(self.task)]
+        assert len(_subnets) > 0, 'an error occured'
+        _betas = self.betas[self.task, 0:self.task+1]
+        _betas = torch.softmax(_betas, dim=-1)
+        _subnets.append(_subnet)
+        assert len(_betas) == len(_subnets), 'an error ocurred'
+        _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
+        # element wise sum of various masks (weighted sum)
+        _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
+        self.scores[self.task].data = _subnet_linear_comb.data
         return
 
     @torch.no_grad()
-    def _consolidate_mask(self):
+    def consolidate_mask_ret(self):
         # catch scenarios where consolidation of mask is NOT needed.
         if self.new_mask_type == NEW_MASK_RANDOM: return
         if self.task <= 0: return
@@ -197,7 +217,7 @@ class MultitaskMaskLinear(nn.Linear):
 
                 elif task == self.task:
                     # Assuming two agents are combining 
-                    return self.consolidate_mask()
+                    return self.consolidate_mask_ret()
 
                 else:
                     # Requesting a mask where the agent hasn't trained for the task

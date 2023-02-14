@@ -1,0 +1,7 @@
+{
+"config_paths": ["ctgraph_d4_imgseed1.json"],
+"task_order": "default",
+"one_hot": true,
+"label_dim": 16,
+"num_tasks": 16
+}

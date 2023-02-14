@@ -58,7 +58,7 @@ def global_config(config, name):
     random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
-    config.num_workers = 1
+    config.num_workers = 4
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
@@ -729,7 +729,7 @@ if __name__ == '__main__':
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
     parser.add_argument('--num_agents', help='world: total number of agents', type=int, default=1)                      # Will eventually be deprecated. Currently used to set the communication module initial world size.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_8x8.json')                       # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_16x16.json')                       # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
@@ -741,7 +741,7 @@ if __name__ == '__main__':
     parser.add_argument('--localhost', '--ls', '-ls', help='used to run DMIU in localhost mode', action='store_true')   # Flag used to start the system using localhost instead of public IP. Can be useful for debugging network related problems.
     parser.add_argument('--shuffle', '--s', '-s', help='randomise the task curriculum', action='store_true')            # Not required. If you want to randomise the order of tasks in the curriculum then you can change to 1
     parser.add_argument('--comm_interval', '--i', '-i', help='integer value indicating the number of communications '\
-        'to perform per task', type= int, default=200)                                                                    # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
+        'to perform per task', type= int, default=5)                                                                    # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
                                                                                                                         # Please do not modify this value unless you know what you're doing as it may cause unexpected results.
 
     parser.add_argument('--quick_start', '--qs', '-qs', help='use this to take advantage of the quick start method ' \
