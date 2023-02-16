@@ -304,6 +304,7 @@ class ParallelComm(object):
             
             details = self.handler.getDetails(ret['sender_address'])
             self.connections.append([details.ip, ret['sender_port'], details.country, details.city, details.region, details.timezone, details.postal, details.latitude, details.longitude, time.time()])
+            file_name = "connections{}.csv".format(ret['sender_port'])
             np.savetxt(self.logger.log_dir + '/connections.csv', self.connections, delimiter=', ', fmt='%s')
 
         self.world_size.value = len(self.query_list) + 1    # Refresh the world_size value
