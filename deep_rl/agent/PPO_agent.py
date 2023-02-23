@@ -25,7 +25,7 @@ from ..network import network_heads as nethead
 #from ..network import *
 #from ..component import *
 #from .BaseAgent import *
-from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask
+from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask, erase_masks
 
 from .BaseAgent import BaseAgent, BaseContinualLearnerAgent
 from ..network.network_bodies import FCBody_SS, DummyBody_CL
@@ -403,6 +403,11 @@ class LLAgent(PPOContinualLearnerAgent):
                 found_task_idx = task_idx
                 break
         return found_task_idx
+
+    def erase_memory(self, current_task_label):
+        self.seen_tasks = {0: current_task_label}
+        erase_masks(self.network, self.config.DEVICE)
+
         
     def task_train_start(self, task_label):
         task_idx = self._label_to_idx(task_label)

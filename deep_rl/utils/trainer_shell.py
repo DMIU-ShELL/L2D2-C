@@ -29,6 +29,11 @@ import multiprocessing.dummy as mpd
 from queue import Empty
 from colorama import Fore
 
+import subprocess
+import sys
+import random
+import shlex
+
 try:
     # python >= 3.5
     from pathlib import Path
@@ -521,7 +526,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
 shell training: concurrent processing for event-based communication. a multitude of improvements have been made compared
 to the previous shell_dist_train.
 '''
-def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base, mask_interval, omniscient_mode):
+def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base, mask_interval, omniscient_mode, amnesia_prob):
     logger = agent.config.logger
 
     logger.info(Fore.BLUE + '*****start shell training')
@@ -674,6 +679,15 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         '''
         dict_logs = agent.iteration()
         shell_iterations += 1
+
+
+        # random kill code segment
+        rand_num = random.random()
+        if rand_num > 1-amnesia_prob:
+            logger.info('Erasing Memory')
+            agent.erase_memory(msg)
+            with open("amnesia.csv", "a") as f:
+                f.write(f"{shell_iterations}, {comm.init_port}\n")
 
 
         ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING

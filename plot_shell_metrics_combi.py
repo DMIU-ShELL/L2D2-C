@@ -223,8 +223,8 @@ def main(args):
 
 
     mypaths = {
-        'shellx8' : 'log/Minigrid-shell-eval-upz-seed-9157/agent_0/230210-143455/',
-        'll128x8' : 'log/Minigrid-shell-eval-upz-seed-9157/agent_0/230210-144054/',
+        'shellx8' : 'log/CT16_64_memory_loss/seed_set_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230221-170513/',
+        'll128x8' : 'log/CT16_64_memory_loss/seed_set_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230221-173737/',
         'll128' : 'log/Minigrid-shell-eval-upz-seed-9157/agent_0/230210-142736/',
         #'isolated w/ no dropout' : 'log_temp/dropout_new/100_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230125-093714/'
     }

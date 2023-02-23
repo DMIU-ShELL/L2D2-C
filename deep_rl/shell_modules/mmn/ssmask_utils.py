@@ -524,6 +524,22 @@ def consolidate_mask(model):
         if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
             m.consolidate_mask()
 
+def erase_masks(model, device):
+    for n, m in model.named_modules():
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
+            num_tasks = m.num_tasks
+            # m.scores = nn.ParameterList(
+            #     [
+            #         nn.Parameter(mask_init(m))
+            #         for _ in range(num_tasks)
+            #     ]
+            # ).to("cuda:0")
+
+            for i in range(num_tasks):
+                m.scores[i].data = mask_init(m).to(device)
+                m.num_tasks_learned = 0
+                m.task = 0
+
 # Multitask Model, a simple fully connected model in this case
 class MultitaskFC(nn.Module):
     def __init__(self, hidden_size, num_tasks):
