@@ -889,8 +889,9 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
     t_mask = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
 
-
+    timings = []
     while True:
+        START = time.time()
         print()
         print(shell_iterations, shell_task_counter, agent.total_steps, agent.config.max_steps, task_steps_limit)
         agent.total_steps += agent.config.rollout_length * agent.config.num_workers
@@ -899,7 +900,11 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
         # the communication module will do its thing.
         msg = _tasks[shell_task_counter]['task_label']
         #agent.curr_eval_task_label = msg
-        queue_label.put(msg)
+
+        # Query for all tasks in the curriculum
+        for i in range(len(_tasks)):
+            msg = _tasks[i]['task_label']
+            queue_label.put(msg)
 
 
         # Evaluation agent does not need to do data collection and optimisation so we will
@@ -934,13 +939,13 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
             shell_eval_tracker = True
             shell_eval_end_time = time.time()
 
-
+        '''
         task_counter_ = shell_task_counter
         task_counter_ += 1
         if task_counter_ > len(shell_tasks)-1:
             task_counter_ = 0
 
-        shell_task_counter = task_counter_
+        shell_task_counter = task_counter_'''
 
 
         ### EVALUATION BLOCK LOGGING
@@ -957,12 +962,12 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
             shell_eval_tracker = False
             shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
 
-
-        #print('***** AGENT ITERATION TIME ELAPSED:', time.time()-START)
-
         # If ShELL is finished running all tasks then stop the program
         # this will have to be changed when we deploy so agents never stop working
         # and simply idle if there is nothing to learn.
+        eval_duration = time.time() - START
+        timings.append([shell_iterations, eval_duration])
+        np.savetxt(logger.log_dir + '/timings.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
         if shell_done:
             break
     # end of while True

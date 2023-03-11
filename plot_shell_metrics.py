@@ -10,7 +10,7 @@ import pandas as pd
 import scipy.stats as st
 
 def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label=''):
-    fig = plt.figure(figsize=(9, 6))
+    fig = plt.figure(figsize=(20, 6))  # fig = plt.figure(figsize=(9, 6))
     ax = fig.subplots()
     # axis title and font
     ax.set_title(title)
@@ -216,7 +216,7 @@ def main(args):
         data['icr']['ll'] = {}
         data['icr']['ll']['xdata'] = np.arange(num_evals)
         data['icr']['ll']['ydata'] = np.mean(ll_icr, axis=0) # average across seeds
-        data['icr']['ll']['ydata_cfi'] = np.std(ll_icr, axis=0)
+        data['icr']['ll']['ydata_cfi'] = cfi_delta(ll_icr)
         data['icr']['ll']['plot_colour'] = 'red'
 
         #print(data['icr']['ll']['ydata'])
@@ -228,7 +228,7 @@ def main(args):
         data['tpot']['ll'] = {}
         data['tpot']['ll']['xdata'] = np.arange(num_evals)
         data['tpot']['ll']['ydata'] = np.mean(ll_tpot, axis=0) # average across seeds
-        data['tpot']['ll']['ydata_cfi'] = np.std(ll_tpot, axis=0)
+        data['tpot']['ll']['ydata_cfi'] = cfi_delta(ll_tpot)
         data['tpot']['ll']['plot_colour'] = 'red'
 
     # load shell data
@@ -249,9 +249,7 @@ def main(args):
     data['icr']['shell'] = {}
     data['icr']['shell']['xdata'] = np.arange(num_evals)
     data['icr']['shell']['ydata'] = np.mean(shell_icr, axis=0) # average across seeds
-    cfi = cfi_delta(shell_icr)
-   #print(cfi)
-    data['icr']['shell']['ydata_cfi'] = cfi#np.std(shell_icr, axis=0)
+    data['icr']['shell']['ydata_cfi'] = cfi_delta(shell_icr)#np.std(shell_icr, axis=0)
     
 
     # Confidence Interval implementation. Overwrites the standard deviation data.
@@ -269,7 +267,7 @@ def main(args):
     data['tpot']['shell'] = {}
     data['tpot']['shell']['xdata'] = np.arange(num_evals)
     data['tpot']['shell']['ydata'] = np.mean(shell_tpot, axis=0) # average across seeds
-    data['tpot']['shell']['ydata_cfi'] = np.std(shell_tpot, axis=0)
+    data['tpot']['shell']['ydata_cfi'] = cfi_delta(shell_tpot)
     data['tpot']['shell']['plot_colour'] = 'green'
 
 

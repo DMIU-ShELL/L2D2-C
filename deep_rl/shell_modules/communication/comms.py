@@ -147,16 +147,15 @@ class ParallelComm(object):
         sock.settimeout(2)
 
         try:
-            if int(np.random.choice(2, 1, p=[self.dropout, 1 - self.dropout])) == 1:  # Condition to simulate % communication loss
-                sock.connect((address, port))
+            sock.connect((address, port))
 
-                #context = ssl.create_default_context()
-                #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
-                #sock_ssl = context.wrap_socket(sock, server_side=False)
+            #context = ssl.create_default_context()
+            #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
+            #sock_ssl = context.wrap_socket(sock, server_side=False)
 
-                _data = struct.pack('>I', len(_data)) + _data
-                sock.sendall(_data)
-                self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
+            _data = struct.pack('>I', len(_data)) + _data
+            sock.sendall(_data)
+            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
         except:
             # Try to remove the ip and port that failed from the query table
@@ -177,15 +176,16 @@ class ParallelComm(object):
         sock.settimeout(2)
         
         try:
-            sock.connect((address, port))
+            if int(np.random.choice(2, 1, p=[self.dropout, 1 - self.dropout])) == 1:  # Condition to simulate % communication loss
+                sock.connect((address, port))
 
-            #context = ssl.create_default_context()
-            #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
-            #sock = context.wrap_socket(sock, server_side=False)
+                #context = ssl.create_default_context()
+                #context.load_cert_chain(ParallelComm.CERTPATH, ParallelComm.KEYPATH)
+                #sock = context.wrap_socket(sock, server_side=False)
 
-            _data = struct.pack('>I', len(_data)) + _data
-            sock.sendall(_data)
-            self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
+                _data = struct.pack('>I', len(_data)) + _data
+                sock.sendall(_data)
+                self.logger.info(Fore.MAGENTA + f'Sending {data} of length {len(_data)} to {address}:{port}')
 
         except:
             # Try to remove the ip and port that failed from the query table

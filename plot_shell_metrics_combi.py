@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from math import floor
 import matplotlib.transforms as transforms
 import pandas as pd
+import scipy.stats as st
 
 def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label=''):
     fig = plt.figure(figsize=(9, 6))
@@ -49,7 +50,7 @@ def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label='')
         cfi = result_dict['ydata_cfi']
         plot_colour = result_dict['plot_colour']
         ax.plot(xdata, ydata, linewidth=3, label=method_name, alpha=0.5)
-        #ax.fill_between(xdata, ydata - cfi, ydata + cfi, alpha=0.2)
+        ax.fill_between(xdata, ydata - cfi, ydata + cfi, alpha=0.2)
     # legend
     ax.legend(loc='lower right')
     return fig
@@ -62,6 +63,7 @@ def plot_tra(xdata, ydata, num_agents):
         ax.transData)
 
     ax.plot(xdata, ydata, alpha=0.5)
+    ax.fill_between(xdata, ydata - cfi, ydata + cfi, alpha=0.2)
     ax.axhline(y=0.5*int(num_agents), color='red', linestyle='dashed', alpha=0.5)
     ax.text(0.5, 0.4+(0.5*int(num_agents)), "0.5*N="+"{:.0f}".format(0.5*int(num_agents)), \
         color="red", transform=trans, ha="center", va="center", size=14)
@@ -173,6 +175,23 @@ def load_ll_data(path, interval):
         metrics_tpot = np.asarray(metrics_tpot)
         return raw_data, metrics_icr, metrics_tpot, wall_clock_time
 
+def cfi_delta(data, conf_int_param=0.95): # confidence interval
+    mean = np.mean(data, axis=0)
+    if data.ndim == 1:
+        std_error_of_mean = st.sem(data, axis=0)
+        lb, ub = st.t.interval(conf_int_param, df=len(data)-1, loc=mean, scale=std_error_of_mean)
+        cfi_delta = ub - mean
+    elif data.ndim == 2:
+        std_error_of_mean = st.sem(data, axis=0)
+        #print(std_error_of_mean)
+        lb, ub = st.t.interval(conf_int_param, df=data.shape[0]-1, loc=mean, scale=std_error_of_mean)
+        cfi_delta = ub - mean
+        cfi_delta[np.isnan(cfi_delta)] = 0.
+    else:
+        raise ValueError('`data` with > 2 dim not expected. Expect either a 1 or 2 dimensional tensor.')
+    return cfi_delta
+
+
 def main(args):
     exp_name = args.exp_name
     #save_path = './log/plots/' + os.path.basename(args.path[ : -1]) + '/'
@@ -206,7 +225,7 @@ def main(args):
         data['icr']['ll'] = {}
         data['icr']['ll']['xdata'] = np.arange(num_evals)
         data['icr']['ll']['ydata'] = np.mean(ll_icr, axis=0) # average across seeds
-        data['icr']['ll']['ydata_cfi'] = np.std(ll_icr, axis=0)
+        data['icr']['ll']['ydata_cfi'] = cfi_delta(ll_icr)
         data['icr']['ll']['plot_colour'] = 'red'
 
         #print(data['icr']['ll']['ydata'])
@@ -218,28 +237,56 @@ def main(args):
         data['tpot']['ll'] = {}
         data['tpot']['ll']['xdata'] = np.arange(num_evals)
         data['tpot']['ll']['ydata'] = np.mean(ll_tpot, axis=0) # average across seeds
-        data['tpot']['ll']['ydata_cfi'] = np.std(ll_tpot, axis=0)
+        data['tpot']['ll']['ydata_cfi'] = cfi_delta(ll_tpot)
         data['tpot']['ll']['plot_colour'] = 'red'
 
+    # CT-Graph Comparison
+    #mypaths = {
+    #    '2 agent' : ['log_temp/system_test/2_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230228-091346/', 'log_temp/system_test/2_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230228-112313/', 'log_temp/system_test/2_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230228-142902/', 'log_temp/system_test/2_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230301-111051/', 'log_temp/system_test/2_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230301-140630/'],
+    #    '4 agent' : ['log_temp/system_test/4_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230228-094420/', 'log_temp/system_test/4_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230228-114627/', 'log_temp/system_test/4_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230228-145156/', 'log_temp/system_test/4_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230301-113227/', 'log_temp/system_test/4_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230301-142942/'],
+    #    '6 agent' : ['log_temp/system_test/6_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230228-100740/', 'log_temp/system_test/6_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230228-131901/', 'log_temp/system_test/6_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230228-151952/', 'log_temp/system_test/6_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230301-115835/', 'log_temp/system_test/6_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230301-150841/'],
+    #    '8 agent' : ['log_temp/system_test/8_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230228-103146/', 'log_temp/system_test/8_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230228-134211/', 'log_temp/system_test/8_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230228-154351/', 'log_temp/system_test/8_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230301-130310/', 'log_temp/system_test/8_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230301-153903/'],
+    #    '10 agent' : ['log_temp/system_test/10_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230228-105443/', 'log_temp/system_test/10_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230228-140516/', 'log_temp/system_test/10_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230228-160805/', 'log_temp/system_test/10_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230301-133406/', 'log_temp/system_test/10_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230301-160308/']
+    #}
 
+
+    # Communication Dropout
+    #mypaths = {
+    #    'LL' : ['log_temp/dropout_experiments_3/LL/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-091410/'],
+    #    'baseline'    : ['log_temp/dropout_experiments_3/baseline/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-090601/'],
+    #    '25% dropout' : ['log_temp/dropout_experiments_3/25_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-092213/'],
+    #    '50% dropout' : ['log_temp/dropout_experiments_3/50_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-094029/'],
+    #    '75% dropout' : ['log_temp/dropout_experiments_3/75_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-093251/'],
+    #}
+
+
+    # Communication Dropout RC
     mypaths = {
-        'shellx8' : 'log/CT16_64_memory_loss/seed_set_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230221-170513/',
-        'll128x8' : 'log/CT16_64_memory_loss/seed_set_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230221-173737/',
-        'll128' : 'log/Minigrid-shell-eval-upz-seed-9157/agent_0/230210-142736/',
-        #'isolated w/ no dropout' : 'log_temp/dropout_new/100_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230125-093714/'
+        'baseline'    : ['log_temp/dropout_experiments_5_RC/baseline/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-101747/', 'log_temp/dropout_experiments_5_RC/baseline/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230308-174638/', 'log_temp/dropout_experiments_5_RC/baseline/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-183413/', 'log_temp/dropout_experiments_5_RC/baseline/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-114538/'],
+        #'25% dropout' : ['log_temp/dropout_experiments_5_RC/25_dropout_v2/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-114202/'],
+        '50% dropout' : ['log_temp/dropout_experiments_5_RC/50_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-183441/', 'log_temp/dropout_experiments_5_RC/50_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-104122/', 'log_temp/dropout_experiments_5_RC/50_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-111351/', 'log_temp/dropout_experiments_5_RC/50_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-170655/'],
+        '75% dropout' : ['log_temp/dropout_experiments_5_RC/75_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-194730/', 'log_temp/dropout_experiments_5_RC/75_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-100448/', 'log_temp/dropout_experiments_5_RC/75_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-114447/', 'log_temp/dropout_experiments_5_RC/75_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-161304/'],
+        '95% dropout' : ['log_temp/dropout_experiments_5_RC/95_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-144104/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-093817/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-133408/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-150046/']
     }
 
 
-    for name, p in mypaths.items():
+    # ShELL vs LL Comparison RC
+    #mypaths = {
+    #    '4 agent' : ['log_temp/comparison/4_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-125222/', 'log_temp/comparison/4_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230310-183612/', 'log_temp/comparison/4_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230310-193733/', 'log_temp/comparison/4_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-214659/'],
+    #    '12 agent': ['log_temp/dropout_experiments_5_RC/baseline/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-101747/', 'log_temp/dropout_experiments_5_RC/baseline/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230308-174638/', 'log_temp/dropout_experiments_5_RC/baseline/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-183413/', 'log_temp/dropout_experiments_5_RC/baseline/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-114538/']
+    #}
+
+
+    for name, myarr in mypaths.items():
         # load shell data
         shell_data = []
         shell_icr = []
         shell_tpot = []
-        
-        raw_data, metrics_icr, metrics_tpot, shell_wall_clock = load_shell_data(p, args.interval)
-        shell_data.append(raw_data)
-        shell_icr.append(metrics_icr)
-        shell_tpot.append(metrics_tpot)
+        for p in myarr:
+            raw_data, metrics_icr, metrics_tpot, shell_wall_clock = load_shell_data(p, args.interval)
+            shell_data.append(raw_data)
+            shell_icr.append(metrics_icr)
+            shell_tpot.append(metrics_tpot)
 
         shell_data = np.stack(shell_data, axis=0) # shape: num_seeds x num_evals x num_agents x num_tasks
         shell_icr = np.stack(shell_icr, axis=0)  # shape: num_seeds x num_evals
@@ -250,7 +297,7 @@ def main(args):
         data['icr']['shell ' + name] = {}
         data['icr']['shell ' + name]['xdata'] = np.arange(num_evals)
         data['icr']['shell ' + name]['ydata'] = np.mean(shell_icr, axis=0) # average across seeds
-        data['icr']['shell ' + name]['ydata_cfi'] = np.std(shell_tpot, axis=0)
+        data['icr']['shell ' + name]['ydata_cfi'] = cfi_delta(shell_icr)
         data['icr']['shell ' + name]['plot_colour'] = 'green'
 
         maximum_icr_ = max(maximum_icr_, np.max(data['icr']['shell ' + name]['ydata']))
@@ -259,7 +306,7 @@ def main(args):
         data['tpot']['shell ' + name] = {}
         data['tpot']['shell ' + name]['xdata'] = np.arange(num_evals)
         data['tpot']['shell ' + name]['ydata'] = np.mean(shell_tpot, axis=0) # average across seeds
-        data['tpot']['shell ' + name]['ydata_cfi'] = np.std(shell_tpot, axis=0)
+        data['tpot']['shell ' + name]['ydata_cfi'] = cfi_delta(shell_tpot)
         data['tpot']['shell ' + name]['plot_colour'] = 'green'
 
 
@@ -271,77 +318,78 @@ def main(args):
     fig = plot(data['tpot'], 'TPOT', yaxis_label='Total Performance Over Time (TPOT)')
     fig.savefig(save_path + 'metrics_tpot.pdf', dpi=256, format='pdf', bbox_inches='tight')
 
-
     '''
     if args.ll_paths is not None:
-        eps = 1e-6 # to help with zero divide
-        # tla
-        #tla = data['tpot']['shell']['ydata'] / (data['tpot']['ll']['ydata'] + eps)
-        tla = (((data['tpot']['shell']['ydata'])[0:len(data['tpot']['ll']['ydata'])] + 0.03125) / ((data['tpot']['ll']['ydata'])[0:len(data['tpot']['shell']['ydata'])] + 0.03125))
-        data['tla']['shell'] = {}
-        data['tla']['shell']['xdata'] = np.arange(len(tla))#np.arange(num_evals)
-        data['tla']['shell']['ydata'] = tla
-        data['tla']['shell']['ydata_cfi'] = np.zeros_like(tla)
-        data['tla']['shell']['plot_colour'] = 'green'
-        # ila
-        #ila = data['icr']['shell']['ydata'] / (data['icr']['ll']['ydata'] + eps)
-        ila = (((data['icr']['shell']['ydata'])[0:len(data['icr']['ll']['ydata'])] + 0.03125) / ((data['icr']['ll']['ydata'])[0:len(data['icr']['shell']['ydata'])] + 0.03125))
-        data['ila']['shell'] = {}
-        data['ila']['shell']['xdata'] = np.arange(len(ila))#np.arange(num_evals)
-        data['ila']['shell']['ydata'] = ila 
-        data['ila']['shell']['ydata_cfi'] = np.zeros_like(ila)
-        data['ila']['shell']['plot_colour'] = 'green'
-        # plot tla
-        y_label = 'TPOT(Shell, t) / TPOT(SingleLLAgent, t)'
-        fig = plot(data['tla'], 'Total Learning Advantage (TLA)', yaxis_label=y_label)
-        fig.savefig(save_path + 'metrics_tla.pdf', dpi=256, format='pdf', bbox_inches='tight')
-        # plot ila
-        y_label = 'ICR(Shell, t) / ICR(SingleLLAgent, t)'
-        fig = plot(data['ila'], 'Instant Learning Advantage (ILA)', yaxis_label=y_label)
-        fig.savefig(save_path + 'metrics_ila.pdf', dpi=256, format='pdf', bbox_inches='tight')
-            
-        #tra
-        # Get the max icr achieved by ll
-        max_icr = np.amax(data['icr']['ll']['ydata'])
-        # make a nparray from 0 to max icr with a step of 0.1
-        icr_steps = np.around(np.arange(0, floor((max_icr+0.1)*10)/10, 0.5), 1)
-        #print(icr_steps)
-        #icr_steps = np.append(icr_steps, max_icr)
-        # Get the index where the icr value is >= i
-        # Get the eval_step or time value at that same index
-        # Append to single_arr
-        single_arr = np.empty(0)
-        for i in icr_steps:
-            pos = np.where(data['icr']['ll']['ydata'] >= i)
-            single_arr = np.append(single_arr, data['icr']['ll']['xdata'][pos[0][0]])
-        # Assuming this is with one ShELL experiment at a time.
-        # Do same thing for one shell experiment
-        shell_arr = np.empty(0)
-        for i in icr_steps:
-            pos = np.where(data['icr']['shell']['ydata'] >= i)
-            shell_arr = np.append(shell_arr, data['icr']['shell']['xdata'][pos[0][0]])
+        for num_shell_agents in args.num_agents:
+            eps = 1e-6 # to help with zero divide
+            # tla
+            #tla = data['tpot']['shell']['ydata'] / (data['tpot']['ll']['ydata'] + eps)
+            tla = (((data['tpot']['shell']['ydata'])[0:len(data['tpot']['ll']['ydata'])] + 0.03125) / ((data['tpot']['ll']['ydata'])[0:len(data['tpot']['shell']['ydata'])] + 0.03125))
+            data['tla']['shell'] = {}
+            data['tla']['shell']['xdata'] = np.arange(len(tla))#np.arange(num_evals)
+            data['tla']['shell']['ydata'] = tla
+            data['tla']['shell']['ydata_cfi'] = np.zeros_like(tla)
+            data['tla']['shell']['plot_colour'] = 'green'
+            # ila
+            #ila = data['icr']['shell']['ydata'] / (data['icr']['ll']['ydata'] + eps)
+            ila = (((data['icr']['shell']['ydata'])[0:len(data['icr']['ll']['ydata'])] + 0.03125) / ((data['icr']['ll']['ydata'])[0:len(data['icr']['shell']['ydata'])] + 0.03125))
+            data['ila']['shell'] = {}
+            data['ila']['shell']['xdata'] = np.arange(len(ila))#np.arange(num_evals)
+            data['ila']['shell']['ydata'] = ila 
+            data['ila']['shell']['ydata_cfi'] = np.zeros_like(ila)
+            data['ila']['shell']['plot_colour'] = 'green'
+            # plot tla
+            y_label = 'TPOT(Shell, t) / TPOT(SingleLLAgent, t)'
+            fig = plot(data['tla'], 'Total Learning Advantage (TLA)', yaxis_label=y_label)
+            fig.savefig(save_path + 'metrics_tla.pdf', dpi=256, format='pdf', bbox_inches='tight')
+            # plot ila
+            y_label = 'ICR(Shell, t) / ICR(SingleLLAgent, t)'
+            fig = plot(data['ila'], 'Instant Learning Advantage (ILA)', yaxis_label=y_label)
+            fig.savefig(save_path + 'metrics_ila.pdf', dpi=256, format='pdf', bbox_inches='tight')
+                
+            #tra
+            # Get the max icr achieved by ll
+            max_icr = np.amax(data['icr']['ll']['ydata'])
+            # make a nparray from 0 to max icr with a step of 0.1
+            icr_steps = np.around(np.arange(0, floor((max_icr+0.1)*10)/10, 0.5), 1)
+            #print(icr_steps)
+            #icr_steps = np.append(icr_steps, max_icr)
+            # Get the index where the icr value is >= i
+            # Get the eval_step or time value at that same index
+            # Append to single_arr
+            single_arr = np.empty(0)
+            for i in icr_steps:
+                pos = np.where(data['icr']['ll']['ydata'] >= i)
+                single_arr = np.append(single_arr, data['icr']['ll']['xdata'][pos[0][0]])
+            # Assuming this is with one ShELL experiment at a time.
+            # Do same thing for one shell experiment
+            shell_arr = np.empty(0)
+            for i in icr_steps:
+                pos = np.where(data['icr']['shell']['ydata'] >= i)
+                shell_arr = np.append(shell_arr, data['icr']['shell']['xdata'][pos[0][0]])
 
-        for i in range(len(single_arr)):
-            if single_arr[i] == 0 and shell_arr[i] == 0:
-                shell_arr[i] = eps
-            elif single_arr[i] != 0 and shell_arr[i] == 0:
-                single_arr[i] += 1.
-                shell_arr[i] += 1.
-        y = np.divide(single_arr, shell_arr)
+            for i in range(len(single_arr)):
+                if single_arr[i] == 0 and shell_arr[i] == 0:
+                    shell_arr[i] = eps
+                elif single_arr[i] != 0 and shell_arr[i] == 0:
+                    single_arr[i] += 1.
+                    shell_arr[i] += 1.
+            y = np.divide(single_arr, shell_arr)
 
-        # 20% 50% 70%
-        y[np.isnan(y)] = 0
-        x = np.around(np.arange(0, floor((max_icr+0.1)*10)/10, 0.5, dtype=np.float32), 1)
-        #x = np.append(x, max_icr)  # Needed if we want to use >0.1=
-        den = max(x)
-        for index, val in enumerate(x):
-            x[index] = (val/den)*100
-            
-        NUM_AGENTS = num_shell_agents
-        fig = plot_tra(x, y, NUM_AGENTS)
-        fig.savefig(save_path + 'TRA_' + str(NUM_AGENTS) + '_Agents.pdf', bbox_inches='tight', \
-            dpi=256, format='pdf')
-    '''
+            # 20% 50% 70%
+            y[np.isnan(y)] = 0
+            x = np.around(np.arange(0, floor((max_icr+0.1)*10)/10, 0.5, dtype=np.float32), 1)
+            #x = np.append(x, max_icr)  # Needed if we want to use >0.1=
+            den = max(x)
+            for index, val in enumerate(x):
+                x[index] = (val/den)*100
+                
+            NUM_AGENTS = num_shell_agents
+            fig = plot_tra(x, y, NUM_AGENTS)
+
+    fig.savefig(save_path + 'TRA.pdf', bbox_inches='tight', \
+        dpi=256, format='pdf')'''
+
     return 0
 
 if __name__ == '__main__':
@@ -351,7 +399,7 @@ if __name__ == '__main__':
     parser.add_argument('--ll_paths', help='paths to the experiment folder for single'\
         'agent lifelong learning (support paths to multiple seeds)', nargs='+', default=None)
     parser.add_argument('--exp_name', help='name of experiment', default='metrics_plot')
-    parser.add_argument('--num_agents', help='number of agents in the experiment', type=int, default=1)
+    parser.add_argument('--num_agents', help='number of agents in the experiment', type=int, nargs='+', default=1)
     parser.add_argument('--interval', help='interval', type=int, default=1)
     main(parser.parse_args())
 

@@ -50,7 +50,7 @@ import time
 
 # helper function
 def global_config(config, name):
-    # ctgraph config
+    '''# ctgraph config
     config.env_name = name
     config.env_config_path = None
     config.lr = 0.00015
@@ -81,10 +81,10 @@ def global_config(config, name):
     config.eval_task_fn = None
     config.network_fn = None 
     config.eval_interval = None#1
-    return config
+    return config'''
 
     # minigrid config
-    '''config.env_name = name
+    config.env_name = name
     config.env_config_path = None
     config.lr = 0.00015
     config.cl_preservation = 'supermask'
@@ -108,13 +108,13 @@ def global_config(config, name):
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 25600
-    config.evaluation_episodes = 5#50
+    config.evaluation_episodes = 25#50
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
     config.network_fn = None 
     config.eval_interval = None
-    return config'''
+    return config
 
 '''
 ShELL distributed system with multiprocessing.
@@ -430,13 +430,13 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     # If True then run the omnisicent mode agent, otherwise run the normal agent.
     if mode.value:
         comm = ParallelCommOmniscient(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout)
-        shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
+        shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode, args.amnesia)
     
     
     comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout)
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
+    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode, args.amnesia)
 
 def shell_dist_minigrid_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path

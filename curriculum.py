@@ -3,9 +3,9 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 
-NUM_TASKS = 16
+NUM_TASKS = 10
 NUM_AGENTS = 12
-CYCLES = 4
+CYCLES = 2
 
 
 
