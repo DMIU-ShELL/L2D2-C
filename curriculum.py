@@ -3,9 +3,9 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 
-NUM_TASKS = 10
+NUM_TASKS = 3
 NUM_AGENTS = 12
-CYCLES = 2
+CYCLES = 4
 
 
 
@@ -47,7 +47,9 @@ plt.savefig('curriculum_hist.pdf', dpi=300)
 # IMAGE
 plt.clf()
 plt.imshow(z, cmap='viridis')
-plt.colorbar(orientation='horizontal')
+#plt.colorbar(orientation='horizontal')
+plt.ylabel('Agents')
+plt.xlabel('Randomly Sampled Tasks')
 plt.savefig('curriculum_matrix.pdf', dpi=1000, bbox_inches='tight')
 
 

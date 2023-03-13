@@ -10,16 +10,16 @@ import pandas as pd
 import scipy.stats as st
 
 def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label=''):
-    fig = plt.figure(figsize=(20, 6))  # fig = plt.figure(figsize=(9, 6))
+    fig = plt.figure(figsize=(11,8))  # fig = plt.figure(figsize=(9, 6))
     ax = fig.subplots()
     # axis title and font
-    ax.set_title(title)
-    ax.title.set_fontsize(22)
+    #ax.set_title(title)
+    #ax.title.set_fontsize(22)
     # axis labels and font, and ticks
     ax.set_xlabel(xaxis_label)
-    ax.xaxis.label.set_fontsize(20)
+    ax.xaxis.label.set_fontsize(35)
     ax.set_ylabel(yaxis_label)
-    ax.yaxis.label.set_fontsize(20)
+    ax.yaxis.label.set_fontsize(35)
     # axis ticks
     ax.xaxis.tick_bottom()
     ax.yaxis.tick_left()
@@ -45,24 +45,24 @@ def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label='')
         ax.plot(xdata, ydata, linewidth=3, label=method_name, color=plot_colour)
         ax.fill_between(xdata, ydata - cfi, ydata + cfi, alpha=0.2, color=plot_colour)
     # legend
-    ax.legend(loc='lower right')
+    #ax.legend(loc='lower right')
     return fig
 
 def plot_tra(xdata, ydata, num_agents):
-    fig = plt.figure(figsize=(9, 6))
+    fig = plt.figure(figsize=(11, 8))
     ax = fig.subplots()
 
     trans = transforms.blended_transform_factory(ax.get_yticklabels()[0].get_transform(), \
         ax.transData)
 
-    ax.plot(xdata, ydata, alpha=0.5)
-    ax.axhline(y=0.5*int(num_agents), color='red', linestyle='dashed', alpha=0.5)
-    ax.text(0.5, 0.4+(0.5*int(num_agents)), "0.5*N="+"{:.0f}".format(0.5*int(num_agents)), \
-        color="red", transform=trans, ha="center", va="center", size=14)
+    ax.plot(xdata, ydata, alpha=0.5, linewidth=3)
+    #ax.axhline(y=0.5*int(num_agents), color='red', linestyle='dashed', alpha=0.5)
+    #ax.text(0.5, 0.4+(0.5*int(num_agents)), "0.5*N="+"{:.0f}".format(0.5*int(num_agents)), \
+    #    color="red", transform=trans, ha="center", va="center", size=14)
     
     #ax.set_title('')
-    ax.set_xlabel('Percentage of Target Performance (p)', fontsize=14)
-    ax.set_ylabel('TTp(SingleLLAgent) / TTp(Shell)', fontsize=14)
+    ax.set_xlabel('Percentage of Target Performance (p)', fontsize=35)
+    ax.set_ylabel('TTp(LL) / TTp(L2D2-C)', fontsize=35)
     ax.yaxis.grid(True)
     ax.xaxis.grid(True)
     ax.tick_params(axis='y', labelsize=14)
@@ -246,10 +246,10 @@ def main(args):
     num_evals = shell_data.shape[1]
     num_shell_agents = args.num_agents#shell_data.shape[2]
 	# icr
-    data['icr']['shell'] = {}
-    data['icr']['shell']['xdata'] = np.arange(num_evals)
-    data['icr']['shell']['ydata'] = np.mean(shell_icr, axis=0) # average across seeds
-    data['icr']['shell']['ydata_cfi'] = cfi_delta(shell_icr)#np.std(shell_icr, axis=0)
+    data['icr']['L2D2-C'] = {}
+    data['icr']['L2D2-C']['xdata'] = np.arange(num_evals)
+    data['icr']['L2D2-C']['ydata'] = np.mean(shell_icr, axis=0) # average across seeds
+    data['icr']['L2D2-C']['ydata_cfi'] = cfi_delta(shell_icr)#np.std(shell_icr, axis=0)
     
 
     # Confidence Interval implementation. Overwrites the standard deviation data.
@@ -259,16 +259,16 @@ def main(args):
     #data['icr']['shell']['ydata_cfi'] = (data['icr']['shell']['ydata']-data['icr']['shell']['ydata_cfi'] * t_crit / np.sqrt(len(data['icr']['shell']['xdata'])), data['icr']['shell']['ydata']-data['icr']['shell']['ydata_cfi'] * t_crit / np.sqrt(len(data['icr']['shell']['xdata'])))
 
 
-    data['icr']['shell']['plot_colour'] = 'green'
+    data['icr']['L2D2-C']['plot_colour'] = 'green'
 
-    maximum_icr_ = max(maximum_icr_, np.max(data['icr']['shell']['ydata']))
+    maximum_icr_ = max(maximum_icr_, np.max(data['icr']['L2D2-C']['ydata']))
 
     # tpot
-    data['tpot']['shell'] = {}
-    data['tpot']['shell']['xdata'] = np.arange(num_evals)
-    data['tpot']['shell']['ydata'] = np.mean(shell_tpot, axis=0) # average across seeds
-    data['tpot']['shell']['ydata_cfi'] = cfi_delta(shell_tpot)
-    data['tpot']['shell']['plot_colour'] = 'green'
+    data['tpot']['L2D2-C'] = {}
+    data['tpot']['L2D2-C']['xdata'] = np.arange(num_evals)
+    data['tpot']['L2D2-C']['ydata'] = np.mean(shell_tpot, axis=0) # average across seeds
+    data['tpot']['L2D2-C']['ydata_cfi'] = cfi_delta(shell_tpot)
+    data['tpot']['L2D2-C']['plot_colour'] = 'green'
 
 
     
@@ -353,7 +353,7 @@ def main(args):
 
 
     # plot icr
-    fig = plot(data['icr'], 'ICR', yaxis_label='Instant Cumulative Reward (ICR)')
+    fig = plot(data['icr'], 'ICR', yaxis_label='Instant Cumulative Return (ICR)')
     fig.savefig(save_path + 'metrics_icr.pdf', dpi=256, format='pdf', bbox_inches='tight')
     # plot tpot
     fig = plot(data['tpot'], 'TPOT', yaxis_label='Total Performance Over Time (TPOT)')
@@ -363,26 +363,26 @@ def main(args):
         eps = 1e-6 # to help with zero divide
         # tla
         #tla = data['tpot']['shell']['ydata'] / (data['tpot']['ll']['ydata'] + eps)
-        tla = (((data['tpot']['shell']['ydata'])[0:len(data['tpot']['ll']['ydata'])] + 0.03125) / ((data['tpot']['ll']['ydata'])[0:len(data['tpot']['shell']['ydata'])] + 0.03125))
-        data['tla']['shell'] = {}
-        data['tla']['shell']['xdata'] = np.arange(len(tla))#np.arange(num_evals)
-        data['tla']['shell']['ydata'] = tla
-        data['tla']['shell']['ydata_cfi'] = np.zeros_like(tla)
-        data['tla']['shell']['plot_colour'] = 'green'
+        tla = (((data['tpot']['L2D2-C']['ydata'])[0:len(data['tpot']['ll']['ydata'])] + 0.03125) / ((data['tpot']['ll']['ydata'])[0:len(data['tpot']['L2D2-C']['ydata'])] + 0.03125))
+        data['tla']['L2D2-C'] = {}
+        data['tla']['L2D2-C']['xdata'] = np.arange(len(tla))#np.arange(num_evals)
+        data['tla']['L2D2-C']['ydata'] = tla
+        data['tla']['L2D2-C']['ydata_cfi'] = np.zeros_like(tla)
+        data['tla']['L2D2-C']['plot_colour'] = 'green'
         # ila
         #ila = data['icr']['shell']['ydata'] / (data['icr']['ll']['ydata'] + eps)
-        ila = (((data['icr']['shell']['ydata'])[0:len(data['icr']['ll']['ydata'])] + 0.03125) / ((data['icr']['ll']['ydata'])[0:len(data['icr']['shell']['ydata'])] + 0.03125))
-        data['ila']['shell'] = {}
-        data['ila']['shell']['xdata'] = np.arange(len(ila))#np.arange(num_evals)
-        data['ila']['shell']['ydata'] = ila 
-        data['ila']['shell']['ydata_cfi'] = np.zeros_like(ila)
-        data['ila']['shell']['plot_colour'] = 'green'
+        ila = (((data['icr']['L2D2-C']['ydata'])[0:len(data['icr']['ll']['ydata'])] + 0.03125) / ((data['icr']['ll']['ydata'])[0:len(data['icr']['L2D2-C']['ydata'])] + 0.03125))
+        data['ila']['L2D2-C'] = {}
+        data['ila']['L2D2-C']['xdata'] = np.arange(len(ila))#np.arange(num_evals)
+        data['ila']['L2D2-C']['ydata'] = ila 
+        data['ila']['L2D2-C']['ydata_cfi'] = np.zeros_like(ila)
+        data['ila']['L2D2-C']['plot_colour'] = 'green'
         # plot tla
-        y_label = 'TPOT(Shell, t) / TPOT(SingleLLAgent, t)'
+        y_label = 'TPOT(L2D2-C, t) / TPOT(LL, t)'
         fig = plot(data['tla'], 'Total Learning Advantage (TLA)', yaxis_label=y_label)
         fig.savefig(save_path + 'metrics_tla.pdf', dpi=256, format='pdf', bbox_inches='tight')
         # plot ila
-        y_label = 'ICR(Shell, t) / ICR(SingleLLAgent, t)'
+        y_label = 'ICR(L2D2-C, t) / ICR(LL, t)'
         fig = plot(data['ila'], 'Instant Learning Advantage (ILA)', yaxis_label=y_label)
         fig.savefig(save_path + 'metrics_ila.pdf', dpi=256, format='pdf', bbox_inches='tight')
         
@@ -404,8 +404,8 @@ def main(args):
         # Do same thing for one shell experiment
         shell_arr = np.empty(0)
         for i in icr_steps:
-            pos = np.where(data['icr']['shell']['ydata'] >= i)
-            shell_arr = np.append(shell_arr, data['icr']['shell']['xdata'][pos[0][0]])
+            pos = np.where(data['icr']['L2D2-C']['ydata'] >= i)
+            shell_arr = np.append(shell_arr, data['icr']['L2D2-C']['xdata'][pos[0][0]])
 
         for i in range(len(single_arr)):
             if single_arr[i] == 0 and shell_arr[i] == 0:

@@ -8,18 +8,20 @@ from math import floor
 import matplotlib.transforms as transforms
 import pandas as pd
 import scipy.stats as st
+import math
 
-def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label=''):
+def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label='', ylim=16.0):
     fig = plt.figure(figsize=(9, 6))
     ax = fig.subplots()
     # axis title and font
-    ax.set_title(title)
-    ax.title.set_fontsize(22)
+    #ax.set_title(title)
+    #ax.title.set_fontsize(22)
     # axis labels and font, and ticks
     ax.set_xlabel(xaxis_label)
     ax.xaxis.label.set_fontsize(20)
     ax.set_ylabel(yaxis_label)
     ax.yaxis.label.set_fontsize(20)
+    ax.set_ylim(0, ylim)
     # axis ticks
     ax.xaxis.tick_bottom()
     ax.yaxis.tick_left()
@@ -70,7 +72,7 @@ def plot_tra(xdata, ydata, num_agents):
     
     #ax.set_title('')
     ax.set_xlabel('Percentage of Target Performance (p)', fontsize=14)
-    ax.set_ylabel('TTp(SingleLLAgent) / TTp(Shell)', fontsize=14)
+    ax.set_ylabel('TTp(SingleLLAgent) / TTp(L2D2-C)', fontsize=14)
     ax.yaxis.grid(True)
     ax.xaxis.grid(True)
     ax.tick_params(axis='y', labelsize=14)
@@ -222,23 +224,23 @@ def main(args):
         ll_tpot = np.stack(ll_tpot, axis=0) # shape: num_seeds x num_evals
         num_evals = ll_data.shape[1]
         # icr
-        data['icr']['ll'] = {}
-        data['icr']['ll']['xdata'] = np.arange(num_evals)
-        data['icr']['ll']['ydata'] = np.mean(ll_icr, axis=0) # average across seeds
-        data['icr']['ll']['ydata_cfi'] = cfi_delta(ll_icr)
-        data['icr']['ll']['plot_colour'] = 'red'
+        data['icr']['LL'] = {}
+        data['icr']['LL']['xdata'] = np.arange(num_evals)
+        data['icr']['LL']['ydata'] = np.mean(ll_icr, axis=0) # average across seeds
+        data['icr']['LL']['ydata_cfi'] = cfi_delta(ll_icr)
+        data['icr']['LL']['plot_colour'] = 'red'
 
         #print(data['icr']['ll']['ydata'])
-        maximum_icr_ = np.max(data['icr']['ll']['ydata'])
+        maximum_icr_ = np.max(data['icr']['LL']['ydata'])
 
         #print(data['icr']['ll']['xdata'])
         #print(data['icr']['ll']['ydata'])
         # tpot
-        data['tpot']['ll'] = {}
-        data['tpot']['ll']['xdata'] = np.arange(num_evals)
-        data['tpot']['ll']['ydata'] = np.mean(ll_tpot, axis=0) # average across seeds
-        data['tpot']['ll']['ydata_cfi'] = cfi_delta(ll_tpot)
-        data['tpot']['ll']['plot_colour'] = 'red'
+        data['tpot']['LL'] = {}
+        data['tpot']['LL']['xdata'] = np.arange(num_evals)
+        data['tpot']['LL']['ydata'] = np.mean(ll_tpot, axis=0) # average across seeds
+        data['tpot']['LL']['ydata_cfi'] = cfi_delta(ll_tpot)
+        data['tpot']['LL']['plot_colour'] = 'red'
 
     # CT-Graph Comparison
     #mypaths = {
@@ -262,11 +264,12 @@ def main(args):
 
     # Communication Dropout RC
     mypaths = {
-        'baseline'    : ['log_temp/dropout_experiments_5_RC/baseline/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-101747/', 'log_temp/dropout_experiments_5_RC/baseline/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230308-174638/', 'log_temp/dropout_experiments_5_RC/baseline/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-183413/', 'log_temp/dropout_experiments_5_RC/baseline/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-114538/'],
+        '0% dropout'  : ['log_temp/dropout_experiments_5_RC/baseline/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-101747/', 'log_temp/dropout_experiments_5_RC/baseline/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230308-174638/', 'log_temp/dropout_experiments_5_RC/baseline/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-183413/', 'log_temp/dropout_experiments_5_RC/baseline/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-114538/'],
         #'25% dropout' : ['log_temp/dropout_experiments_5_RC/25_dropout_v2/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-114202/'],
         '50% dropout' : ['log_temp/dropout_experiments_5_RC/50_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-183441/', 'log_temp/dropout_experiments_5_RC/50_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-104122/', 'log_temp/dropout_experiments_5_RC/50_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-111351/', 'log_temp/dropout_experiments_5_RC/50_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-170655/'],
         '75% dropout' : ['log_temp/dropout_experiments_5_RC/75_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-194730/', 'log_temp/dropout_experiments_5_RC/75_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-100448/', 'log_temp/dropout_experiments_5_RC/75_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-114447/', 'log_temp/dropout_experiments_5_RC/75_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-161304/'],
-        '95% dropout' : ['log_temp/dropout_experiments_5_RC/95_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-144104/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-093817/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-133408/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-150046/']
+        '95% dropout' : ['log_temp/dropout_experiments_5_RC/95_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-144104/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-093817/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-133408/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-150046/'],
+        '100% dropout': ['log_temp/dropout_experiments_5_RC/100_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230311-145917/', 'log_temp/dropout_experiments_5_RC/100_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230311-152748/']
     }
 
 
@@ -275,6 +278,13 @@ def main(args):
     #    '4 agent' : ['log_temp/comparison/4_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-125222/', 'log_temp/comparison/4_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230310-183612/', 'log_temp/comparison/4_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230310-193733/', 'log_temp/comparison/4_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-214659/'],
     #    '12 agent': ['log_temp/dropout_experiments_5_RC/baseline/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-101747/', 'log_temp/dropout_experiments_5_RC/baseline/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230308-174638/', 'log_temp/dropout_experiments_5_RC/baseline/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-183413/', 'log_temp/dropout_experiments_5_RC/baseline/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-114538/']
     #}
+
+
+    # ShELL vs LL Comparison RC MINGRID
+    mypaths = {
+        '4 agent' : ['log/minigrid_comparison2/4_agent/Minigrid-shell-eval-upz-seed-9157/agent_0/230313-163439/'],
+        '12 agent': ['log/Minigrid-shell-eval-upz-seed-9157/agent_0/230313-174519/']
+    }
 
 
     for name, myarr in mypaths.items():
@@ -294,28 +304,29 @@ def main(args):
         num_evals = shell_data.shape[1]
         num_shell_agents = args.num_agents#shell_data.shape[2]
         # icr
-        data['icr']['shell ' + name] = {}
-        data['icr']['shell ' + name]['xdata'] = np.arange(num_evals)
-        data['icr']['shell ' + name]['ydata'] = np.mean(shell_icr, axis=0) # average across seeds
-        data['icr']['shell ' + name]['ydata_cfi'] = cfi_delta(shell_icr)
-        data['icr']['shell ' + name]['plot_colour'] = 'green'
+        data['icr']['L2D2-C ' + name] = {}
+        data['icr']['L2D2-C ' + name]['xdata'] = np.arange(num_evals)
+        data['icr']['L2D2-C ' + name]['ydata'] = np.mean(shell_icr, axis=0) # average across seeds
+        data['icr']['L2D2-C ' + name]['ydata_cfi'] = cfi_delta(shell_icr)
+        data['icr']['L2D2-C ' + name]['plot_colour'] = 'green'
 
-        maximum_icr_ = max(maximum_icr_, np.max(data['icr']['shell ' + name]['ydata']))
+        maximum_icr_ = math.ceil(max(maximum_icr_, np.max(data['icr']['L2D2-C ' + name]['ydata'])))
 
         # tpot
-        data['tpot']['shell ' + name] = {}
-        data['tpot']['shell ' + name]['xdata'] = np.arange(num_evals)
-        data['tpot']['shell ' + name]['ydata'] = np.mean(shell_tpot, axis=0) # average across seeds
-        data['tpot']['shell ' + name]['ydata_cfi'] = cfi_delta(shell_tpot)
-        data['tpot']['shell ' + name]['plot_colour'] = 'green'
+        data['tpot']['L2D2-C ' + name] = {}
+        data['tpot']['L2D2-C ' + name]['xdata'] = np.arange(num_evals)
+        data['tpot']['L2D2-C ' + name]['ydata'] = np.mean(shell_tpot, axis=0) # average across seeds
+        data['tpot']['L2D2-C ' + name]['ydata_cfi'] = cfi_delta(shell_tpot)
+        data['tpot']['L2D2-C ' + name]['plot_colour'] = 'green'
 
 
 
+    print(maximum_icr_)
     # plot icr
-    fig = plot(data['icr'], 'ICR', yaxis_label='Instant Cumulative Reward (ICR)')
+    fig = plot(data['icr'], 'ICR', yaxis_label='Instant Cumulative Return (ICR)', ylim=maximum_icr_+0.5)
     fig.savefig(save_path + 'metrics_icr.pdf', dpi=256, format='pdf', bbox_inches='tight')
     # plot tpot
-    fig = plot(data['tpot'], 'TPOT', yaxis_label='Total Performance Over Time (TPOT)')
+    fig = plot(data['tpot'], 'TPOT', yaxis_label='Total Performance Over Time (TPOT)', ylim=maximum_icr_+0.5)
     fig.savefig(save_path + 'metrics_tpot.pdf', dpi=256, format='pdf', bbox_inches='tight')
 
     '''
