@@ -9,6 +9,8 @@ from .network_bodies import *
 from ..utils.config import Config
 import torch.nn as nn
 from ..utils.torch_utils import tensor
+import torch.cuda.amp as amp
+
 
 class VanillaNet(nn.Module, BaseNet):
     def __init__(self, output_dim, body):
@@ -389,21 +391,22 @@ class CategoricalActorCriticNet_SS(nn.Module, BaseNet):
         if task_label is not None and not isinstance(task_label, torch.Tensor):
             task_label = tensor(task_label)
         layers_output = []
-        phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')#NOTE Here is where we crash !!!!!!!!!!!!!!!
-        layers_output += out
-        phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
-        layers_output += out
-        phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
-        layers_output += out
+        with amp.autocast():
+            phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')#NOTE Here is where we crash !!!!!!!!!!!!!!!
+            layers_output += out
+            phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
+            layers_output += out
+            phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
+            layers_output += out
 
-        logits = self.network.fc_action(phi_a)
-        v = self.network.fc_critic(phi_v)
-        dist = torch.distributions.Categorical(logits=logits)
-        if action is None:
-            action = dist.sample()
-        if return_layer_output:
-            layers_output += [('policy_logits', logits), ('policy_action', action), ('value_fn', v)]
-        log_prob = dist.log_prob(action).unsqueeze(-1)
+            logits = self.network.fc_action(phi_a)
+            v = self.network.fc_critic(phi_v)
+            dist = torch.distributions.Categorical(logits=logits)
+            if action is None:
+                action = dist.sample()
+            if return_layer_output:
+                layers_output += [('policy_logits', logits), ('policy_action', action), ('value_fn', v)]
+            log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 
 # actor-critic net for continual learning where tasks are labelled

@@ -69,11 +69,11 @@ def global_config(config, name):
     config.entropy_weight = 0.00015 #0.75
     config.rollout_length = 512
     config.optimization_epochs = 8
-    config.num_mini_batches = 64
+    config.num_mini_batches = 32
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 25600
+    config.max_steps = 84480
     config.evaluation_episodes = 25
     config.cl_requires_task_label = True
     config.task_fn = None
@@ -169,7 +169,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
         phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
-        hidden_units=(200, 200, 200), num_tasks=10),
+        hidden_units=(200, 200, 200), num_tasks=300),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
         num_tasks=10)

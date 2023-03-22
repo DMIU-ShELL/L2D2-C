@@ -686,8 +686,29 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
 
         activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency(), agent)   #Chris
         str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, agent_seen_tasks, ground_truth_task_label= run_detect_module(agent, activation_flag)   #Chris
+
+        
         msg = current_task_embedding
 
+
+        #Logging of the detect operations!!!   #Chris
+        if activation_flag:
+            print(Fore.GREEN)
+            detect_module_activations.append([shell_iterations, activation_flag, str_task_chng_msg, task_change_flag, "Number of Samples for detection:", agent.detect.get_num_samples(), "I AM THE NEW EMBEDING!:", new_emb, 'Hi I am the GroundTruth LABEL:', ground_truth_task_label, "Hi I AM THE CURRENT TASK EMBEDDING!", current_task_embedding, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool, "\n\nAgent SEEN TASKS: \n", agent_seen_tasks, "\n \n \n \n \n \n"])
+            np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
+            if new_emb is not None:
+                q = new_emb#torch.Tensor.unsqueeze(new_emb, 0)
+                l = torch.tensor([ground_truth_task_label])
+                ql.append(q)
+                ll.append(l)
+                qlt = tuple(ql)
+                llt = tuple(ll)
+                emb_t = torch.stack(qlt)
+                l_t = torch.stack(llt)
+                print("EMB_T:", emb_t)
+                print(f"L_T: {l_t}")
+                print("HELLO FROM THE DARK SIDE... {}, I MUST HAVE CALL A THOUSAND TIMES: {}".format(q, l))
+                tb_writer_emb.add_embedding(emb_t, metadata=ll)
 
 
         ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING

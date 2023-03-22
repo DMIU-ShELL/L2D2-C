@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 #from ..utils import *
+import torch.cuda.amp as amp
 
 class BaseNet:
     def __init__(self):
@@ -16,6 +17,7 @@ class BaseNet:
 
 def layer_init(layer, w_scale=1.0):
     nn.init.orthogonal_(layer.weight.data)
-    layer.weight.data.mul_(w_scale)
+    layer.weight.data = layer.weight.data.to(torch.float16).mul_(w_scale)#layer.weight.data.mul_(w_scale)
     nn.init.constant_(layer.bias.data, 0)
+    layer.bias.data = layer.bias.data.to(torch.float16)
     return layer
