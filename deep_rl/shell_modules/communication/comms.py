@@ -223,7 +223,7 @@ class ParallelComm(object):
         """
 
         if isinstance(embedding, np.ndarray):
-            embedding = torch.tensor(embedding, dtype=torch.float32)
+            embedding = torch.squeeze(torch.tensor(embedding, dtype=torch.float32))
             
         #self.logger.info(Fore.GREEN + 'send_recv_req, req data: {0}'.format(embedding))
 
@@ -335,13 +335,13 @@ class ParallelComm(object):
             for tlabel, treward in self.knowledge_base.items():
                 if treward > np.around(0.0, decimals=6):
                     if 0.9 * round(treward, 6) > sender_reward:
-                        tdist = float(torch.linalg.vector_norm(embedding - torch.tensor(tlabel)))
+                        tdist = float(torch.linalg.vector_norm(embedding - torch.squeeze(torch.tensor(tlabel))))#CHnage this here with the original agent registree and not the knowlwdge base!!!!!!!!!!!!!!!!!!
                         self.logger.info(f'{tdist} meta distance')
                         if tdist <= self.threshold:
                             other_agent_req['response'] = True
                             other_agent_req['reward'] = treward         # Reward of the mask this agent has for the task
                             other_agent_req['dist'] = tdist             # Distance between the embedding of this agent's closest mask and the embedding from the querying agent
-                            other_agent_req['resp_embedding'] = torch.tensor(tlabel)  # The closest embedding that this agent has to the one that the querying agent has queried for
+                            other_agent_req['resp_embedding'] = torch.squeeze(torch.tensor(tlabel))  # The closest embedding that this agent has to the one that the querying agent has queried for
 
         # Return the query request
         return other_agent_req

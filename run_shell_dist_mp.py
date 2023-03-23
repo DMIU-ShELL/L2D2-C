@@ -210,11 +210,11 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
 
     # If True then run the omnisicent mode agent, otherwise run the normal agent.
     if mode.value:
-        comm = ParallelCommOmniscient(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
+        comm = ParallelCommOmniscient(args.num_agents, agent.get_task_emb_size(), agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
         shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
     
     
-    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
+    comm = ParallelComm(args.num_agents, agent.get_task_emb_size(), agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
 
     # start training
     shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
