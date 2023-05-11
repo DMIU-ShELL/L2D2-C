@@ -242,49 +242,204 @@ def main(args):
         data['tpot']['LL']['ydata_cfi'] = cfi_delta(ll_tpot)
         data['tpot']['LL']['plot_colour'] = 'red'
 
-    # CT-Graph Comparison
-    #mypaths = {
-    #    '2 agent' : ['log_temp/system_test/2_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230228-091346/', 'log_temp/system_test/2_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230228-112313/', 'log_temp/system_test/2_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230228-142902/', 'log_temp/system_test/2_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230301-111051/', 'log_temp/system_test/2_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230301-140630/'],
-    #    '4 agent' : ['log_temp/system_test/4_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230228-094420/', 'log_temp/system_test/4_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230228-114627/', 'log_temp/system_test/4_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230228-145156/', 'log_temp/system_test/4_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230301-113227/', 'log_temp/system_test/4_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230301-142942/'],
-    #    '6 agent' : ['log_temp/system_test/6_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230228-100740/', 'log_temp/system_test/6_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230228-131901/', 'log_temp/system_test/6_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230228-151952/', 'log_temp/system_test/6_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230301-115835/', 'log_temp/system_test/6_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230301-150841/'],
-    #    '8 agent' : ['log_temp/system_test/8_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230228-103146/', 'log_temp/system_test/8_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230228-134211/', 'log_temp/system_test/8_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230228-154351/', 'log_temp/system_test/8_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230301-130310/', 'log_temp/system_test/8_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230301-153903/'],
-    #    '10 agent' : ['log_temp/system_test/10_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230228-105443/', 'log_temp/system_test/10_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230228-140516/', 'log_temp/system_test/10_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230228-160805/', 'log_temp/system_test/10_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230301-133406/', 'log_temp/system_test/10_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230301-160308/']
-    #}
 
-
-    # Communication Dropout
-    #mypaths = {
-    #    'LL' : ['log_temp/dropout_experiments_3/LL/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-091410/'],
-    #    'baseline'    : ['log_temp/dropout_experiments_3/baseline/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-090601/'],
-    #    '25% dropout' : ['log_temp/dropout_experiments_3/25_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-092213/'],
-    #    '50% dropout' : ['log_temp/dropout_experiments_3/50_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-094029/'],
-    #    '75% dropout' : ['log_temp/dropout_experiments_3/75_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-093251/'],
-    #}
-
-
-    # Communication Dropout RC
+    '''# Communication Dropout RC
     mypaths = {
-        '0% dropout'  : ['log_temp/dropout_experiments_5_RC/baseline/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-101747/', 'log_temp/dropout_experiments_5_RC/baseline/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230308-174638/', 'log_temp/dropout_experiments_5_RC/baseline/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-183413/', 'log_temp/dropout_experiments_5_RC/baseline/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-114538/'],
+        '0% dropout'  : ['log_temp/dropout_experiments_5_RC/baseline/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-101747/',
+                         'log_temp/dropout_experiments_5_RC/baseline/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230308-174638/',
+                         'log_temp/dropout_experiments_5_RC/baseline/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-183413/', 
+                         'log_temp/dropout_experiments_5_RC/baseline/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-114538/',
+                         'log_temp/dropout_experiments_5_RC/baseline/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230316-102141/'],
+
         #'25% dropout' : ['log_temp/dropout_experiments_5_RC/25_dropout_v2/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-114202/'],
-        '50% dropout' : ['log_temp/dropout_experiments_5_RC/50_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-183441/', 'log_temp/dropout_experiments_5_RC/50_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-104122/', 'log_temp/dropout_experiments_5_RC/50_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-111351/', 'log_temp/dropout_experiments_5_RC/50_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-170655/'],
-        '75% dropout' : ['log_temp/dropout_experiments_5_RC/75_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-194730/', 'log_temp/dropout_experiments_5_RC/75_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-100448/', 'log_temp/dropout_experiments_5_RC/75_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-114447/', 'log_temp/dropout_experiments_5_RC/75_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-161304/'],
-        '95% dropout' : ['log_temp/dropout_experiments_5_RC/95_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-144104/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-093817/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-133408/', 'log_temp/dropout_experiments_5_RC/95_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-150046/'],
-        '100% dropout': ['log_temp/dropout_experiments_5_RC/100_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230311-145917/', 'log_temp/dropout_experiments_5_RC/100_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230311-152748/']
-    }
+
+        '50% dropout' : ['log_temp/dropout_experiments_5_RC/50_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-183441/', 
+                         'log_temp/dropout_experiments_5_RC/50_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-104122/', 
+                         'log_temp/dropout_experiments_5_RC/50_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-111351/', 
+                         'log_temp/dropout_experiments_5_RC/50_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-170655/',
+                         'log_temp/dropout_experiments_5_RC/50_dropout/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230316-114318/'],
+
+        '75% dropout' : ['log_temp/dropout_experiments_5_RC/75_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-194730/', 
+                         'log_temp/dropout_experiments_5_RC/75_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-100448/', 
+                         'log_temp/dropout_experiments_5_RC/75_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-114447/', 
+                         'log_temp/dropout_experiments_5_RC/75_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-161304/',
+                         'log_temp/dropout_experiments_5_RC/75_dropout/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230316-121140/'],
+
+        '95% dropout' : ['log_temp/dropout_experiments_5_RC/95_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-144104/', 
+                         'log_temp/dropout_experiments_5_RC/95_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230309-093817/', 
+                         'log_temp/dropout_experiments_5_RC/95_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-133408/', 
+                         'log_temp/dropout_experiments_5_RC/95_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-150046/',
+                         'log_temp/dropout_experiments_5_RC/95_dropout/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230320-152646/'],
+                         
+        '100% dropout': ['log_temp/dropout_experiments_5_RC/100_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230423-105349/',
+                         'log_temp/dropout_experiments_5_RC/100_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230423-124640/',
+                         'log_temp/dropout_experiments_5_RC/100_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230423-135325/',
+                         'log_temp/dropout_experiments_5_RC/100_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230423-142811/',
+                         'log_temp/dropout_experiments_5_RC/100_dropout/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230423-145423/']
+    }'''
 
 
     # ShELL vs LL Comparison RC
-    #mypaths = {
-    #    '4 agent' : ['log_temp/comparison/4_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-125222/', 'log_temp/comparison/4_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230310-183612/', 'log_temp/comparison/4_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230310-193733/', 'log_temp/comparison/4_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-214659/'],
-    #    '12 agent': ['log_temp/dropout_experiments_5_RC/baseline/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-101747/', 'log_temp/dropout_experiments_5_RC/baseline/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230308-174638/', 'log_temp/dropout_experiments_5_RC/baseline/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-183413/', 'log_temp/dropout_experiments_5_RC/baseline/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-114538/']
-    #}
+    mypaths = {
+        '1 agent' : ['log_temp/dropout_experiments_5_RC/LL/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-112302/',
+                     'log_temp/dropout_experiments_5_RC/LL/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230308-214111/',
+                     'log_temp/dropout_experiments_5_RC/LL/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-163815/',
+                     'log_temp/dropout_experiments_5_RC/LL/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-130452/',
+                     'log_temp/dropout_experiments_5_RC/LL/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230316-104814/'],
+
+        '4 agents' : ['log_temp/comparison/4_agent/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230308-125222/', 
+                     'log_temp/comparison/4_agent/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230310-183612/', 
+                     'log_temp/comparison/4_agent/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230310-193733/', 
+                     'log_temp/comparison/4_agent/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-214659/',
+                     'log_temp/comparison/4_agent/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230316-111707/']
+                     ,
+        '12 agents': ['log_temp/dropout_experiments_5_RC/baseline/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230307-101747/', 
+                     'log_temp/dropout_experiments_5_RC/baseline/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230308-174638/', 
+                     'log_temp/dropout_experiments_5_RC/baseline/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230309-183413/', 
+                     'log_temp/dropout_experiments_5_RC/baseline/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230310-114538/',
+                     'log_temp/dropout_experiments_5_RC/baseline/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230316-102141/']
+    }
 
 
     # ShELL vs LL Comparison RC MINGRID
+    #mypaths = {
+    #    '4 agent' : ['log/minigrid_comparison_final/4_agent/Minigrid-shell-eval-upz-seed-9157/agent_0/230314-100037/'],
+    #    '12 agent': ['log/minigrid_comparison_final/12_agent/Minigrid-shell-eval-upz-seed-9157/agent_0/230314-093336/']
+    #}
+
+     # ShELL vs LL Comparison RC MINGRID
+    '''mypaths = {
+        '1 agent' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/LL/seed_1/Minigrid-shell-eval-upz-seed-9157/agent_0/230314-103103/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/LL/seed_2/Minigrid-shell-eval-upz-seed-9157/agent_0/230405-172155/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/LL/seed_3/Minigrid-shell-eval-upz-seed-9157/agent_0/230406-182007/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/LL/seed_4/Minigrid-shell-eval-upz-seed-9157/agent_0/230407-160010/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/LL/seed_5/Minigrid-shell-eval-upz-seed-9157/agent_0/230408-140338/'],
+
+        '4 agents' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/4_agent/seed_1/Minigrid-shell-eval-upz-seed-9157/agent_0/230314-100037/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/4_agent/seed_2/Minigrid-shell-eval-upz-seed-9157/agent_0/230406-135734/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/4_agent/seed_3/Minigrid-shell-eval-upz-seed-9157/agent_0/230407-093235/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/4_agent/seed_4/Minigrid-shell-eval-upz-seed-9157/agent_0/230407-120057/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/4_agent/seed_5/Minigrid-shell-eval-upz-seed-9157/agent_0/230408-194236/'],
+                     
+        '12 agents': ['log_temp/minigrid_3_experiments/minigrid_comparison_final/12_agent/seed_1/Minigrid-shell-eval-upz-seed-9157/agent_0/230314-093336/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/12_agent/seed_2/Minigrid-shell-eval-upz-seed-9157/agent_0/230406-144616/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/12_agent/seed_3/Minigrid-shell-eval-upz-seed-9157/agent_0/230406-161710/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/12_agent/seed_4/Minigrid-shell-eval-upz-seed-9157/agent_0/230407-173448/',
+                     'log_temp/minigrid_3_experiments/minigrid_comparison_final/12_agent/seed_5/Minigrid-shell-eval-upz-seed-9157/agent_0/230407-203908/'],
+    }'''
+
+    '''
     mypaths = {
-        '4 agent' : ['log/minigrid_comparison2/4_agent/Minigrid-shell-eval-upz-seed-9157/agent_0/230313-163439/'],
-        '12 agent': ['log/Minigrid-shell-eval-upz-seed-9157/agent_0/230313-174519/']
+        'seed 1' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/12_agent/seed_1/Minigrid-shell-eval-upz-seed-9157/agent_0/230314-093336/'],
+        'seed 2' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/12_agent/seed_2/Minigrid-shell-eval-upz-seed-9157/agent_0/230406-144616/'],
+        'seed 3' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/12_agent/seed_3/Minigrid-shell-eval-upz-seed-9157/agent_0/230406-161710/'],
+        'seed 4' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/12_agent/seed_4/Minigrid-shell-eval-upz-seed-9157/agent_0/230407-173448/'],
+        'seed 5' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/12_agent/seed_5/Minigrid-shell-eval-upz-seed-9157/agent_0/230407-203908/']
     }
+    
+    mypaths = {
+        'seed 1' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/LL/seed_1/Minigrid-shell-eval-upz-seed-9157/agent_0/230314-103103/'],
+        'seed 2' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/LL/seed_2/Minigrid-shell-eval-upz-seed-9157/agent_0/230405-172155/'],
+        'seed 3' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/LL/seed_3/Minigrid-shell-eval-upz-seed-9157/agent_0/230406-182007/'],
+        'seed 4' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/LL/seed_4/Minigrid-shell-eval-upz-seed-9157/agent_0/230407-160010/'],
+        'seed 5' : ['log_temp/minigrid_3_experiments/minigrid_comparison_final/LL/seed_5/Minigrid-shell-eval-upz-seed-9157/agent_0/230408-140338/']
+    }
+
+
+    mypaths = {
+        #'global 0% dropout'  : ['log_temp/dropout_experiments_new/0_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230425-235508/'],
+        #'local 0% dropout' : ['log_temp/dropout_experiments_new/0_dropout/MetaCTgraph-shell-eval-upz-seed-9170/agent_13/230425-235508/'],
+        
+        'global 50% dropout' : ['log_temp/dropout_experiments_new/50_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230425-202614/'],
+        'local 50% dropout' : ['log_temp/dropout_experiments_new/50_dropout/MetaCTgraph-shell-eval-upz-seed-9170/agent_13/230425-202613/'],
+
+        'global 100% dropout 1' : ['log_temp/dropout_experiments_new/100_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230425-193726/'],                
+        'local 100% dropout 1': ['log_temp/dropout_experiments_new/100_dropout/MetaCTgraph-shell-eval-upz-seed-9170/agent_13/230425-193726/'],
+
+        'global 100% dropout 2' : ['log_temp/dropout_experiments_new/100_dropout_run_2/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-140049/'],                
+        'local 100% dropout 2': ['log_temp/dropout_experiments_new/100_dropout_run_2/MetaCTgraph-shell-eval-upz-seed-9157/agent_13/230426-140049/'],
+
+        'global 99% dropout' : ['log_temp/dropout_experiments_new/99_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-120459/'],
+        'local 99% dropout' : ['log_temp/dropout_experiments_new/99_dropout/MetaCTgraph-shell-eval-upz-seed-9170/agent_13/230426-120459/'],
+
+        'global 95% dropout' : ['log_temp/dropout_experiments_new/95_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-130613/'],
+        'local 95% dropout' : ['log_temp/dropout_experiments_new/95_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_13/230426-130613/'],
+
+        'global 0% new interval' : ['log/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-144342/'],
+        'local 0% new interval' : ['log/MetaCTgraph-shell-eval-upz-seed-9157/agent_13/230426-144341/']
+    }
+
+    mypaths = {
+        #'global 0% dropout'  : ['log_temp/dropout_experiments_new/0_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230425-235508/'],
+        #'local 0% dropout' : ['log_temp/dropout_experiments_new/0_dropout/MetaCTgraph-shell-eval-upz-seed-9170/agent_13/230425-235508/'],
+        
+        'global 50% dropout' : ['log_temp/dropout_experiments_new/50_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230425-202614/'],
+        'local 50% dropout' : ['log_temp/dropout_experiments_new/50_dropout/MetaCTgraph-shell-eval-upz-seed-9170/agent_13/230425-202613/'],
+
+        'global 100% dropout 1' : ['log_temp/dropout_experiments_new/100_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230425-193726/'],                
+        'local 100% dropout 1': ['log_temp/dropout_experiments_new/100_dropout/MetaCTgraph-shell-eval-upz-seed-9170/agent_13/230425-193726/'],
+
+        'global 100% dropout 2' : ['log_temp/dropout_experiments_new/100_dropout_run_2/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-140049/'],                
+        'local 100% dropout 2': ['log_temp/dropout_experiments_new/100_dropout_run_2/MetaCTgraph-shell-eval-upz-seed-9157/agent_13/230426-140049/'],
+
+        'global 99% dropout' : ['log_temp/dropout_experiments_new/99_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-120459/'],
+        'local 99% dropout' : ['log_temp/dropout_experiments_new/99_dropout/MetaCTgraph-shell-eval-upz-seed-9170/agent_13/230426-120459/'],
+
+        'global 95% dropout' : ['log_temp/dropout_experiments_new/95_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-130613/'],
+        'local 95% dropout' : ['log_temp/dropout_experiments_new/95_dropout/MetaCTgraph-shell-eval-upz-seed-9157/agent_13/230426-130613/'],
+
+        #'global 0% new interval' : ['log/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-144342/'],
+        #'local 0% new interval' : ['log/MetaCTgraph-shell-eval-upz-seed-9157/agent_13/230426-144341/']
+
+        #'50% global' : ['log/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-171608/'],
+        #'50% local seq' : ['log/MetaCTgraph-shell-eval-upz-seed-9157/agent_13/230426-171608/']
+    }'''
+
+
+    # GLOBAL
+    mypaths = {
+        '0% conn. drop' : ['log_temp/debugging_dropout/0_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-185450/',
+                               'log_temp/debugging_dropout/0_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230426-192029/',
+                               'log_temp/debugging_dropout/0_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230426-213356/',
+                               'log_temp/debugging_dropout/0_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230426-220237/',
+                               'log_temp/debugging_dropout/0_dropout/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230428-135111/'],
+
+        '50% conn. drop' : ['log_temp/debugging_dropout/50_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-180954/',
+                                'log_temp/debugging_dropout/50_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230426-193836/',
+                                'log_temp/debugging_dropout/50_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230426-210952/',
+                                'log_temp/debugging_dropout/50_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230426-225139/',
+                                'log_temp/debugging_dropout/50_dropout/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230428-000547/'],
+
+        '75% conn. drop' : ['log_temp/debugging_dropout/75_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230428-141246/',
+                                'log_temp/debugging_dropout/75_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230428-141246/',
+                                'log_temp/debugging_dropout/75_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230428-144111/',
+                                'log_temp/debugging_dropout/75_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230428-152224/',
+                                'log_temp/debugging_dropout/75_dropout/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230428-154110/'],
+
+        '95% conn. drop' : ['log_temp/debugging_dropout/95_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230428-160204/',
+                                'log_temp/debugging_dropout/95_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230428-161938/',
+                                'log_temp/debugging_dropout/95_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230428-171501/',
+                                'log_temp/debugging_dropout/95_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230429-101237/',
+                                'log_temp/debugging_dropout/95_dropout/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230429-103542/'],
+
+
+        '100% conn. drop' : ['log_temp/debugging_dropout/100_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-182409/',
+                                 'log_temp/debugging_dropout/100_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230426-201103/',
+                                 'log_temp/debugging_dropout/100_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230426-203653/',
+                                 'log_temp/debugging_dropout/100_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230427-232310/',
+                                 'log_temp/debugging_dropout/100_dropout/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230427-234631/'],
+    }
+
+
+    mypaths = {
+        'seed 1' : ['log_temp/debugging_dropout/100_dropout/seed_1/MetaCTgraph-shell-eval-upz-seed-9157/agent_0/230426-182409/'],
+        'seed 2' : ['log_temp/debugging_dropout/100_dropout/seed_2/MetaCTgraph-shell-eval-upz-seed-9802/agent_0/230426-201103/'],
+        'seed 3' : ['log_temp/debugging_dropout/100_dropout/seed_3/MetaCTgraph-shell-eval-upz-seed-9822/agent_0/230426-203653/'],
+        'seed 4' : ['log_temp/debugging_dropout/100_dropout/seed_4/MetaCTgraph-shell-eval-upz-seed-2211/agent_0/230427-232310/'],
+        'seed 5' : ['log_temp/debugging_dropout/100_dropout/seed_5/MetaCTgraph-shell-eval-upz-seed-1911/agent_0/230427-234631/']
+    }
+    
+
 
 
     for name, myarr in mypaths.items():
@@ -323,10 +478,10 @@ def main(args):
 
     print(maximum_icr_)
     # plot icr
-    fig = plot(data['icr'], 'ICR', yaxis_label='Instant Cumulative Return (ICR)', ylim=maximum_icr_+0.5)
+    fig = plot(data['icr'], 'ICR', yaxis_label='Instant Cumulative Return (ICR)', ylim=maximum_icr_ + 0.5)
     fig.savefig(save_path + 'metrics_icr.pdf', dpi=256, format='pdf', bbox_inches='tight')
     # plot tpot
-    fig = plot(data['tpot'], 'TPOT', yaxis_label='Total Performance Over Time (TPOT)', ylim=maximum_icr_+0.5)
+    fig = plot(data['tpot'], 'TPOT', yaxis_label='Total Performance Over Time (TPOT)', ylim=maximum_icr_ + 0.5)
     fig.savefig(save_path + 'metrics_tpot.pdf', dpi=256, format='pdf', bbox_inches='tight')
 
     '''

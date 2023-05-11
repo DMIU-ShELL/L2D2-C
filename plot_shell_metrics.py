@@ -23,7 +23,7 @@ def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label='')
     # axis ticks
     ax.xaxis.tick_bottom()
     ax.yaxis.tick_left()
-    ax.tick_params(axis='both', which='major', labelsize=20)
+    ax.tick_params(axis='both', which='major', labelsize=35)
     # remove right and top spines
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
@@ -43,6 +43,7 @@ def plot(results, title='', xaxis_label='Evaluation checkpoint', yaxis_label='')
         cfi = result_dict['ydata_cfi']
         plot_colour = result_dict['plot_colour']
         ax.plot(xdata, ydata, linewidth=3, label=method_name, color=plot_colour)
+        ax.plot(xdata, ydata, linewidth=3, label='ICR(L2D2-C, t) / ICR(Single LL agent, t)', color=plot_colour)
         ax.fill_between(xdata, ydata - cfi, ydata + cfi, alpha=0.2, color=plot_colour)
     # legend
     #ax.legend(loc='lower right')
@@ -55,18 +56,21 @@ def plot_tra(xdata, ydata, num_agents):
     trans = transforms.blended_transform_factory(ax.get_yticklabels()[0].get_transform(), \
         ax.transData)
 
-    ax.plot(xdata, ydata, alpha=0.5, linewidth=3)
+    ax.plot(xdata, ydata, alpha=0.5, linewidth=3, label='TTp(Single LL agent) / TTp(L2D2-C)')
     #ax.axhline(y=0.5*int(num_agents), color='red', linestyle='dashed', alpha=0.5)
     #ax.text(0.5, 0.4+(0.5*int(num_agents)), "0.5*N="+"{:.0f}".format(0.5*int(num_agents)), \
     #    color="red", transform=trans, ha="center", va="center", size=14)
     
     #ax.set_title('')
     ax.set_xlabel('Percentage of Target Performance (p)', fontsize=35)
-    ax.set_ylabel('TTp(LL) / TTp(L2D2-C)', fontsize=35)
+    #ax.set_ylabel('TTp(LL) / TTp(L2D2-C)', fontsize=35)
+    ax.set_ylabel('Time Advantage (TA)', fontsize=35)
     ax.yaxis.grid(True)
     ax.xaxis.grid(True)
-    ax.tick_params(axis='y', labelsize=14)
-    ax.tick_params(axis='x', labelsize=14)
+    ax.tick_params(axis='y', labelsize=35)
+    ax.tick_params(axis='x', labelsize=35)
+
+    #ax.legend(loc='lower right')
         
     #addlabels(xdata, ydata)
     return fig
@@ -167,7 +171,7 @@ def load_ll_data(path, interval):
         metrics_tpot = np.asarray(metrics_tpot)
         return raw_data, metrics_icr, metrics_tpot, wall_clock_time
 
-def cfi_delta(data, conf_int_param=0.90): # confidence interval
+def cfi_delta(data, conf_int_param=0.95): # confidence interval
     mean = np.mean(data, axis=0)
     if data.ndim == 1:
         std_error_of_mean = st.sem(data, axis=0)
@@ -382,7 +386,7 @@ def main(args):
         fig = plot(data['tla'], 'Total Learning Advantage (TLA)', yaxis_label=y_label)
         fig.savefig(save_path + 'metrics_tla.pdf', dpi=256, format='pdf', bbox_inches='tight')
         # plot ila
-        y_label = 'ICR(L2D2-C, t) / ICR(LL, t)'
+        y_label = 'Performance Advantage (PA)'
         fig = plot(data['ila'], 'Instant Learning Advantage (ILA)', yaxis_label=y_label)
         fig.savefig(save_path + 'metrics_ila.pdf', dpi=256, format='pdf', bbox_inches='tight')
         

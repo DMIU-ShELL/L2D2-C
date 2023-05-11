@@ -50,7 +50,7 @@ import time
 
 # helper function
 def global_config(config, name):
-    '''# ctgraph config
+    # ctgraph config
     config.env_name = name
     config.env_config_path = None
     config.lr = 0.00015
@@ -68,22 +68,23 @@ def global_config(config, name):
     config.use_gae = True
     config.gae_tau = 0.99
     config.entropy_weight = 0.00015 #0.75
-    config.rollout_length = 128
+    config.rollout_length = 320
     config.optimization_epochs = 8
     config.num_mini_batches = 64
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 25600
-    config.evaluation_episodes = 5
+    config.evaluation_episodes = 25
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
     config.network_fn = None 
     config.eval_interval = None#1
-    return config'''
+    return config
 
-    # minigrid config
+    
+    '''# minigrid config
     config.env_name = name
     config.env_config_path = None
     config.lr = 0.00015
@@ -114,7 +115,7 @@ def global_config(config, name):
     config.eval_task_fn = None
     config.network_fn = None 
     config.eval_interval = None
-    return config
+    return config'''
 
 '''
 ShELL distributed system with multiprocessing.
@@ -732,7 +733,7 @@ if __name__ == '__main__':
     parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
     parser.add_argument('--num_agents', help='world: total number of agents', type=int, default=1)                      # Will eventually be deprecated. Currently used to set the communication module initial world size.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_minigrid10.json')                       # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_CT16_64_seq.json')                       # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.

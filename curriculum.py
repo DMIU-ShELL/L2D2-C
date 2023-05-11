@@ -34,22 +34,32 @@ for _ in range(NUM_AGENTS):
     z.append(list(theone))
     y["agents"].append({"task_ids" : list(theone), "max_steps" : 12800})
 
+for line in z:
+    print('&'.join(str(x) for x in line))
+
 
 # HISTOGRAM
 z_ = [j for sub in z for j in sub]
 counts, edges, bars = plt.hist(z_, bins=NUM_TASKS)
 plt.bar_label(bars)
-plt.xlabel('Task')
-plt.ylabel('Occurences')
+plt.xlabel('Task', fontsize=16)
+plt.ylabel('Occurences', fontsize=16)
 plt.savefig('curriculum_hist.pdf', dpi=300)
 
 
 # IMAGE
 plt.clf()
-plt.imshow(z, cmap='viridis')
-#plt.colorbar(orientation='horizontal')
-plt.ylabel('Agents')
-plt.xlabel('Randomly Sampled Tasks')
+fig, ax = plt.subplots()
+im = ax.imshow(z, cmap="viridis")
+plt.ylabel("Agents", fontsize=30)
+plt.xlabel("Randomly Sampled Tasks", fontsize=30)
+fig.set_size_inches(25, 10)
+
+# add text labels to each square
+for i in range(NUM_AGENTS):
+    for j in range(CYCLES * NUM_TASKS):
+        text = ax.text(j, i, z[i][j], ha="center", va='center', color='w')
+
 plt.savefig('curriculum_matrix.pdf', dpi=1000, bbox_inches='tight')
 
 

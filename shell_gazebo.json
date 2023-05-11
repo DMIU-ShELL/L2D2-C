@@ -10,10 +10,6 @@
         "env_name": "Gazebo",
         "env_config_path": "./env_configs/gazebo.json"
     
-    },
-    "dist_only": {
-        "init_address": "127.0.0.1",
-        "init_port": "29500"
     }
     }
 

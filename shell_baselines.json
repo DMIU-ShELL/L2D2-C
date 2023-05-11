@@ -1,0 +1,64 @@
+{
+    "seed": 964,
+    "agents": [
+        {
+            "task_ids": [
+                0,
+                1,
+                2,
+                3,
+                0,
+                1,
+                2,
+                3,
+                0,
+                1,
+                2,
+                3
+            ],
+            "max_steps": 84480
+        },
+        {
+            "task_ids": [
+                1,
+                2,
+                0,
+                3,
+                1,
+                0,
+                0,
+                0,
+                2,
+                3,
+                2,
+                1
+            ],
+            "max_steps": 84480
+        }
+    ],
+    "env": {
+        "env_name": "ctgraph",
+        "env_config_path": "./env_configs/meta_ctgraph_t4.json"
+    },
+    "dist_only": {
+        "init_address": "127.0.0.1",
+        "init_port": "29500"
+    },
+    "curriculum": {
+        "task_ids": [
+            1,
+            1,
+            3,
+            3,
+            0,
+            2,
+            0,
+            0,
+            1,
+            2,
+            0,
+            3
+        ],
+        "max_steps": 84480
+    }
+}

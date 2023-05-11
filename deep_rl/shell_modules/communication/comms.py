@@ -1137,9 +1137,10 @@ class ParallelCommEval(object):
         ### EVENT HANDLING
         # Agent is sending a query table
         if data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_TABLE:
-            self.logger.info(Fore.CYAN + 'Data is a query table')
-            self.update_params(data)
-            for addr in self.query_list: print(f'{Fore.GREEN}{addr[0], addr[1]}')
+            #self.logger.info(Fore.CYAN + 'Data is a query table')
+            #self.update_params(data)
+            #for addr in self.query_list: print(f'{Fore.GREEN}{addr[0], addr[1]}')
+            pass
 
         # An agent is sending a query
         elif data[ParallelCommEval.META_INF_IDX_MSG_TYPE] == ParallelCommEval.MSG_TYPE_SEND_QUERY:
