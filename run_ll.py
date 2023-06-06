@@ -98,6 +98,124 @@ def ppo_baseline_mctgraph(name, args):
                 dict_config[k] = str(dict_config[k])
         json.dump(dict_config, f)
 
+
+def sac_baseline_mctgraph(name, args):
+    #generate_tag(kwargs)
+    #kwargs.setdefault('log_level', 0)
+    config = Config()
+    config.merge(kwargs)
+
+    config.task_fn = lambda: Task(config.game)
+    config.eval_env = config.task_fn()
+    config.max_steps = int(1e6)
+    config.eval_interval = int(1e4)
+    config.eval_episodes = 20
+
+    config.network_fn = lambda: TD3Net(
+        config.action_dim,
+        actor_body_fn=lambda: FCBody(config.state_dim, (400, 300), gate=F.relu),
+        critic_body_fn=lambda: FCBody(
+            config.state_dim+config.action_dim, (400, 300), gate=F.relu),
+        actor_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3),
+        critic_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3))
+
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=100)
+    config.discount = 0.99
+    config.random_process_fn = lambda: GaussianProcess(
+        size=(config.action_dim,), std=LinearSchedule(0.1))
+    config.td3_noise = 0.2
+    config.td3_noise_clip = 0.5
+    config.td3_delay = 2
+    config.warm_up = int(1e4)
+    config.target_network_mix = 5e-3
+    run_steps(TD3Agent(config))
+
+
+
+
+    env_config_path = args.env_config_path
+
+    config = Config()
+    config.env_name = name
+    config.env_config_path = env_config_path
+    config.lr = 0.00015
+    config.cl_preservation = 'baseline'
+    config.seed = 8379
+    random_seed(config.seed)
+    exp_id = '-seed-{0}'.format(config.seed)
+    log_name = name + '-ppo' + '-' + config.cl_preservation + exp_id
+    config.log_dir = get_default_log_dir(log_name)
+    config.num_workers = 4
+
+    # get num_tasks from env_config
+    with open(env_config_path, 'r') as f:
+        env_config_ = json.load(f)
+    num_tasks = env_config_['num_tasks']
+    del env_config_
+
+    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir)
+    eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    config.eval_task_fn = eval_task_fn
+    config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_CL(
+        state_dim, action_dim, label_dim, 
+        phi_body=FCBody_CL(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200)),
+        actor_body=DummyBody_CL(200),
+        critic_body=DummyBody_CL(200))
+    config.policy_fn = SamplePolicy
+    config.state_normalizer = ImageNormalizer()
+
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=100)
+    config.discount = 0.99
+    config.random_process_fn = lambda: GaussianProcess(
+        size=(config.action_dim,), std=LinearSchedule(0.1))
+    config.td3_noise = 0.2
+    config.td3_noise_clip = 0.5
+    config.td3_delay = 2
+    config.warm_up = int(1e4)
+    config.target_network_mix = 5e-3
+
+
+    #config.discount = 0.99
+    #config.use_gae = True
+    #config.gae_tau = 0.99
+    #config.entropy_weight = 0.1
+    config.rollout_length = 128
+    config.optimization_epochs = 8
+    config.num_mini_batches = 64
+    config.ppo_ratio_clip = 0.1
+    config.iteration_log_interval = 1
+    config.gradient_clip = 5
+    config.max_steps = args.max_steps
+    config.evaluation_episodes = 10
+    config.logger = get_logger(log_dir=config.log_dir, file_name='train-log')
+    config.cl_requires_task_label = True
+
+    config.eval_interval = 25
+    config.task_ids = np.arange(num_tasks).tolist()
+
+    agent = BaselineAgent(config)
+    config.agent_name = agent.__class__.__name__
+    tasks = agent.config.cl_tasks_info
+    config.cl_num_learn_blocks = 1
+    shutil.copy(env_config_path, config.log_dir + '/env_config.json')
+    with open('{0}/tasks_info.bin'.format(config.log_dir), 'wb') as f:
+        pickle.dump(tasks, f)
+    run_iterations_w_oracle(agent, tasks)
+    with open('{0}/tasks_info_after_train.bin'.format(config.log_dir), 'wb') as f:
+        pickle.dump(tasks, f)
+    # save config
+    with open('{0}/config.json'.format(config.log_dir), 'w') as f:
+        dict_config = vars(config)
+        for k in dict_config.keys():
+            if not isinstance(dict_config[k], int) \
+            and not isinstance(dict_config[k], float) and dict_config[k] is not None:
+                dict_config[k] = str(dict_config[k])
+        json.dump(dict_config, f)
+
+
+
 '''
 ppo, supermask lifelong learning, task boundary (oracle) given
 '''
