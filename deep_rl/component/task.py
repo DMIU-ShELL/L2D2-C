@@ -1069,6 +1069,9 @@ class ParallelizedTask:
         self.name = self.tasks[0].name
         self.single_process = single_process
 
+        for task in self.tasks:
+            print(task.action_space)
+
     def step(self, actions):
         results = [task.step(action) for task, action in zip(self.tasks, actions)]
         results = map(lambda x: np.stack(x), zip(*results))

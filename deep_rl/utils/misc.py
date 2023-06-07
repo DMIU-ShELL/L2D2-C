@@ -81,6 +81,7 @@ def run_episodes_cl(agent, tasks_info): # run episodes in continual learning (mu
     task_name = agent.task.name
 
     task_start_idx = 0
+    print(tasks_info)
     eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
     for task_idx, task_info in enumerate(tasks_info):
         config.logger.info('\nstart training on task {0}'.format(task_idx))
