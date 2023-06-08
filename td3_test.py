@@ -17,7 +17,7 @@ from deep_rl.utils.schedule import LinearSchedule
 from deep_rl.agent.PPO_agent import ShellAgent_DP
 from deep_rl.agent.TD3_agent import TD3Agent
 from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient
-from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld
+from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, Pendulum
 from deep_rl.network.network_heads import TD3Net, CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
 from deep_rl.network.network_bodies import FCBody, FCBody_SS, DummyBody_CL
 import argparse
@@ -164,6 +164,7 @@ def td3_baseline_mctgraph(name, args, shell_config):
     config = Config()
     config = global_config(config, name)
     config.state_normalizer = RescaleNormalizer()
+    config.reward_normalizer = RescaleNormalizer()
 
     config.seed = 9157
 
@@ -193,11 +194,11 @@ def td3_baseline_mctgraph(name, args, shell_config):
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
 
-    config.max_steps = config.max_steps[0]
-    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
-    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
+    config.max_steps = int(1e6)#config.max_steps[0]
+    task_fn = lambda log_dir: Pendulum(log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
     
-    eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    eval_task_fn = lambda log_dir: Pendulum(log_dir)
     config.eval_task_fn = eval_task_fn
 
     config.network_fn = lambda state_dim, action_dim: TD3Net(
@@ -219,9 +220,9 @@ def td3_baseline_mctgraph(name, args, shell_config):
     config.td3_noise = 0.2
     config.td3_noise_clip = 0.5
     config.td3_delay = 2
-    #config.warm_up = int(1e4)
+    config.warm_up = int(1e4)
     config.min_memory_size = int(1e4)
-    config.target_network_mix = 1e-3
+    config.target_network_mix = 5e-3
 
     agent = TD3Agent(config)
     #config.agent_name = agent.__class__.__name__

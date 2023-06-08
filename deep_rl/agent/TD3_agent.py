@@ -70,7 +70,7 @@ class TD3Agent(BaseAgent):
     def evaluation_action(self, state):
         self.config.state_normalizer.set_read_only()
         state = np.stack([self.config.state_normalizer(state)])
-        action = self.network.predict(state, to_numpy=True).flatten()
+        action = self.network.forward(state).cpu().detach().numpy().flatten()
         self.config.state_normalizer.unset_read_only()
         return action
 
@@ -82,11 +82,11 @@ class TD3Agent(BaseAgent):
     #    return action.cpu().detach().numpy()
 
     def episode(self, deterministic=False):
+        self.random_process.reset_states()
+        state = self.task.reset()
+        state = self.config.state_normalizer(state)
+
         config = self.config
-        if self.state is None:
-            self.random_process.reset_states()
-            self.state = self.task.reset()
-            self.state = config.state_normalizer(self.state)
 
         steps = 0
         total_reward = 0.0
@@ -94,12 +94,8 @@ class TD3Agent(BaseAgent):
             self.evaluate()
             self.evaluation_episodes()
 
-            action = self.network.forward(np.stack([self.state]))
-            action = action.cpu().detach().numpy()
-            action = action.flatten()
-            print(action)
+            action = self.network.forward(np.stack([state])).cpu().detach().numpy().flatten()
             if not deterministic:
-                print(self.random_process.sample())
                 action += self.random_process.sample()
             next_state, reward, done, info = self.task.step(action)
             next_state = self.config.state_normalizer(next_state)
@@ -107,15 +103,16 @@ class TD3Agent(BaseAgent):
             reward = self.config.reward_normalizer(reward)
 
             if not deterministic:
-                self.replay.feed([self.state, action, reward, next_state, int(done)])
+                self.replay.feed([state, action, reward, next_state, int(done)])
                 self.total_steps += 1
 
             steps += 1
-            self.state = next_state
+            state = next_state
 
             if not deterministic and self.replay.size() >= config.min_memory_size:
                 experiences = self.replay.sample()
                 states, actions, rewards, next_states, terminals = experiences
+                
                 states = tensor(states)
                 actions = tensor(actions)
                 rewards = tensor(rewards).unsqueeze(-1)
@@ -151,10 +148,10 @@ class TD3Agent(BaseAgent):
 
                     self.soft_update(self.target_network, self.network)
 
-                if done:
-                    break
-            
-            return total_reward, steps
+            if done:
+                break
+
+        return total_reward, steps
 
 
 class TD3ContinualLearnerAgent(BaseContinualLearnerAgent):

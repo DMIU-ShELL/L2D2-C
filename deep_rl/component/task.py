@@ -807,14 +807,15 @@ class RamAtari(BaseTask):
 class Pendulum(BaseTask):
     def __init__(self, log_dir=None):
         BaseTask.__init__(self)
-        self.name = 'Pendulum-v0'
+        self.name = 'Pendulum-v1'
         self.env = gym.make(self.name)
         self.action_dim = self.env.action_space.shape[0]
         self.state_dim = self.env.observation_space.shape[0]
+        self.action_space = self.env.action_space
         self.env = self.set_monitor(self.env, log_dir)
 
     def step(self, action):
-        return BaseTask.step(self, np.clip(2 * action, -2, 2))
+        return BaseTask.step(self, [np.clip(2 * action, -2, 2)])
 
 class Box2DContinuous(BaseTask):
     def __init__(self, name, log_dir=None):
@@ -909,6 +910,14 @@ class ProcessTask:
         self.pipe.send([ProcessWrapper.RANDOM_TASKS, [num_tasks, requires_task_label]])
         return self.pipe.recv()
 
+    def get_action_space_high(self):
+        self.pipe.send([ProcessWrapper.ACTION_SPACE_HIGH, None])
+        return self.pipe.recv()
+    
+    def get_action_space_low(self):
+        self.pipe.send([ProcessWrapper.ACTION_SPACE_LOW, None])
+        return self.pipe.recv()
+
 class ProcessWrapper(mp.Process):
     STEP = 0
     RESET = 1
@@ -919,6 +928,8 @@ class ProcessWrapper(mp.Process):
     GET_TASK = 6
     GET_ALL_TASKS = 7
     RANDOM_TASKS = 8
+    ACTION_SPACE_HIGH = 9
+    ACTION_SPACE_LOW = 10
     def __init__(self, pipe, task_fn, log_dir):
         mp.Process.__init__(self)
         self.pipe = pipe
@@ -958,6 +969,10 @@ class ProcessWrapper(mp.Process):
                 self.pipe.send(task.get_all_tasks(data))
             elif op == self.RANDOM_TASKS:
                 self.pipe.send(task.random_tasks(*data))
+            elif op == self.ACTION_SPACE_HIGH:
+                self.pipe.send(task.action_space.high[0])
+            elif op == self.ACTION_SPACE_LOW:
+                self.pipe.send(task.action_space.low[0])
             else:
                 raise Exception('Unknown command')
 '''
@@ -1062,15 +1077,16 @@ class ParallelizedTask:
 
         if single_process:
             self.tasks = [task_fn(log_dir=log_dir) for _ in range(num_workers)]
+            self.action_space = self.tasks[0].action_space
         else:
             self.tasks = [ProcessTask(task_fn, log_dir) for _ in range(num_workers)]
+            #self.action_space_high = self.tasks[0].get_action_space_high()
+            #self.action_space_low = self.tasks[0].get_action_space_low()
+            #self.action
         self.state_dim = self.tasks[0].state_dim
         self.action_dim = self.tasks[0].action_dim
         self.name = self.tasks[0].name
         self.single_process = single_process
-
-        for task in self.tasks:
-            print(task.action_space)
 
     def step(self, actions):
         results = [task.step(action) for task, action in zip(self.tasks, actions)]
@@ -1105,3 +1121,6 @@ class ParallelizedTask:
     
     def random_tasks(self, num_tasks, requires_task_label):
         return self.tasks[0].random_tasks(num_tasks, requires_task_label)
+    
+    def get_action_space(self):
+        return self.tasks[0].action_space
