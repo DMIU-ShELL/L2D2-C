@@ -40,19 +40,8 @@ class TD3Agent(BaseAgent):
         BaseAgent.__init__(self, config)
         self.config = config
 
-        self.task = None if config.task_fn is None else config.task_fn()
-        '''if config.eval_task_fn is None:
-            self.evaluation_env = None
-        else:
-            self.evaluation_env = config.eval_task_fn(config.log_dir)
-        tasks_ = self.task.get_all_tasks(config.cl_requires_task_label)
-        tasks = [tasks_[task_id] for task_id in config.task_ids]
-        del tasks_
-        self.config.cl_tasks_info = self.task
-        label_dim = None if not self.config.use_task_label else len(tasks[0]['task_label'])
-        self.task_label_dim = label_dim'''
-
-
+        self.task = config.task_fn()
+        print(self.task.state_dim, self.task.action_dim)
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim)
         self.target_network = config.network_fn(self.task.state_dim, self.task.action_dim)
         self.target_network.load_state_dict(self.network.state_dict())
@@ -97,6 +86,7 @@ class TD3Agent(BaseAgent):
             action = self.network.forward(np.stack([state])).cpu().detach().numpy().flatten()
             if not deterministic:
                 action += self.random_process.sample()
+                
             next_state, reward, done, info = self.task.step(action)
             next_state = self.config.state_normalizer(next_state)
             total_reward += reward
@@ -125,6 +115,7 @@ class TD3Agent(BaseAgent):
 
                 min_a = float(self.task.action_space.low[0])
                 max_a = float(self.task.action_space.high[0])
+
                 a_next = (a_next + noise).clamp(min_a, max_a)
 
                 q_1, q_2 = self.target_network.q(next_states, a_next)

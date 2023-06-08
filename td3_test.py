@@ -8,7 +8,7 @@ from deep_rl.utils.torch_utils import set_one_thread, random_seed, select_device
 from deep_rl.utils.config import Config
 from deep_rl.component.policy import SamplePolicy
 from deep_rl.component.replay import Replay
-from deep_rl.component.random_process import GaussianProcess
+from deep_rl.component.random_process import GaussianProcess, OrnsteinUhlenbeckProcess
 from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, RunningStatsNormalizer, RewardRunningStatsNormalizer
 from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_eval_mp
@@ -16,10 +16,11 @@ from deep_rl.utils.trainer_ll import run_iterations_w_oracle
 from deep_rl.utils.schedule import LinearSchedule
 from deep_rl.agent.PPO_agent import ShellAgent_DP
 from deep_rl.agent.TD3_agent import TD3Agent
+from deep_rl.agent.others.DDPG_agent import DDPGAgent
 from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, Pendulum
-from deep_rl.network.network_heads import TD3Net, CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
-from deep_rl.network.network_bodies import FCBody, FCBody_SS, DummyBody_CL
+from deep_rl.network.network_heads import TD3Net, CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, DeterministicActorCriticNet
+from deep_rl.network.network_bodies import FCBody, FCBody_SS, DummyBody_CL, TwoLayerFCBodyWithAction
 import argparse
 import torch
 import random
@@ -169,13 +170,11 @@ def td3_baseline_mctgraph(name, args, shell_config):
     config.seed = 9157
 
     exp_id = '{0}-seed-{1}'.format(args.exp_id, config_seed)
-
     path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
     config.logger = logger
     config.log_dir = log_dir
-
     try:
         with open(log_dir + '/shell_config.json', 'w') as f:
             json.dump(shell_config, f, indent=4)
@@ -183,16 +182,15 @@ def td3_baseline_mctgraph(name, args, shell_config):
     except:
         print('Something went terribly wrong. Unable to save shell configuration JSON')
     shutil.copy(env_config_path, log_dir)
-
     logger.info('*****initialising agent {0}'.format(args.agent_id))
 
-    num_tasks = len(set(shell_config['curriculum']['task_ids']))
+    '''num_tasks = len(set(shell_config['curriculum']['task_ids']))
     config.cl_num_tasks = num_tasks
     config.task_ids = shell_config['curriculum']['task_ids']
     if isinstance(shell_config['curriculum']['max_steps'], list):
         config.max_steps = shell_config['curriculum']['max_steps']
     else:
-        config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
+        config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])'''
 
     config.max_steps = int(1e6)#config.max_steps[0]
     task_fn = lambda log_dir: Pendulum(log_dir)
@@ -211,7 +209,7 @@ def td3_baseline_mctgraph(name, args, shell_config):
     
     config.seed = config_seed
     #config.use_task_label = False
-    config.cl_requires_task_label = True
+    #config.cl_requires_task_label = True
 
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=100)
     config.discount = 0.99
@@ -229,7 +227,6 @@ def td3_baseline_mctgraph(name, args, shell_config):
     #tasks = agent.config.cl_tasks_info
     #config.cl_num_learn_blocks = 1
     run_episodes(agent)
-
 
 
 if __name__ == '__main__':

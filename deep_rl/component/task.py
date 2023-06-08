@@ -910,14 +910,6 @@ class ProcessTask:
         self.pipe.send([ProcessWrapper.RANDOM_TASKS, [num_tasks, requires_task_label]])
         return self.pipe.recv()
 
-    def get_action_space_high(self):
-        self.pipe.send([ProcessWrapper.ACTION_SPACE_HIGH, None])
-        return self.pipe.recv()
-    
-    def get_action_space_low(self):
-        self.pipe.send([ProcessWrapper.ACTION_SPACE_LOW, None])
-        return self.pipe.recv()
-
 class ProcessWrapper(mp.Process):
     STEP = 0
     RESET = 1
@@ -928,8 +920,6 @@ class ProcessWrapper(mp.Process):
     GET_TASK = 6
     GET_ALL_TASKS = 7
     RANDOM_TASKS = 8
-    ACTION_SPACE_HIGH = 9
-    ACTION_SPACE_LOW = 10
     def __init__(self, pipe, task_fn, log_dir):
         mp.Process.__init__(self)
         self.pipe = pipe
@@ -969,10 +959,6 @@ class ProcessWrapper(mp.Process):
                 self.pipe.send(task.get_all_tasks(data))
             elif op == self.RANDOM_TASKS:
                 self.pipe.send(task.random_tasks(*data))
-            elif op == self.ACTION_SPACE_HIGH:
-                self.pipe.send(task.action_space.high[0])
-            elif op == self.ACTION_SPACE_LOW:
-                self.pipe.send(task.action_space.low[0])
             else:
                 raise Exception('Unknown command')
 '''
@@ -1121,6 +1107,3 @@ class ParallelizedTask:
     
     def random_tasks(self, num_tasks, requires_task_label):
         return self.tasks[0].random_tasks(num_tasks, requires_task_label)
-    
-    def get_action_space(self):
-        return self.tasks[0].action_space
