@@ -83,7 +83,11 @@ class TD3Agent(BaseAgent):
             self.evaluate()
             self.evaluation_episodes()
 
-            action = self.network.forward(np.stack([state])).cpu().detach().numpy().flatten()
+            #action = self.network.forward(np.stack([state])).cpu().detach().numpy().flatten()
+            # you don't need to stack states, since the parallelized env with 1 worker has
+            # already added a batch dim for you. So your state space should have the shape:
+            # (workers/batch_dim, env_state_dim)
+            action = self.network.forward(state).cpu().detach().numpy().flatten()
             if not deterministic:
                 action += self.random_process.sample()
                 
@@ -93,7 +97,14 @@ class TD3Agent(BaseAgent):
             reward = self.config.reward_normalizer(reward)
 
             if not deterministic:
-                self.replay.feed([state, action, reward, next_state, int(done)])
+                # remove the worker/batch dim from states, next_states and reward, because
+                # the replay is sampled from later on, the sample adds its own batch dim for
+                # samples. Since TD3 uses one worker, it's fine to remove the batch dim from
+                # states and reward acquired from earlier path of the code.
+                state_ = state.squeeze()
+                next_state_ = next_state.squeeze()
+                reward_ = reward.squeeze()
+                self.replay.feed([state_, action, reward_, next_state_, int(done)])
                 self.total_steps += 1
 
             steps += 1
