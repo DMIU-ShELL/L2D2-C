@@ -14,12 +14,10 @@ from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_eval_mp
 from deep_rl.utils.trainer_ll import run_iterations_w_oracle
 from deep_rl.utils.schedule import LinearSchedule
-from deep_rl.agent.PPO_agent import ShellAgent_DP
-from deep_rl.agent.TD3_agent import TD3Agent
-from deep_rl.agent.others.DDPG_agent import DDPGAgent
+from deep_rl.agent.SAC_agent import SACAgent
 from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, Pendulum, MountainCarContinuous
-from deep_rl.network.network_heads import TD3Net, CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, DeterministicActorCriticNet
+from deep_rl.network.network_heads import SACNet, CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, DeterministicActorCriticNet
 from deep_rl.network.network_bodies import FCBody, FCBody_SS, DummyBody_CL, TwoLayerFCBodyWithAction
 import argparse
 import torch
@@ -62,102 +60,7 @@ def global_config(config, name):
     config.eval_interval = None#1
     return config
 
-def td3_baseline_mctgraph_shell(name, args, shell_config):
-    env_config_path = shell_config['env']['env_config_path']
-    config_seed = shell_config['seed']
-    init_port = args.port
-
-    config = Config()
-    config = global_config(config, name)
-    config.state_normalizer = RescaleNormalizer()
-
-    config.seed = 9157
-
-    exp_id = '{0}-seed-{1}'.format(args.exp_id, config_seed)
-
-    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
-    log_dir = get_default_log_dir(path_name)
-    logger = get_logger(log_dir=log_dir, file_name='train-log')
-    config.logger = logger
-    config.log_dir = log_dir
-
-    try:
-        with open(log_dir + '/shell_config.json', 'w') as f:
-            json.dump(shell_config, f, indent=4)
-            print('Shell configuration saved to shell_config.json')
-    except:
-        print('Something went terribly wrong. Unable to save shell configuration JSON')
-    shutil.copy(env_config_path, log_dir)
-
-    logger.info('*****initialising agent {0}'.format(args.agent_id))
-
-    num_tasks = len(set(shell_config['curriculum']['task_ids']))
-    config.cl_num_tasks = num_tasks
-    config.task_ids = shell_config['curriculum']['task_ids']
-    if isinstance(shell_config['curriculum']['max_steps'], list):
-        config.max_steps = shell_config['curriculum']['max_steps']
-    else:
-        config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
-
-    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
-    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
-    
-    eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
-    config.eval_task_fn = eval_task_fn
-
-    config.network_fn = lambda state_dim, action_dim: TD3Net(
-        action_dim,
-        actor_body_fn=lambda: FCBody(state_dim, (400, 300), gate=F.relu),
-        critic_body_fn=lambda: FCBody(
-            state_dim+action_dim, (400, 300), gate=F.relu),
-        actor_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3),
-        critic_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3))
-    
-    config.seed = config_seed
-    config.use_task_label = False
-
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=100)
-    config.discount = 0.99
-    config.random_process_fn = lambda action_dim: GaussianProcess(
-        size=(action_dim,), std=LinearSchedule(0.1))
-    config.td3_noise = 0.2
-    config.td3_noise_clip = 0.5
-    config.td3_delay = 2
-    #config.warm_up = int(1e4)
-    config.min_memory_size = int(1e4)
-    config.target_network_mix = 1e-3
-
-    agent = TD3Agent(config)
-    config.agent_name = agent.__class__.__name__ + '_{0}'. format(args.agent_id)
-
-    querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
-
-    addresses, ports = [], []
-    reference_file = open(args.reference, 'r')
-    lines = reference_file.readlines()
-
-    if args.quick_start:
-        for i in range(args.agent_id + 1):
-            line = lines[i].strip('\n').split(', ')
-            addresses.append(line[0])
-            ports.append(int(line[1]))
-
-    else:
-        for line in lines:
-            line = line.strip('\n').split(', ')
-            addresses.append(line[0])
-            ports.append(int(line[1]))
-
-    manager = mp.Manager()
-    knowledge_base = manager.dict()
-    mode = manager.Value('b', args.omni)
-    
-    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout)
-    
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode, args.amnesia)
-
-
-def td3_baseline_mctgraph(name, args, shell_config):
+def sac_baseline(name, args, shell_config):
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
     init_port = args.port
@@ -193,19 +96,20 @@ def td3_baseline_mctgraph(name, args, shell_config):
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])'''
 
     config.max_steps = int(1e6)#config.max_steps[0]
-    task_fn = lambda log_dir: MountainCarContinuous(log_dir)
+    task_fn = lambda log_dir: Pendulum(log_dir)
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
     
-    eval_task_fn = lambda log_dir: MountainCarContinuous(log_dir)
+    eval_task_fn = lambda log_dir: Pendulum(log_dir)
     config.eval_task_fn = eval_task_fn
 
-    config.network_fn = lambda state_dim, action_dim: TD3Net(
+    config.network_fn = lambda state_dim, action_dim: SACNet(
         action_dim,
         actor_body_fn=lambda: FCBody(state_dim, (400, 300), gate=F.relu),
-        critic_body_fn=lambda: FCBody(
-            state_dim+action_dim, (400, 300), gate=F.relu),
+        critic_body_fn=lambda: FCBody(state_dim+action_dim, (400, 300), gate=F.relu),
+        value_body_fn=lambda: FCBody(state_dim, (400, 300), gate=F.relu),
         actor_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3),
-        critic_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3))
+        critic_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3),
+        value_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3))
     
     config.seed = config_seed
     #config.use_task_label = False
@@ -215,14 +119,15 @@ def td3_baseline_mctgraph(name, args, shell_config):
     config.discount = 0.99
     config.random_process_fn = lambda action_dim: GaussianProcess(
         size=(action_dim,), std=LinearSchedule(0.1))
-    config.td3_noise = 0.2
-    config.td3_noise_clip = 0.5
-    config.td3_delay = 2
+    #config.td3_noise = 0.2
+    #config.td3_noise_clip = 0.5
+    #config.td3_delay = 2
+    config.alpha = 0.2
     #config.warm_up = int(1e4)
     config.min_memory_size = int(1e4)
     config.target_network_mix = 5e-3
 
-    agent = TD3Agent(config)
+    agent = SACAgent(config)
     #config.agent_name = agent.__class__.__name__
     #tasks = agent.config.cl_tasks_info
     #config.cl_num_learn_blocks = 1
@@ -280,6 +185,6 @@ if __name__ == '__main__':
         shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
         del shell_config['agents'][args.agent_id]
 
-    if shell_config['env']['env_name'] == 'ctgraph':
-        name = Config.ENV_METACTGRAPH
-        td3_baseline_mctgraph(name, args, shell_config)
+
+    name = 'Pendulum'
+    sac_baseline(name, args, shell_config)

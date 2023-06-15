@@ -816,6 +816,19 @@ class Pendulum(BaseTask):
 
     def step(self, action):
         return BaseTask.step(self, [np.clip(2 * action, -2, 2)])
+    
+class MountainCarContinuous(BaseTask):
+    def __init__(self, log_dir=None):
+        BaseTask.__init__(self)
+        self.name = 'MountainCarContinuous-v0'
+        self.env = gym.make(self.name)
+        self.action_dim = self.env.action_space.shape[0]
+        self.state_dim = self.env.observation_space.shape[0]
+        self.action_space = self.env.action_space
+        self.env = self.set_monitor(self.env, log_dir)
+
+    def step(self, action):
+        return BaseTask.step(self, [np.clip(action, -1, 1)])
 
 class Box2DContinuous(BaseTask):
     def __init__(self, name, log_dir=None):

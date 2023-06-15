@@ -48,7 +48,6 @@ class TD3Agent(BaseAgent):
         self.replay = config.replay_fn()
         self.random_process = config.random_process_fn(self.task.action_dim)
         self.total_steps = 0
-        self.state = None
 
     def soft_update(self, target, src):
         for target_param, param in zip(target.parameters(), src.parameters()):
@@ -104,15 +103,17 @@ class TD3Agent(BaseAgent):
                 state_ = state.squeeze()
                 next_state_ = next_state.squeeze()
                 reward_ = reward.squeeze()
+
                 self.replay.feed([state_, action, reward_, next_state_, int(done)])
                 self.total_steps += 1
 
             steps += 1
             state = next_state
 
+            # If it's time to update
             if not deterministic and self.replay.size() >= config.min_memory_size:
-                experiences = self.replay.sample()
-                states, actions, rewards, next_states, terminals = experiences
+                # Randomly sample a batch of transitions from the replay buffer
+                states, actions, rewards, next_states, terminals = self.replay.sample()
                 
                 states = tensor(states)
                 actions = tensor(actions)
@@ -120,6 +121,7 @@ class TD3Agent(BaseAgent):
                 next_states = tensor(next_states)
                 mask = tensor(1 - terminals).unsqueeze(-1)
 
+                # Compute target actions
                 a_next = self.target_network(next_states)
                 noise = torch.randn_like(a_next).mul(config.td3_noise)
                 noise = noise.clamp(-config.td3_noise_clip, config.td3_noise_clip)
@@ -129,6 +131,8 @@ class TD3Agent(BaseAgent):
 
                 a_next = (a_next + noise).clamp(min_a, max_a)
 
+                
+                # Compute targets
                 q_1, q_2 = self.target_network.q(next_states, a_next)
                 target = rewards + config.discount * mask * torch.min(q_1, q_2)
                 target = target.detach()
@@ -136,11 +140,17 @@ class TD3Agent(BaseAgent):
                 q_1, q_2 = self.network.q(states, actions)
                 critic_loss = F.mse_loss(q_1, target) + F.mse_loss(q_2, target)
 
+
+                # Update Q-functions by one step of gradient DESCENT (descent used to minimise mean squared error loss between
+                # the predicted Q-values q_1 and q_2 on the critic network (Q-functions))
                 self.network.zero_grad()
                 critic_loss.backward()
                 self.network.critic_opt.step()
 
+                # If j (in this case total_steps) mod policy delay = 0
                 if self.total_steps % config.td3_delay:
+                    # Update policy by one step of gradient ASCENT (ascent used to update the policy (actor network) by maximizing the expected return)
+                    # policy loss is the negative mean of the Q-values for the current states and actions
                     action = self.network(states)
                     policy_loss = -self.network.q(states, action)[0].mean()
 
@@ -148,6 +158,7 @@ class TD3Agent(BaseAgent):
                     policy_loss.backward()
                     self.network.actor_opt.step()
 
+                    # Update target networks
                     self.soft_update(self.target_network, self.network)
 
             if done:
