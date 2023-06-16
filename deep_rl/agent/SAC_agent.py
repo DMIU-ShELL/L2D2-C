@@ -5,13 +5,12 @@
 #######################################################################
 
 
-#___________.__             _________                __  .__                                        _____                         __   
-#\__    ___/|  |__   ____   \_   ___ \  ____   _____/  |_|__| ____   ____  __ __   ____   ______   /  _  \    ____   ____   _____/  |_ 
-#  |    |   |  |  \_/ __ \  /    \  \/ /  _ \ /    \   __\  |/    \ /  _ \|  |  \_/ __ \ /  ___/  /  /_\  \  / ___\_/ __ \ /    \   __\
-#  |    |   |   Y  \  ___/  \     \___(  <_> )   |  \  | |  |   |  (  <_> )  |  /\  ___/ \___ \  /    |    \/ /_/  >  ___/|   |  \  |  
-#  |____|   |___|  /\___  >  \______  /\____/|___|  /__| |__|___|  /\____/|____/  \___  >____  > \____|__  /\___  / \___  >___|  /__|  
-#                \/     \/          \/            \/             \/                   \/     \/          \//_____/      \/     \/      
-#
+#   _________   _____  _________      _____                         __   
+#  /   _____/  /  _  \ \_   ___ \    /  _  \    ____   ____   _____/  |_ 
+#  \_____  \  /  /_\  \/    \  \/   /  /_\  \  / ___\_/ __ \ /    \   __\
+#  /        \/    |    \     \____ /    |    \/ /_/  >  ___/|   |  \  |  
+# /_______  /\____|__  /\______  / \____|__  /\___  / \___  >___|  /__|  
+#         \/         \/        \/          \//_____/      \/     \/      
 
 from copy import deepcopy
 import multiprocessing as mp
@@ -125,29 +124,47 @@ class SACAgent(BaseAgent):
                     target_q_value = rewards + config.discount * mask * (target_value - config.alpha * next_log_prob.unsqueeze(-1))
 
 
+                # Get q values from the two critic networks for the states-actions
                 q_value_1, q_value_2 = self.network.q(states, actions)
+
+                # Estimate the state-value function using the state observations
                 value = self.network.value(states)
 
-                # Update the networks
-                q_value_loss = F.mse_loss(q_value_1, target_q_value) + F.mse_loss(q_value_2, target_q_value)
-                value_loss = F.mse_loss(value, target_q_value.detach())
-                policy_loss = (config.alpha * next_log_prob - q_value_1).mean()
+
+                # Based on SAC implementation found here: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py
+                # Compute the q-value loss
+                qf1_loss = F.mse_loss(q_value_1, target_q_value)
+                qf2_loss = F.mse_loss(q_value_2, target_q_value)
+                q_value_loss = qf1_loss + qf2_loss
 
                 # Update the two critic networks (q-functions) with gradient descent
                 self.network.critic_opt.zero_grad()
                 q_value_loss.backward()
                 self.network.critic_opt.step()
 
+
+
+                # Compute the value loss
+                value_loss = F.mse_loss(value, target_q_value.detach())
+
                 # Update the value network
                 self.network.value_opt.zero_grad()
                 value_loss.backward()
                 self.network.value_opt.step()
+
+
+
+                # Compute the policy loss
+                qf1_pi, qf2_pi = self.network.q(states, next_action)
+                min_qf_pi = torch.min(qf1_pi, qf2_pi)
+                policy_loss = (config.alpha * next_log_prob - min_qf_pi).mean()
 
                 # Update the policy (actor) network using gradient ascent
                 self.network.actor_opt.zero_grad()
                 policy_loss.backward()
                 self.network.actor_opt.step()
 
+                # Update the target networks
                 self.soft_update(self.target_value_network, self.network)
                 
             if done:
