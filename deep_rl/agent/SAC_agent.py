@@ -117,16 +117,16 @@ class SACAgent(BaseAgent):
                 mask = tensor(1 - terminals).unsqueeze(-1)
 
                 # Compute target actions from forward pass
-                # torch.no_grad allows us to efficiently perform forward pass/inference when we don't need to compute
+                # NOTE: torch.no_grad allows us to efficiently perform forward pass/inference when we don't need to compute
                 # gradient calculations.
                 with torch.no_grad():
                     next_action, next_log_prob = self.network.sample(next_states, reparameterize=True)
                     target_value = self.target_value_network.value(next_states)
-                    target_q_value = rewards + config.discount * mask * (target_value - config.alpha * next_log_prob)
+                    target_q_value = rewards + config.discount * mask * (target_value - config.alpha * next_log_prob.unsqueeze(-1))
+
 
                 q_value_1, q_value_2 = self.network.q(states, actions)
                 value = self.network.value(states)
-                
 
                 # Update the networks
                 q_value_loss = F.mse_loss(q_value_1, target_q_value) + F.mse_loss(q_value_2, target_q_value)
@@ -134,19 +134,16 @@ class SACAgent(BaseAgent):
                 policy_loss = (config.alpha * next_log_prob - q_value_1).mean()
 
                 # Update the two critic networks (q-functions) with gradient descent
-                self.network.critic_opt_1.zero_grad()
-                q_value_loss.backward(retain_graph=True)
-                self.network.critic_opt_1.step()
+                self.network.critic_opt.zero_grad()
+                q_value_loss.backward()
+                self.network.critic_opt.step()
 
-                self.network.critic_opt_2.zero_grad()
-                q_value_loss.backward(retain_graph=True)
-                self.network.critic_opt_2.step()
-
-                # Update the 
+                # Update the value network
                 self.network.value_opt.zero_grad()
                 value_loss.backward()
                 self.network.value_opt.step()
 
+                # Update the policy (actor) network using gradient ascent
                 self.network.actor_opt.zero_grad()
                 policy_loss.backward()
                 self.network.actor_opt.step()

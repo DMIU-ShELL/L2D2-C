@@ -104,12 +104,12 @@ def sac_baseline(name, args, shell_config):
 
     config.network_fn = lambda state_dim, action_dim: SACNet(
         action_dim,
-        actor_body_fn=lambda: FCBody(state_dim, (400, 300), gate=F.relu),
-        critic_body_fn=lambda: FCBody(state_dim+action_dim, (400, 300), gate=F.relu),
-        value_body_fn=lambda: FCBody(state_dim, (400, 300), gate=F.relu),
-        actor_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3),
-        critic_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3),
-        value_opt_fn=lambda params: torch.optim.Adam(params, lr=1e-3))
+        actor_body_fn  = lambda: FCBody(state_dim, (400, 300), gate=F.relu),
+        critic_body_fn = lambda: FCBody(state_dim+action_dim, (400, 300), gate=F.relu),
+        value_body_fn  = lambda: FCBody(state_dim, (400, 300), gate=F.relu),
+        actor_opt_fn   = lambda params: torch.optim.Adam(params, lr=1e-3),
+        critic_opt_fn  = lambda params: torch.optim.Adam(params, lr=1e-3),
+        value_opt_fn   = lambda params: torch.optim.Adam(params, lr=1e-3))
     
     config.seed = config_seed
     #config.use_task_label = False

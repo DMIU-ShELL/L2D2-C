@@ -193,10 +193,10 @@ def td3_baseline_mctgraph(name, args, shell_config):
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])'''
 
     config.max_steps = int(1e6)#config.max_steps[0]
-    task_fn = lambda log_dir: MountainCarContinuous(log_dir)
+    task_fn = lambda log_dir: Pendulum(log_dir)
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
     
-    eval_task_fn = lambda log_dir: MountainCarContinuous(log_dir)
+    eval_task_fn = lambda log_dir: Pendulum(log_dir)
     config.eval_task_fn = eval_task_fn
 
     config.network_fn = lambda state_dim, action_dim: TD3Net(

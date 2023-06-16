@@ -495,10 +495,8 @@ class SACNet(nn.Module, BaseNet):
         # the Gaussian actor critic net class. But regardless I think for now this should
         # do the job.
 
-
         # Network bodies
         self.actor_body = actor_body_fn()
-
         # SAC uses two critic networks
         self.critic_body_1 = critic_body_fn()
         self.critic_body_2 = critic_body_fn()
@@ -516,12 +514,10 @@ class SACNet(nn.Module, BaseNet):
         self.value_params = list(self.value_body.parameters()) + list(self.fc_value.parameters())
 
         self.actor_opt = actor_opt_fn(self.actor_params)
-        self.critic_opt_1 = critic_opt_fn(self.critic_params)
-        self.critic_opt_2 = critic_opt_fn(self.critic_params)
+        self.critic_opt = critic_opt_fn(self.critic_params)
         self.value_opt = value_opt_fn(self.value_params)
 
         self.log_std = nn.Parameter(torch.zeros(1, action_dim))
-
 
         self.to(Config.DEVICE)
 
@@ -538,7 +534,7 @@ class SACNet(nn.Module, BaseNet):
         std = torch.exp(self.log_std)
         dist = torch.distributions.Normal(mean, std)
 
-        # Reparameterize trick is used to carry out backpropagation through a differntiable
+        # NOTE: Reparameterize trick is used to carry out backpropagation through a differntiable
         # noise source (i.e, the gaussian (normal) distribution we are using in this code)
         # and then transforming it using a determinsitic function. This incorporates the actor networks
         # output mean and std to produce the sampled action.
