@@ -74,8 +74,8 @@ class Detect:
       q = q+1
       X.append(batch.squeeze().view(batch.shape[0],-1))
     X = torch.cat(X).to(self.device)
-    print("QQQQQQQQQQQQ:", q)
-    print("FIRST X:", X)
+    #print("QQQQQQQQQQQQ:", q)
+    #print("FIRST X:", X)
 
     img = X[:,:self.input_dim]
     act = X[:,self.input_dim:-1]
@@ -104,8 +104,8 @@ class Detect:
     '''Calculates the Embedding for a given Data-Batch of SAR
     Returns a 1D Tensor with the calculated Embedding'''
     X = self.preprocess_dataset(X, some_task_action_space_size)
-    print("PrePRocess_SAR_DETECT:", X)
-    print("What we actually use form the data we give:", X.shape)
+    #print("PrePRocess_SAR_DETECT:", X)
+    #print("What we actually use form the data we give:", X.shape)
     ref_size = self.ref.shape[0]
     C = ot.dist(X.cpu(), self.ref).cpu().numpy()
     # Calculating the transport plan

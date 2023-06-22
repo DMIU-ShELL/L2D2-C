@@ -151,7 +151,7 @@ class ParallelComm(object):
             address: The ip of the destination.
             port: The port of the destination.
         """
-        print("HI Frm COMMS ISSUE01:", data, address, port)
+        #print("HI Frm COMMS ISSUE01:", data, address, port)
         _data = pickle.dumps(data, protocol=5)
 
         # Attempt to send the data a number of times. If successful do not attempt to send again.
@@ -655,14 +655,14 @@ class ParallelComm(object):
         #p_discover = mp.Process(target=self.send_join_net)
         #p_discover.start()
 
-        time.sleep(2)
+        time.sleep(1)
 
         # Initialise the client loop
         while True:
             # Attempt to connect to reference agent and get latest table. If the query table is reduced to original state then try to reconnect previous agents
             # using the reference table.
             # Unless there is no reference.
-            try:
+            #try:
                 print()
                 self.logger.info(Fore.GREEN + f'Knowledge base in this iteration:')
                 for key, val in self.knowledge_base.items(): self.logger.info(f'{key[0:5]} : {val}')
@@ -689,11 +689,11 @@ class ParallelComm(object):
 
 
             # Handles the agent crashing or stopping or whatever. Not sure if this is the right way to do this. Come back to this later.
-            except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
-                p_server.close()
-                #p_discover.close()
-                #self.send_exit_net()
-                sys.exit()
+            #except (SystemExit, KeyboardInterrupt) as e:                           # Uncomment to enable the keyboard interrupt and system exit handling
+            #    p_server.close()
+            #    #p_discover.close()
+            #    #self.send_exit_net()
+            #    sys.exit()
                 
     def parallel(self, queue_label, queue_mask, queue_label_send, queue_mask_recv):
         """

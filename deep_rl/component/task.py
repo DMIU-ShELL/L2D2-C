@@ -422,14 +422,14 @@ class MetaCTgraph(BaseTask):
         self.current_task = taskinfo
 
     def get_task(self):
-        print("HEEEEEEEEEEEEEEEYYYYYYYYYYYYY form the META_CT-Graph GET TASK:", self.current_task)
+        #print("HEEEEEEEEEEEEEEEYYYYYYYYYYYYY form the META_CT-Graph GET TASK:", self.current_task)
         return self.current_task
 
     def set_current_task_info(self, some_key, some_value):
         '''A setter method for dynamically updaating the task info dict with new registered values.
         '''
         self.current_task.update({some_key: some_value})
-        print("HEEEEEEEEEEEEEEEYYYYYYYYYYYYY from META_CT-Graph SET INFO:", self.current_task)
+        #print("HEEEEEEEEEEEEEEEYYYYYYYYYYYYY from META_CT-Graph SET INFO:", self.current_task)
 
 
     def get_all_tasks(self, requires_task_label=True):
@@ -785,14 +785,14 @@ class ProcessTask:
 
     def get_task(self):
         self.pipe.send([ProcessWrapper.GET_TASK, None])
-        print("HI form PROCESSTASK!!!!!!!!!!!!!!!!!!!")
+        #print("HI form PROCESSTASK!!!!!!!!!!!!!!!!!!!")
         return self.pipe.recv()
     
     def set_current_task_info(self, some_key, some_value):
         ''''''
         data_package = [some_key, some_value]
         self.pipe.send([ProcessWrapper.SET_CURR_TASK_INFO, data_package])
-        print("HIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII form PROCESS TASK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        #print("HIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII form PROCESS TASK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
     def get_all_tasks(self, requires_task_label):
         self.pipe.send([ProcessWrapper.GET_ALL_TASKS, requires_task_label])
@@ -847,7 +847,7 @@ class ProcessWrapper(mp.Process):
             elif op == self.SET_TASK:
                 self.pipe.send(task.set_task(data))
             elif op == self.GET_TASK:
-                print("HELLO form PROCESSWRAPPER!!!!!!!!!!!!:", task.get_task())
+                #print("HELLO form PROCESSWRAPPER!!!!!!!!!!!!:", task.get_task())
                 self.pipe.send(task.get_task())
             elif op == self.GET_ALL_TASKS:
                 self.pipe.send(task.get_all_tasks(data))
@@ -992,13 +992,13 @@ class ParallelizedTask:
         ''''''
         for task in self.tasks:
             task.set_current_task_info(some_key, some_value)
-        print("HIIIIIIIIIIIIIIIIIIIIIIIIILLLLLLLLLLLLLLLLLLLLLLLLLLLLOOOOOOOOOOOOOOOOOOOOOOOO form PARALLELIZED TASK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        #print("HIIIIIIIIIIIIIIIIIIIIIIIIILLLLLLLLLLLLLLLLLLLLLLLLLLLLOOOOOOOOOOOOOOOOOOOOOOOO form PARALLELIZED TASK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
     def get_task(self, all_workers=False):
         if not all_workers:
             return self.tasks[0].get_task()
         else:
-            print("Hello form Prallelized Task!!!")
+            #print("Hello form Prallelized Task!!!")
             return [task.get_task() for task in self.tasks]
 
     def get_all_tasks(self, requires_task_label):
