@@ -594,41 +594,44 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             logger.info(Fore.WHITE + f'\n######### MASK RECEIVED FROM COMM #########')
 
             _masks = []
-            _embeddings = []
-            _rewards = []
-            _label = None
-            for mask_response_dict in masks_list:
+            _avg_embeddings = []
+            _avg_rewards = []
+            _mask_labels = []
 
-                mask = mask_response_dict['mask']
-                embedding = mask_response_dict['embedding']
-                reward = mask_response_dict['reward']
-                label = mask_response_dict['label']
-                ip = mask_response_dict['ip']
-                port = mask_response_dict['port']
+            try:
+                for mask_response_dict in masks_list:
 
-                _masks.append(mask)
-                _embeddings.append(embedding)
-                _rewards.append(reward)
-                _label = label
+                    mask = mask_response_dict['mask']
+                    embedding = mask_response_dict['embedding']
+                    reward = mask_response_dict['reward']
+                    label = mask_response_dict['label']
+                    ip = mask_response_dict['ip']
+                    port = mask_response_dict['port']
+
+                    _masks.append(mask)
+                    _avg_embeddings.append(embedding)
+                    _avg_rewards.append(reward)
+                    _mask_labels.append(label)
+
+                    # Log successful mask transfer
+                    exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, len(mask), mask])
+                    np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
+            except Exception as e:
+                traceback.print_exc()
 
 
-                # Log successful mask transfer
-                exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, len(mask), mask])
-                np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
+            if len(_masks) > 0:
+                try:
+                    logger.info(Fore.WHITE + f'COMPOSING MASKS: {_avg_embeddings[0]}, {_avg_rewards[0]}, {_mask_labels[0]}')
+                    logger.info(Fore.WHITE + f'MASK: {_masks[0]}')
 
-            
-
-            '''if len(_masks) > 0:
-                _embeddings = torch.avg(_embeddings)
-                _rewards = np.avg(_rewards)
-
-                logger.info(Fore.WHITE + f'COMPOSING MASKS: {_embeddings}, {_rewards}, {_label}')
-
-                # Update the knowledge base with the expected reward
-                agent.update_seen_tasks(torch.avg(_embeddings), np.avg(_rewards), _label)#knowledge_base.update({tuple(label.tolist()): reward})
-                # Update the network with the mask
-                agent.distil_task_knowledge_embedding(_masks[0])    # replace _masks[0] with just _masks. We will replace the method with one that does linear combination.
-                logger.info(Fore.WHITE + 'COMPOSED MASK ADDED TO NETWORK!')'''
+                    # Update the knowledge base with the expected reward
+                    agent.update_seen_tasks(_avg_embeddings[0], _avg_rewards[0], _mask_labels[0])#knowledge_base.update({tuple(label.tolist()): reward})
+                    # Update the network with the mask
+                    agent.distil_task_knowledge_embedding(_masks[0])    # replace _masks[0] with just _masks. We will replace the method with one that does linear combination.
+                    logger.info(Fore.WHITE + 'COMPOSED MASK ADDED TO NETWORK!')
+                except Exception as e:
+                    traceback.print_exc()
 
     def conv_handler():
         """
@@ -642,7 +645,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                 logger.info(f"Embedding: {to_convert['response_embedding']}, Type: {type(to_convert['response_embedding'])}")
 
                 mask = agent.idx_to_mask(to_convert['response_embedding'], to_convert['response_task_id'])
-                print(Fore.LIGHTRED_EX + f'{mask}')
+                print(Fore.LIGHTRED_EX + f'Found valid mask: {mask}')
                 to_convert['response_mask'] = mask
                 queue_mask_recv.put((to_convert))
             except Exception as e:

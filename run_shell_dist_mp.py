@@ -30,7 +30,8 @@ from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
 from deep_rl.agent.PPO_agent import PPODetectShell
 from deep_rl.agent.SAC_agent import SACDetectShell
 
-from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient, ParallelCommDetect
+from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient
+from deep_rl.shell_modules.communication.comms_detect import ParallelCommDetect, ParallelCommDetectEval
 from deep_rl.shell_modules.detect.detect import Detect
 
 import argparse

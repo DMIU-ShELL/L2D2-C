@@ -17,8 +17,8 @@ dependencies:
   - brotlipy=0.7.0=py39h27cfd23_1003
   - bzip2=1.0.8=h7b6447c_0
   - c-ares=1.18.1=h7f8727e_0
-  - ca-certificates=2022.10.11=h06a4308_0
-  - certifi=2022.9.24=py39h06a4308_0
+  - ca-certificates=2023.08.22=h06a4308_0
+  - certifi=2023.7.22=py39h06a4308_0
   - cffi=1.15.1=py39h74dc2b5_0
   - charset-normalizer=2.0.4=pyhd3eb1b0_0
   - colorama=0.4.5=py39h06a4308_0
@@ -160,7 +160,7 @@ dependencies:
   - numpy=1.23.1=py39h6c91a56_0
   - numpy-base=1.23.1=py39ha15fc14_0
   - openh264=2.1.1=h4ff587b_0
-  - openssl=1.1.1s=h7f8727e_0
+  - openssl=1.1.1w=h7f8727e_0
   - packaging=21.3=pyhd3eb1b0_0
   - parso=0.8.3=pyhd3eb1b0_0
   - patchelf=0.13=h295c915_0
@@ -231,73 +231,79 @@ dependencies:
   - zlib=1.2.12=h7f8727e_2
   - zstd=1.5.2=ha4553b6_0
   - pip:
-    - absl-py==1.1.0
-    - aiosignal==1.2.0
-    - astunparse==1.6.3
-    - atari-py==0.2.9
-    - attrs==22.1.0
-    - cachetools==5.2.0
-    - click==8.0.4
-    - cloudpickle==2.1.0
-    - cython==0.29.30
-    - distlib==0.3.6
-    - fasteners==0.17.3
-    - filelock==3.8.0
-    - flatbuffers==1.12
-    - fonttools==4.33.3
-    - frozenlist==1.3.1
-    - gast==0.4.0
-    - glfw==2.5.3
-    - google-auth==2.8.0
-    - google-auth-oauthlib==0.4.6
-    - google-pasta==0.2.0
-    - grpcio==1.43.0
-    - gym==0.24.0
-    - gym-minigrid==1.1.0
-    - gym-notices==0.0.7
-    - h5py==3.7.0
-    - imageio==2.19.3
-    - importlib-metadata==4.12.0
-    - jsonschema==4.16.0
-    - keras==2.9.0
-    - keras-preprocessing==1.1.2
-    - kiwisolver==1.4.3
-    - libclang==14.0.1
-    - markdown==3.3.7
-    - msgpack==1.0.4
-    - mujoco-py==2.1.2.14
-    - networkx==2.8.4
-    - oauthlib==3.2.0
-    - opencv-python==4.6.0.66
-    - opt-einsum==3.3.0
-    - pandas==1.4.3
-    - pathlib==1.0.1
-    - platformdirs==2.5.2
-    - pox==0.3.1
-    - ppft==1.7.6.5
-    - protobuf==3.19.4
-    - pyasn1==0.4.8
-    - pyasn1-modules==0.2.8
-    - pyrsistent==0.18.1
-    - pytz==2022.1
-    - pywavelets==1.3.0
-    - pyyaml==6.0
-    - requests-oauthlib==1.3.1
-    - rsa==4.8
-    - scikit-image==0.19.3
-    - seaborn==0.11.2
-    - tensorboard==2.9.1
-    - tensorboard-data-server==0.6.1
-    - tensorboard-plugin-wit==1.8.1
-    - tensorboardx==2.5.1
-    - tensorflow==2.9.1
-    - tensorflow-estimator==2.9.0
-    - tensorflow-io-gcs-filesystem==0.26.0
-    - termcolor==1.1.0
-    - tifffile==2022.5.4
-    - tqdm==4.64.0
-    - virtualenv==20.16.5
-    - werkzeug==2.1.2
-    - wrapt==1.14.1
-    - zipp==3.8.0
+      - absl-py==1.1.0
+      - aiohttp==3.8.3
+      - aiosignal==1.2.0
+      - astunparse==1.6.3
+      - async-timeout==4.0.2
+      - atari-py==0.2.9
+      - attrs==22.1.0
+      - cachetools==5.2.0
+      - click==8.0.4
+      - cloudpickle==2.1.0
+      - cython==0.29.30
+      - distlib==0.3.6
+      - fasteners==0.17.3
+      - filelock==3.8.0
+      - flatbuffers==1.12
+      - fonttools==4.33.3
+      - frozenlist==1.3.1
+      - gast==0.4.0
+      - glfw==2.5.3
+      - google-auth==2.8.0
+      - google-auth-oauthlib==0.4.6
+      - google-pasta==0.2.0
+      - grpcio==1.43.0
+      - gym==0.24.0
+      - gym-minigrid==1.1.0
+      - gym-notices==0.0.7
+      - h5py==3.7.0
+      - imageio==2.19.3
+      - importlib-metadata==4.12.0
+      - ipinfo==4.4.2
+      - jsonschema==4.16.0
+      - keras==2.9.0
+      - keras-preprocessing==1.1.2
+      - kiwisolver==1.4.3
+      - libclang==14.0.1
+      - markdown==3.3.7
+      - msgpack==1.0.4
+      - mujoco-py==2.1.2.14
+      - multidict==6.0.4
+      - networkx==2.8.4
+      - oauthlib==3.2.0
+      - opencv-python==4.6.0.66
+      - opt-einsum==3.3.0
+      - pandas==1.4.3
+      - pathlib==1.0.1
+      - platformdirs==2.5.2
+      - pox==0.3.1
+      - ppft==1.7.6.5
+      - protobuf==3.19.4
+      - pyasn1==0.4.8
+      - pyasn1-modules==0.2.8
+      - pygame==2.1.0
+      - pyrsistent==0.18.1
+      - pytz==2022.1
+      - pywavelets==1.3.0
+      - pyyaml==6.0
+      - requests-oauthlib==1.3.1
+      - rsa==4.8
+      - scikit-image==0.19.3
+      - seaborn==0.11.2
+      - tensorboard==2.9.1
+      - tensorboard-data-server==0.6.1
+      - tensorboard-plugin-wit==1.8.1
+      - tensorboardx==2.5.1
+      - tensorflow==2.9.1
+      - tensorflow-estimator==2.9.0
+      - tensorflow-io-gcs-filesystem==0.26.0
+      - termcolor==1.1.0
+      - tifffile==2022.5.4
+      - tqdm==4.64.0
+      - virtualenv==20.16.5
+      - werkzeug==2.1.2
+      - wrapt==1.14.1
+      - yarl==1.8.2
+      - zipp==3.8.0
 prefix: /home/lunet/cosn5/.conda/envs/dmiu
