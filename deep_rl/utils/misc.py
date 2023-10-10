@@ -8,18 +8,30 @@ import numpy as np
 import pickle
 import os
 import datetime
-import torch
 from .torch_utils import *
+import time
 #from io import BytesIO
 #import scipy.misc
 #import torchvision
+from pathlib import Path
 
-try:
-    # python >= 3.5
-    from pathlib import Path
-except:
-    # python == 2.7
-    from pathlib2 import Path
+def run_steps(agent):
+    config = agent.confg
+    agent_name = agent.__class__.__name__
+    t0 = time.time()
+    while True:
+        if config.save_interval and not agent.total_steps % config.save_interval:
+            agent.save('data/%s-%s-%d' % (agent_name, config.tag, agent.total_steps))
+        if config.log_interval and not agent.total_steps % config.log_interval:
+            agent.logger.info('steps %d, %.2f steps/s' % (agent.total_steps, config.log_interval / (time.time() - t0)))
+            t0 = time.time()
+        if config.eval_interval and not agent.total_steps % config.eval_interval:
+            agent.eval_episodes()
+        if config.max_steps and agent.total_steps >= config.max_steps:
+            agent.close()
+            break
+        agent.step()
+        agent.switch_task()
 
 def run_episodes(agent): # run episodes in single task setting
     config = agent.config
@@ -81,6 +93,7 @@ def run_episodes_cl(agent, tasks_info): # run episodes in continual learning (mu
     task_name = agent.task.name
 
     task_start_idx = 0
+    print(tasks_info)
     eval_results = {task_idx:[] for task_idx in range(len(tasks_info))}
     for task_idx, task_info in enumerate(tasks_info):
         config.logger.info('\nstart training on task {0}'.format(task_idx))

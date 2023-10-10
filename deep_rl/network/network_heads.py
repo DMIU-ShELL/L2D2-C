@@ -9,8 +9,6 @@ from .network_bodies import *
 from ..utils.config import Config
 import torch.nn as nn
 from ..utils.torch_utils import tensor
-import torch.cuda.amp as amp
-
 
 class VanillaNet(nn.Module, BaseNet):
     def __init__(self, output_dim, body):
@@ -391,22 +389,21 @@ class CategoricalActorCriticNet_SS(nn.Module, BaseNet):
         if task_label is not None and not isinstance(task_label, torch.Tensor):
             task_label = tensor(task_label)
         layers_output = []
-        with amp.autocast():
-            phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')#NOTE Here is where we crash !!!!!!!!!!!!!!!
-            layers_output += out
-            phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
-            layers_output += out
-            phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
-            layers_output += out
+        phi, out = self.network.phi_body(obs, task_label, return_layer_output, 'network.phi_body')
+        layers_output += out
+        phi_a, out = self.network.actor_body(phi, None, return_layer_output, 'network.actor_body')
+        layers_output += out
+        phi_v, out = self.network.critic_body(phi, None, return_layer_output, 'network.critic_body')
+        layers_output += out
 
-            logits = self.network.fc_action(phi_a)
-            v = self.network.fc_critic(phi_v)
-            dist = torch.distributions.Categorical(logits=logits)
-            if action is None:
-                action = dist.sample()
-            if return_layer_output:
-                layers_output += [('policy_logits', logits), ('policy_action', action), ('value_fn', v)]
-            log_prob = dist.log_prob(action).unsqueeze(-1)
+        logits = self.network.fc_action(phi_a)
+        v = self.network.fc_critic(phi_v)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        if return_layer_output:
+            layers_output += [('policy_logits', logits), ('policy_action', action), ('value_fn', v)]
+        log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 
 # actor-critic net for continual learning where tasks are labelled
@@ -445,3 +442,127 @@ class CategoricalActorCriticNet_CL(nn.Module, BaseNet):
         log_prob = dist.log_prob(action).unsqueeze(-1)
         return logits, action, log_prob, dist.entropy().unsqueeze(-1), v, layers_output
 
+class TD3Net(nn.Module, BaseNet):
+    def __init__(self,
+                 action_dim,
+                 actor_body_fn,
+                 critic_body_fn,
+                 actor_opt_fn,
+                 critic_opt_fn,
+                 ):
+        super(TD3Net, self).__init__()
+        self.actor_body = actor_body_fn()
+        self.critic_body_1 = critic_body_fn()
+        self.critic_body_2 = critic_body_fn()
+
+        self.fc_action = layer_init(nn.Linear(self.actor_body.feature_dim, action_dim), 1e-3)
+        self.fc_critic_1 = layer_init(nn.Linear(self.critic_body_1.feature_dim, 1), 1e-3)
+        self.fc_critic_2 = layer_init(nn.Linear(self.critic_body_2.feature_dim, 1), 1e-3)
+
+        self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
+        self.critic_params = list(self.critic_body_1.parameters()) + list(self.fc_critic_1.parameters()) +\
+                             list(self.critic_body_2.parameters()) + list(self.fc_critic_2.parameters())
+
+        self.actor_opt = actor_opt_fn(self.actor_params)
+        self.critic_opt = critic_opt_fn(self.critic_params)
+        self.to(Config.DEVICE)
+
+    def forward(self, obs):
+        obs = tensor(obs)
+        return torch.tanh(self.fc_action(self.actor_body(obs)))
+
+    def q(self, obs, a):
+        obs = tensor(obs)
+        a = tensor(a)
+        x = torch.cat([obs, a], dim=1)
+        q_1 = self.fc_critic_1(self.critic_body_1(x))
+        q_2 = self.fc_critic_2(self.critic_body_2(x))
+        return q_1, q_2
+    
+
+class SACNet(nn.Module, BaseNet):
+    def __init__(self,
+                 action_dim,
+                 actor_body_fn,
+                 critic_body_fn,
+                 value_body_fn,
+                 actor_opt_fn,
+                 critic_opt_fn,
+                 value_opt_fn,
+                 ):
+        super(SACNet, self).__init__()
+        # I think this code might be redundant and could be replaced with what is in
+        # the Gaussian actor critic net class. But regardless I think for now this should
+        # do the job.
+
+        # Network bodies
+        self.actor_body = actor_body_fn()
+        # SAC uses two critic networks
+        self.critic_body_1 = critic_body_fn()
+        self.critic_body_2 = critic_body_fn()
+        self.value_body = value_body_fn()
+
+        # Network final output layers (maps body to the action space dimension)
+        self.fc_action = layer_init(nn.Linear(self.actor_body.feature_dim, action_dim), 1e-3)
+        self.fc_critic_1 = layer_init(nn.Linear(self.critic_body_1.feature_dim, 1), 1e-3)
+        self.fc_critic_2 = layer_init(nn.Linear(self.critic_body_2.feature_dim, 1), 1e-3)
+        self.fc_value = layer_init(nn.Linear(self.value_body.feature_dim, 1), 1e-3)
+
+        self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
+        self.critic_params = list(self.critic_body_1.parameters()) + list(self.fc_critic_1.parameters()) + \
+                             list(self.critic_body_2.parameters()) + list(self.fc_critic_2.parameters())
+        self.value_params = list(self.value_body.parameters()) + list(self.fc_value.parameters())
+
+        self.actor_opt = actor_opt_fn(self.actor_params)
+        self.critic_opt = critic_opt_fn(self.critic_params)
+        self.value_opt = value_opt_fn(self.value_params)
+
+        self.log_std = nn.Parameter(torch.zeros(1, action_dim))
+
+        self.to(Config.DEVICE)
+
+    def forward(self, obs):
+        # Takes an observation and outputs the action from policy network (actor network)
+        obs = tensor(obs)
+
+        # tanh is used to sqush the output values between -1 and 1 (useful for continous action spaces)
+        return torch.tanh(self.fc_action(self.actor_body(obs)))
+    
+    def sample(self, obs, reparameterize=True):
+        obs = tensor(obs)
+        mean = self.forward(obs)
+        std = torch.exp(self.log_std)
+        dist = torch.distributions.Normal(mean, std)
+
+        # NOTE: Reparameterize trick is used to carry out backpropagation through a differntiable
+        # noise source (i.e, the gaussian (normal) distribution we are using in this code)
+        # and then transforming it using a determinsitic function. This incorporates the actor networks
+        # output mean and std to produce the sampled action.
+        #
+        # In SAC we use it to enable efficient and differentiable sampling of actions druing both exploration
+        # and policy optimization. It allows the algorithm to explore and learn from stochastic actions while
+        # maintaining differentiability for gradient-based updates, facilitatiing effective policy learning.
+        # It is core to the SAC implementation
+        if reparameterize == True:
+            action = dist.rsample()
+        else:
+            action = dist.sample()
+
+        log_prob = dist.log_prob(action).sum(dim=-1)
+
+        return action, log_prob
+
+    def q(self, obs, a):
+        # Computes the Q-values for the given state-action pairs using hte critic networks
+        obs = tensor(obs) # state
+        a = tensor(a) # action
+        x = torch.cat([obs, a], dim=1)
+        q_1 = self.fc_critic_1(self.critic_body_1(x))
+        q_2 = self.fc_critic_2(self.critic_body_2(x))
+        return q_1, q_2
+
+    def value(self, obs):
+        # computes the target value for the value network during the update step.
+        # estimates the state-value function using the next state observation (obs) and next action sampled from the target policy
+        obs = tensor(obs)
+        return self.fc_value(self.value_body(obs))

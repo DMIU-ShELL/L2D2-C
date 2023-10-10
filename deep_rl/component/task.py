@@ -426,11 +426,9 @@ class MetaCTgraph(BaseTask):
         return self.current_task
 
     def set_current_task_info(self, some_key, some_value):
-        '''A setter method for dynamically updaating the task info dict with new registered values.
-        '''
+        '''A setter method for updating the task info dictionary with a new registered key, value pair.'''
         self.current_task.update({some_key: some_value})
         #print("HEEEEEEEEEEEEEEEYYYYYYYYYYYYY from META_CT-Graph SET INFO:", self.current_task)
-
 
     def get_all_tasks(self, requires_task_label=True):
         # `requires_task_label` left there for legacy/compatibility reasons to ensure uniformity
@@ -693,14 +691,14 @@ class RamAtari(BaseTask):
 class Pendulum(BaseTask):
     def __init__(self, log_dir=None):
         BaseTask.__init__(self)
-        self.name = 'Pendulum-v0'
+        self.name = 'Pendulum-v1'
         self.env = gym.make(self.name)
         self.action_dim = self.env.action_space.shape[0]
         self.state_dim = self.env.observation_space.shape[0]
         self.env = self.set_monitor(self.env, log_dir)
 
     def step(self, action):
-        return BaseTask.step(self, np.clip(2 * action, -2, 2))
+        return BaseTask.step(self, [np.clip(action, -2, 2)])
 
 class Box2DContinuous(BaseTask):
     def __init__(self, name, log_dir=None):
@@ -857,103 +855,7 @@ class ProcessWrapper(mp.Process):
                 self.pipe.send(task.set_current_task_info(data[0], data[1]))
             else:
                 raise Exception('Unknown command')
-'''
-# Multiprocessing w/ spawn start method fix using pathos
-class ProcessTask:
-    def __init__(self, task_fn, log_dir=None):
-        # Creates a pathos pool object here
-        self.worker = ProcessWrapper(task_fn, log_dir)
-        # Initalise ProcessTask class by running run() from ProcessWrapper. Get the initial state_dim, action_dim and name
-        self.state_dim, self.action_dim, self.name = self.worker.pipe(self.worker.run, 3, None)
 
-    # Run functions using ProcessingPool.pipe from pathos. Return the result of the operation
-    def step(self, action):
-        return self.worker.pipe(self.worker.run, ProcessWrapper.STEP, action)
-
-    def reset(self):
-        return self.worker.pipe(self.worker.run, ProcessWrapper.RESET, None)
-
-    def close(self):
-        self.worker.close()
-
-    def reset_task(self, task_info):
-        return self.worker.pipe(self.worker.run, ProcessWrapper.RESET_TASK, task_info)
-
-    def set_task(self, task_info):
-        return self.worker.pipe(self.worker.run, ProcessWrapper.RESET_TASK, task_info)
-
-    def get_task(self):
-        return self.worker.pipe(self.worker.run, ProcessWrapper.GET_TASK, None)
-
-    def get_all_tasks(self, requires_task_label):
-        return self.worker.pipe(self.worker.run, ProcessWrapper.GET_ALL_TASKS, requires_task_label)
-
-    def random_tasks(self, num_tasks, requires_task_label):
-        return self.worker.pipe(self.worker.run, ProcessWrapper.RANDOM_TASKS, [num_tasks, reqiures_task_label])
-
-class ProcessWrapper(ProcessingPool):
-    STEP = 0
-    RESET = 1
-    EXIT = 2
-    SPECS = 3
-    RESET_TASK = 4
-    SET_TASK = 5
-    GET_TASK = 6
-    GET_ALL_TASKS = 7
-    RANDOM_TASKS = 8
-    def __init__(self, task_fn, log_dir):
-        ProcessingPool.__init__(self)
-        #self.pipe = pipe
-        self.task_fn = task_fn
-        self.log_dir = log_dir
-
-    def run(self, op, data):
-        np.random.seed()
-        #seed = np.random.randint(0, sys.maxsize)
-        seed = np.random.randint(0, 2**32 - 1)
-        task = self.task_fn(log_dir=self.log_dir)
-        task.seed(seed)
-
-        while True:
-            if op == self.STEP:
-                #self.pipe.send(task.step(data))
-                return task.step(data)
-
-            elif op == self.RESET:
-                #self.pipe.send(task.reset())
-                return task.reset()
-
-            elif op == self.EXIT:
-                self.pipe.close()
-                return
-
-            elif op == self.SPECS:
-                #self.pipe.send([task.state_dim, task.action_dim, task.name])
-                return [task.state_dim, task.action_dim, task.name]
-
-            elif op == self.RESET_TASK:
-                #self.pipe.send(task.reset_task(data))
-                return task.reset_task(data)
-
-            elif op == self.SET_TASK:
-                #self.pipe.send(task.set_task(data))
-                return task.set_task(data)
-
-            elif op == self.GET_TASK:
-                #self.pipe.send(task.get_task())
-                return task.get_task()
-
-            elif op == self.GET_ALL_TASKS:
-                #self.pipe.send(task.get_all_tasks(data))
-                return task.get_all_tasks(data)
-
-            elif op == self.RANDOM_TASKS:
-                #self.pipe.send(task.random_tasks(*data))
-                return task.random_tasks(*data)
-
-            else:
-                raise Exception('Unknown command')
-'''
 class ParallelizedTask:
     def __init__(self, task_fn, num_workers, log_dir=None, single_process=False):
 

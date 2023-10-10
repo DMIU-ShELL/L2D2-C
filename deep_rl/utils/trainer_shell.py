@@ -17,19 +17,15 @@
 
 
 import numpy as np
-import pickle
-import os
 import time
-import datetime
 import torch
 from .torch_utils import *
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 from ..shell_modules import *
 
 import multiprocessing.dummy as mpd
-from queue import Empty
 from colorama import Fore
-import traceback
+import psutil
 
 try:
     # python >= 3.5
@@ -523,152 +519,182 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
 shell training: concurrent processing for event-based communication. a multitude of improvements have been made compared
 to the previous shell_dist_train.
 '''
-def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_base, mask_interval, omniscient_mode):
+def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
+    ###############################################################################
+    ### Setup logger
     logger = agent.config.logger
+    print(Fore.WHITE, end='') 
+    logger.info('***** start l2d2-c training')
 
-    logger.info(Fore.BLUE + '*****start shell training')
 
+    ###############################################################################
+    ### Setup trainer loop pre-requisites
     shell_done = False
     shell_iterations = 0
     shell_tasks = agent.config.cl_tasks_info # tasks for agent
-    shell_task_ids = agent.config.task_ids
+    #shell_task_ids = agent.config.task_ids
     shell_task_counter = 0
-
-    shell_agent_seed = agent.config.seed        # Chris
-
-
-    shell_eval_tracker = False
+    #shell_eval_tracker = False
     shell_eval_data = []
     num_eval_tasks = len(agent.evaluation_env.get_all_tasks())
     shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
-    shell_metric_icr = [] # icr => instant cumulative reward metric. NOTE may be redundant now
-    eval_data_fh = open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_id), 'a', \
-        buffering=1) # buffering=1 means flush data to file after every line written
-    shell_eval_end_time = None
+    #shell_metric_icr = [] # icr => instant cumulative reward metric. NOTE may be redundant now
+    #eval_data_fh = open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_id), 'a', 
+    #    buffering=1) # buffering=1 means flush data to file after every line written
+    #shell_eval_end_time = None
 
-    if agent.task.name == agent.config.ENV_METAWORLD or \
-        agent.task.name == agent.config.ENV_CONTINUALWORLD:
+    idling = True   # Flag to handle idling behaviour when curriculum ends.
+    dict_to_query = None      # Variable to store the current task dictionary recrod to query for.
+
+
+    ###############################################################################
+    ### Select iteration logging function based on environment. Required for Meta World and Continual World
+    if agent.task.name == agent.config.ENV_METAWORLD or agent.task.name == agent.config.ENV_CONTINUALWORLD:
         itr_log_fn = _shell_itr_log_mw
     else:
         itr_log_fn = _shell_itr_log
 
-    await_response = [True,] * num_agents # flag
-    # set the first task each agent is meant to train on
+
+    ###############################################################################
+    ### Set the first task each agent is meant to train on
     states_ = agent.task.reset_task(shell_tasks[0])
     agent.states = agent.config.state_normalizer(states_)
-    logger.info(Fore.BLUE + '*****agent {0} / setting first task (task 0)'.format(agent_id))
-    logger.info(Fore.BLUE + 'task: {0}'.format(shell_tasks[0]['task']))
-    logger.info(Fore.BLUE + 'task_label: {0}'.format(shell_tasks[0]['task_label']))
-    agent.task_train_start(torch.zeros(agent.get_task_emb_size()))#shell_tasks[0]['task_label'])
-    #print()
+    logger.info(f'***** ENVIRONMENT SWITCHING TASKS')
+    logger.info(f'***** agent {agent_id} / setting first task (task 0)')
+    logger.info(f"***** task: {shell_tasks[0]['task']}")
+    logger.info(f"***** task_label: {shell_tasks[0]['task_label']}")
+
+    # Set first task mask and record manually otherwise we run into issues with the implementation in the model.
+    agent.task_train_start_emb(task_embedding=torch.zeros(agent.get_task_emb_size()))   # TODO: There is an issue with this which is that the first task will be set as zero and then the detect module with do some learning, find that the task does not match the zero embedding and start another task change. This leaves the first entry to a task change as useless. Also issues if we try to moving average this
     del states_
 
 
-    tb_writer_emb = SummaryWriter(logger.log_dir + '/Detect_Component_Generated_Embeddings') #Chris
-    ql = []
-    ll =[]
-
-    # Msg can be embedding or task label.
-    # Set msg to first task. The agents will then request knowledge on the first task.
-    # this will ensure that other agents are aware that this agent is now working this task
-    # until a task change happens.
-    msg = None#shell_tasks[0]['task_label']
-
-    # Track which agents are working which tasks. This will be resized every time a new agent is added
-    # to the network. Every time there is a communication step 1, we will check if it is none otherwise update
-    # this dictionary
-    #track_tasks = {agent_id: torch.from_numpy(msg)}
+    ###############################################################################
+    ### Start the comm module with the initial states and the first task label.
+    # Returns shared queues to enable interaction between comm and agent.
+    queue_label, queue_mask, queue_label_send, queue_mask_recv = comm.parallel(manager)
 
 
-    # Agent-Communication interaction queues
-    queue_mask = manager.Queue()
-    queue_label = manager.Queue()
-    queue_label_send = manager.Queue()  # Used to send label from comm to agent to convert to mask
-    queue_mask_recv = manager.Queue()   # Used to send mask from agent to comm after conversion from label
-
-    # Put in the initial data into the loop queue so that the comm module is not blocking the agent
-    # from running.
-    #queue_loop.put_nowait((shell_iterations))
-
-    # Start the communication module with the initial states and the first task label.
-    # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
-    # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv)
-
-    exchanges = []
-    task_times = []
-    detect_module_activations = [] #Chris
+    ###############################################################################
+    ### Logging setup (continued)
+    tb_writer_emb = SummaryWriter(logger.log_dir + '/Detect_Component_Generated_Embeddings')
+    _embeddings, _labels, exchanges, task_times, detect_module_activations = [], [], [], [], []
     task_times.append([0, shell_iterations, np.argmax(shell_tasks[0]['task_label'], axis=0), time.time()])
 
 
-    # Communication module interaction handlers
+    ###############################################################################
+    ### Comm module event handlers. These run in parallel to enable the interactions between the comm and agent.
     def mask_handler():
         """
-        Handles incoming masks from other agents. Distills the mask knowledge to the agent's network.
+        Handles incoming masks from other agents. Linearly combines masks and adds resulting mask to network.
         """
         while True:
-            mask, label, reward, ip, port  = queue_mask.get()
-            logger.info(Fore.WHITE + f'\nReceived mask: \nMask:{mask}\nReward:{reward}\nSrc:{ip, port}\nEmbedding:{label}')
-                
-            if mask is not None:
-                # Update the knowledge base with the expected reward
-                knowledge_base.update({tuple(label.tolist()): reward})
-                # Update the network with the mask
-                agent.distil_task_knowledge_single_embedding(mask, label)
+            masks_list  = queue_mask.get()
+            
+            logger.info(Fore.WHITE + f'\n######### MASK RECEIVED FROM COMM #########')
 
-                logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
+            _masks = []
+            _embeddings = []
+            _rewards = []
+            _label = None
+            for mask_response_dict in masks_list:
 
-                # Mask transfer logging.
+                mask = mask_response_dict['mask']
+                embedding = mask_response_dict['embedding']
+                reward = mask_response_dict['reward']
+                label = mask_response_dict['label']
+                ip = mask_response_dict['ip']
+                port = mask_response_dict['port']
+
+                _masks.append(mask)
+                _embeddings.append(embedding)
+                _rewards.append(reward)
+                _label = label
+
+
+                # Log successful mask transfer
                 exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, len(mask), mask])
                 np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
+
+            
+
+            '''if len(_masks) > 0:
+                _embeddings = torch.avg(_embeddings)
+                _rewards = np.avg(_rewards)
+
+                logger.info(Fore.WHITE + f'COMPOSING MASKS: {_embeddings}, {_rewards}, {_label}')
+
+                # Update the knowledge base with the expected reward
+                agent.update_seen_tasks(torch.avg(_embeddings), np.avg(_rewards), _label)#knowledge_base.update({tuple(label.tolist()): reward})
+                # Update the network with the mask
+                agent.distil_task_knowledge_embedding(_masks[0])    # replace _masks[0] with just _masks. We will replace the method with one that does linear combination.
+                logger.info(Fore.WHITE + 'COMPOSED MASK ADDED TO NETWORK!')'''
 
     def conv_handler():
         """
         Handles interval label to mask conversions for outgoing mask responses.
         """
         while True:
-            convert = queue_label_send.get()
-            logger.info('Got label to convert to mask')
-            print(convert['embedding'], type(convert['embedding']))
+            try:
+                to_convert = queue_label_send.get()
 
-            convert['mask'] = agent.embedding_to_mask(convert['embedding'].detach().cpu().numpy())
-            queue_mask_recv.put((convert))
+                logger.info(Fore.WHITE + 'GOT EMBEDDING TO CONVERT TO MASK')
+                logger.info(f"Embedding: {to_convert['response_embedding']}, Type: {type(to_convert['response_embedding'])}")
 
-    # Start threads for the mask and conversion handlers.
+                mask = agent.idx_to_mask(to_convert['response_embedding'], to_convert['response_task_id'])
+                print(Fore.LIGHTRED_EX + f'{mask}')
+                to_convert['response_mask'] = mask
+                queue_mask_recv.put((to_convert))
+            except Exception as e:
+                traceback.print_exc()
+
+
+    ###############################################################################
+    ### Start threads for the mask and conversion handlers.
     t_mask = mpd.Pool(processes=1)
     t_conv = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
     t_conv.apply_async(conv_handler)
 
-    idling = True
-
     while True:
+        start_time = time.time()
+        ###############################################################################
+        ### Idling behaviour. Idles until terminated when curriculum is completed.
+        # While idling the agent acts as a server that can be queried for knowledge by
+        # other agents.
         if shell_done:
             if idling:
-                print('Agent is idling...') # Useful visualisation but we can eventually remove this idling message.
+                print('Agent is idling...') # Once idling the agent acts as a server that can be queried for knowledge until the agent encounters a new task (support not implemented yet)
                 idling = False
-            if omniscient_mode:
-                if shell_iterations % mask_interval == 0:
-                    queue_label.put(None)
+                # Alternatively we can shutdown the agent here or do something for the experiment termination.
+                
+            #if omniscient_mode:
+            #    if shell_iterations % mask_interval == 0:
+            #        queue_label.put(None)
 
-                shell_iterations += 1
+            #    shell_iterations += 1
 
-            time.sleep(2)
+            time.sleep(2) # Sleep value ensures the idling works as intended (fixes a problem encountered with the multiprocessing)
             continue
+        print()
 
-        #print(f'Knowledge base in agent: {knowledge_base}')
-        logger.info(f'{Fore.RED}World: {comm.world_size.value}')
-        #logger.info(f'{Fore.RED}Meta: {len(comm.metadata)}')
-        #for key, val in comm.knowledge_base.items(): print(f'{Fore.RED}Knowledge base: {key}: {val}')
-        for addr in comm.query_list: print(f'{Fore.RED}{addr[0]}, {addr[1]}')
 
-        # Send label/embedding to the communication module to query for relevant knowledge from other peers.
-        if msg is not None:
+        ###############################################################################
+        ### Iteration logging output.
+        logger.info(Fore.RED + 'GLOBAL REGISTRY (seen_tasks dict)')
+        for key, val in agent.seen_tasks.items():
+            logger.info(f"{key} --> embedding: {val['task_emb']}, reward: {val['reward']}, ground truth task id: {np.argmax(val['ground_truth'], axis=0)}")
+
+
+        ###############################################################################
+        ### Query for knowledge using communication process. Send label/embedding to the communication module to query for relevant knowledge from other peers.
+        if dict_to_query is not None:
             if shell_iterations % mask_interval == 0:
-                queue_label.put(msg)
+                queue_label.put(dict_to_query)
 
-        
-        ### AGENT ITERATION (training step): collect on policy data and optimise the agent
+
+        ###############################################################################
+        ### Agent training iteration: collect on policy data and optimise the agent
         '''
         Handles the data collection and optimisation within the agent.
         TODO: Look into multihreading/multiprocessing the data collection and optimisation of the agent
@@ -677,88 +703,61 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
             Possibly the optimisation could be made a seperate process parallel to the data collection
                 process, similar to the communication-agent(trainer) architecture. Data collection and the code
                 below would run together in the main loop.
+
+        NOTE: Parallelising the backward and forward passes may not be possible using CUDA due to limitations
+                on CUDA parallelisation. It could be done if we train the system on CPU using
+                mulithreading or multiprocessing however it is challenging as there needs to be some sort of
+                synchronisation.
         '''
         dict_logs = agent.iteration()
         shell_iterations += 1
 
         
+        ###############################################################################
+        ### Run detect module. Generates embedding for SAR. Perform check to see if there has been a task change or not.
+        _dist_threshold = agent.emb_dist_threshold
+        if shell_iterations != 0 and shell_iterations % agent.detect_module_activation_frequency == 0 and agent.data_buffer.size() >= (agent.detect.get_num_samples()):
+            # Run the detect module on SAR and return some logging output.
+            task_change_flag, new_emb, ground_truth_task_label, emb_dist, emb_bool, agent_seen_tasks = run_detect_module(agent)
+            
+            if task_change_flag:
+                logger.info(Fore.YELLOW + f'TASK CHANGE DETECTED! NEW MASK CREATED. CURRENT TASK INDEX: {agent.current_task_key}')
+            
+            # Update the dictionary containing the current task embedding to query for.
+            dict_to_query = agent.seen_tasks[agent.current_task_key]
 
-
-        activation_flag = detect_module_activation_check(shell_iterations, agent.get_detect_module_activation_frequency(), agent)   #Chris
-        str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, agent_seen_tasks, ground_truth_task_label= run_detect_module(agent, activation_flag)   #Chris
-
-        
-        msg = current_task_embedding
-
-
-        #Logging of the detect operations!!!   #Chris
-        '''if activation_flag:
-            print(Fore.GREEN)
-            detect_module_activations.append([shell_iterations, activation_flag, str_task_chng_msg, task_change_flag, "Number of Samples for detection:", agent.detect.get_num_samples(), "I AM THE NEW EMBEDING!:", new_emb, 'Hi I am the GroundTruth LABEL:', ground_truth_task_label, "Hi I AM THE CURRENT TASK EMBEDDING!", current_task_embedding, "HI I AM DIST:", emb_dist, "HI I CHECK EQ CURR VS NEW EMB:", emb_bool, "\n\nAgent SEEN TASKS: \n", agent_seen_tasks, "\n \n \n \n \n \n"])
+            # Log the operation of the detect module. Currently this is broken (requires a custom tensorboard solution. ask Chris)
+            log_string = f'Time: {time.time()}, Iteration: {shell_iterations}, Detect activation: {True}, Num samples for detection: {agent.detect.get_num_samples()}, Task change flag: {task_change_flag}, New embedding: {new_emb}, Ground truth label: {ground_truth_task_label}, Current embedding: {agent.current_task_emb}, Threshold: {_dist_threshold}, Distance: {emb_dist}, Embedding similarity: {emb_bool}, Agent seen tasks: {agent_seen_tasks}'
+            detect_module_activations.append([log_string])
             np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
+            
+            # Logging embeddings and labels
             if new_emb is not None:
-                q = new_emb#torch.Tensor.unsqueeze(new_emb, 0)
-                l = torch.tensor([ground_truth_task_label])
-                ql.append(q)
-                ll.append(l)
-                qlt = tuple(ql)
-                llt = tuple(ll)
-                emb_t = torch.stack(qlt)
-                l_t = torch.stack(llt)
-                print("EMB_T:", emb_t)
-                print(f"L_T: {l_t}")
-                print("HELLO FROM THE DARK SIDE... {}, I MUST HAVE CALL A THOUSAND TIMES: {}".format(q, l))
-                tb_writer_emb.add_embedding(emb_t, metadata=ll)'''
+                _label = torch.tensor(np.array([ground_truth_task_label]))
+                _embeddings.append(new_emb)
+                _labels.append(_label)
+                emb_t = torch.stack(tuple(_embeddings))
+                #l_t = torch.stack(tuple(_labels))
+                logger.info(Fore.WHITE + f'Embedding: {new_emb}\nLabel: {_label}\nDistance: {emb_dist}, Threshold: {agent.emb_dist_threshold}\n')
+                tb_writer_emb.add_embedding(emb_t, metadata=_labels, global_step=shell_iterations)
 
 
-        ### TENSORBOARD LOGGING & SELF TASK REWARD TRACKING
-        '''
-        Logs metrics to tensorboard log file and updates the embedding, reward pair in this cycle for a particular task.
-        '''
+        ###############################################################################
+        ### Logs metrics to tensorboard log file and updates the embedding, reward pair in this cycle for a particular task.
         if shell_iterations % agent.config.iteration_log_interval == 0:
             itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, dict_logs)
-            
-            
-            if msg is not None:
-                # Create a dictionary to store the most recent iteration rewards for a mask. Update in every iteration
-                # logging cycle. Take average of all worker averages as the most recent reward score for a given task
-                knowledge_base[tuple(msg.tolist())] = np.around(np.mean(agent.iteration_rewards), decimals=6)
-                logger.info(f'{msg} is logged to knowledge base')
                 
             # Save agent model
-            agent.save(agent.config.log_dir + '/%s-%s-model-%s.bin' % (agent.config.agent_name, agent.config.tag, \
-                    agent.task.name))
+            agent.save(agent.config.log_dir + '/%s-%s-model-%s.bin' % (agent.config.agent_name, agent.config.tag, agent.task.name))
 
 
-        ### EVALUATION BLOCK    Deprecated.
+        ###############################################################################
+        ### Environment task change at the end of the max steps for each task. Agent is not aware of this change and must detect it using the detect module.
         '''
-        Performs the evaluation block. Has been replaced by the evaluation agent. Can be re-enabled by changing the eval interval value in the configuration in run_shell_dist_mp.py.
-        '''
-        # If we want to stop evaluating then set agent.config.eval_interval to None
-        if (agent.config.eval_interval is not None and shell_iterations % agent.config.eval_interval == 0):
-            logger.info(Fore.BLUE + '*****agent {0} / evaluation block'.format(agent_id))
-            _task_ids = shell_task_ids
-            _tasks = shell_tasks
-            _names = [eval_task_info['name'] for eval_task_info in _tasks]
-            logger.info(Fore.BLUE + 'eval tasks: {0}'.format(', '.join(_names)))
-            for eval_task_idx, eval_task_info in zip(_task_ids, _tasks):
-                agent.task_eval_start(eval_task_info['task_label'])
-                eval_states = agent.evaluation_env.reset_task(eval_task_info)
-                agent.evaluation_states = eval_states
-                # performance (perf) can be success rate in (meta-)continualworld or
-                # rewards in other environments
-                perf, eps = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
-                agent.task_eval_end()
-                shell_eval_data[-1][eval_task_idx] = np.mean(perf)
-            shell_eval_tracker = True
-            shell_eval_end_time = time.time()
-
-
-        ### TASK CHANGE
         # end of current task training. move onto next task or end training if last task.
         # i.e., Task Change occurs here. For detect module, if the task embedding signifies a task
         # change then that should occur here.
-        '''
+
         If we want to use a Fetch All mode for ShELL then we need to add a commmunication component
         at task change which broadcasts the mask to all other agents currently on the network.
 
@@ -767,70 +766,52 @@ def shell_dist_train_mp(agent, comm, agent_id, num_agents, manager, knowledge_ba
         '''
         if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
         task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
+
+        # If agent completes the maximum number of steps for a task then switch to the next task in the curriculum.
         if agent.total_steps >= task_steps_limit:
             task_counter_ = shell_task_counter
-            logger.info('\n' + Fore.BLUE + '*****agent {0} / end of training on task {1}'.format(agent_id, task_counter_))
+            logger.info('\n' + Fore.WHITE + f'*****agent {agent_id} / end of training on task {task_counter_}')
+            
             #MOVED to Assing EMB in PPO agent.task_train_end()
 
+            # Increment task counter
             task_counter_ += 1
             shell_task_counter = task_counter_
+
+            # If curriculum is not completed, switch to the next task in the curriculum
             if task_counter_ < len(shell_tasks):
+                # new task
+                logger.info(Fore.WHITE + f'***** ENVIRONMENT SWITCHING TASKS')
+                logger.info(Fore.WHITE + f'***** agent {agent_id} / set next task {task_counter_}')
+                logger.info(Fore.WHITE + f"***** task: {shell_tasks[task_counter_]['task']}")
+                logger.info(Fore.WHITE + f"***** task_label: {shell_tasks[task_counter_]['task_label']}")
+                
+                # Set the new task from the environment. Agent remains unaware of this change and will continue until
+                # detect module detects distrubtion shift.
+                states_ = agent.task.reset_task(shell_tasks[task_counter_]) # reset_task sets the new task and returns the reset intial states.
+                agent.states = agent.config.state_normalizer(states_)
+                
+                #MOVED to Assing EMB in PPO agent agent.task_train_start(shell_tasks[task_counter_]['task_label'])
+
+                del states_
+
                 task_times.append([task_counter_, shell_iterations, np.argmax(shell_tasks[task_counter_]['task_label'], axis=0), time.time()])
                 np.savetxt(logger.log_dir + '/task_changes_{0}.csv'.format(agent_id), task_times, delimiter=',', fmt='%s')
 
-
-                # new task
-                logger.info(Fore.BLUE + '*****agent {0} / set next task {1}'.format(agent_id, task_counter_))
-                logger.info(Fore.BLUE + 'task: {0}'.format(shell_tasks[task_counter_]['task']))
-                logger.info(Fore.BLUE + 'task_label: {0}'.format(shell_tasks[task_counter_]['task_label']))
-                states_ = agent.task.reset_task(shell_tasks[task_counter_]) # set new task
-                agent.states = agent.config.state_normalizer(states_)
-                #MOVED to Assing EMB in PPO agent agent.task_train_start(shell_tasks[task_counter_]['task_label'])
-
-                # set message (task_label) that will be sent to other agent as a request for
-                # task knowledge (mask) about current task. this will be sent in the next
-                # receive/send request cycle.
-                logger.info(Fore.BLUE + '*****agent {0} / query other agents using current task label'\
-                    .format(agent_id))
-
-                # Update the msg, track_tasks dict for this agent and reset await_responses for new task
-                #msg = shell_tasks[task_counter_]['task_label']
-                #track_tasks[agent_id] = torch.from_numpy(msg)       # remove later
-                await_response = [True,] * num_agents
-                del states_
-                #print()
             else:
-                shell_done = True # training done for all task for agent
-                logger.info(Fore.BLUE + '*****agent {0} / end of all training'.format(agent_id))
+                shell_done = True # training done for all task for agent. This leads to the idling behaviour in next iteration.
+                logger.info(f'*****agent {agent_id} / end of all training')
+
             del task_counter_
 
 
-        ### EVALUATION BLOCK LOGGING    Deprecated.
-        '''
-        Logs the evaluation block data to a text file. No longer necessary as we are now using the evaluation agent.
-        '''
-        if shell_eval_tracker:
-            # log the last eval metrics to file
-            _record = np.concatenate([shell_eval_data[-1],np.array(shell_eval_end_time).reshape(1,)])
-            np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
-            del _record
-
-            # reset eval tracker and add new buffer to save next eval metrics
-            shell_eval_tracker = False
-            shell_eval_data.append(np.zeros((num_eval_tasks, ), dtype=np.float32))
+        logger.info(f'----------------------- Iteration complete in {time.time() - start_time} seconds -----------------------\n')
 
 '''
 shell evaluation: concurrent processing for event-based communication.
 '''
-def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_base):
-
-    
-
-    
-
+def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
     logger = agent.config.logger
-    #print()
-
     logger.info(Fore.BLUE + '*****start shell training')
 
     #Create a SmumaryWriter object for the Evaluation Agent
@@ -842,11 +823,8 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
     shell_task_ids = agent.config.task_ids
     shell_task_counter = 0
 
-
     shell_agent_seed = agent.config.seed        # Chris
-    agent.config.eval_interval = 1      # Manual overide
-    
-
+    agent.config.eval_interval = 1      # Manual override
 
     _task_ids = shell_task_ids
     _tasks = shell_tasks
@@ -865,16 +843,8 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
     eval_data_fh = open(logger.log_dir + '/eval_metrics_agent_{0}.csv'.format(agent_id), 'a', \
         buffering=1) # buffering=1 means flush data to file after every line written
     shell_eval_end_time = None
-
-    # Evaluation agent likely wont need a iteration logging function
-    '''if agent.task.name == agent.config.ENV_METAWORLD or \
-        agent.task.name == agent.config.ENV_CONTINUALWORLD:
-        itr_log_fn = _shell_itr_log_mw
-    else:
-        itr_log_fn = _shell_itr_log'''
     
     task_steps_limit = sum(agent.config.max_steps)
-
 
     # Msg can be embedding or task label.
     # Set msg to first task. The agents will then request knowledge on the first task.
@@ -931,24 +901,13 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
         # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
         # the communication module will do its thing.
         msg = _tasks[shell_task_counter]['task_label']
-        #agent.curr_eval_task_label = msg
         queue_label.put(msg)
 
-
-        # Evaluation agent does not need to do data collection and optimisation so we will
-        # not need to run the agent.iteration() function here. We will need to increment the shell
-        # iterations however.
-        #dict_logs = agent.iteration()
-        #perf, eps = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
+        # Increment iterations
         shell_iterations += 1
 
-
-        
+        ###############################################################################
         ### EVALUATION BLOCK
-        '''
-        Performs the evaluation block.
-        '''
-        # If we want to stop evaluating then set agent.config.eval_interval to None
         if (agent.config.eval_interval is not None and shell_iterations % agent.config.eval_interval == 0):
             logger.info(Fore.BLUE + '*****agent {0} / evaluation block'.format(agent_id))
             _task_ids = shell_task_ids
@@ -976,17 +935,13 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
         shell_task_counter = task_counter_
 
 
-        ### EVALUATION BLOCK LOGGING
-        '''
-        Logs the evaluation block data and tracks it.
-        '''
+        ###############################################################################
+        # LOGGING
         if shell_eval_tracker:
             # log the last eval metrics to file
             _record = np.concatenate([shell_eval_data[-1],np.array(shell_eval_end_time).reshape(1,)])
             np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
             del _record
-
-
 
             _metrics = shell_eval_data[-1]
             # compute icr
@@ -1001,7 +956,6 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
             logger.scalar_summary('shell_eval/icr', icr)
             logger.scalar_summary('shell_eval/tpot', np.sum(shell_metric_icr))
             tb_writer.add_scalar('ShELL-TPOT', np.sum(shell_metric_icr), len(shell_eval_data))
-
 
             # reset eval tracker and add new buffer to save next eval metrics
             shell_eval_tracker = False
@@ -1029,15 +983,23 @@ def shell_dist_eval_mp(agent, comm, agent_id, num_agents, manager, knowledge_bas
     agent.close()
     return
 
+
+
+
 #########################################################################################################################################
 ########################################  U T I L I T Y      F U N C T I O N S  #########################################################
 #########################################################################################################################################
 
 
 def detect_module_activation_check(shell_training_iterations, detect_module_activation_frequncy, agent):
-    '''Utility function for checking wheter the Detect Module should be activated or not based on the
-    shell_training_iterations of the agent and the activation frequncy given from the configuration file.
-    It makes sure that the data buffer has the ammount of data necassary for the detect module to sample.'''
+    '''
+    Utlity function to check whether the Detect module should be activated or not based on conditions:
+        shell_training_iterations
+        detect activation frequency
+        data buffer size
+
+    It makes sure that the data buffer has the necessary amount of data for the detect module to sample from
+    '''
     
 
     #print("REPAY_BUFFER_SIZE:", agent.data_buffer.size())
@@ -1049,33 +1011,38 @@ def detect_module_activation_check(shell_training_iterations, detect_module_acti
         return False
         
 
-def run_detect_module(an_agent, activation_check_flag):
+def run_detect_module(agent):
     '''Uitility function for running all the necassery methods and function for the detect module
     so the approprate embeddings are generated for each batch of SAR data'''
     
     #Initilize the retun varibles with None values in the case of the detect module not being appropriate to run.
-    str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, an_agent_seen_tasks, ground_truth_task_label = None, None, None, None, None, None, None, torch.tensor(0)
+    task_change_detected, emb_dist, emb_bool, new_emb, current_task_embedding, an_agent_seen_tasks, ground_truth_task_label = None, None, None, None, None, None, torch.tensor(0)
     
-    if activation_check_flag:
-        sar_data = an_agent.sar_data_extraction()
-        #print("SAR_DATA_ARR:", sar_data)
-        #print("SAR SIZE:",sar_data.shape)
-        #print(sar_data)
-        #print("CURR_EMB:", current_embedding)
-        new_emb = an_agent.compute_task_embedding(sar_data, an_agent.get_task_action_space_size())
-        current_embedding = an_agent.get_current_task_embedding()
-        #print("CURR_EMB:", current_embedding)
-        #print("NEW_EMB:", new_emb)
-        #print("EMBEDDING SIZE:", len(new_emb))
-        ground_truth_task_label = an_agent.get_current_task_label()
-        #print("Ground_Truth_Task_Label:", ground_truth_task_label)
-        #print(type(ground_truth_task_label))
-        emb_bool = current_embedding == new_emb
-        emb_dist = an_agent.calculate_emb_distance(current_embedding, new_emb)
-        emb_dist_thrshld = an_agent.get_emb_dist_threshold()
-        str_task_chng_msg, task_change_flag = an_agent.assign_task_emb(new_emb, emb_dist, emb_dist_thrshld)
-        current_task_embedding = an_agent.get_current_task_embedding()
-        an_agent_seen_tasks = an_agent.get_seen_tasks()
-        #print("\n \n \n \n \n \n \n \n \n  Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEN TASKS:\n", an_agent_seen_tasks, "\n \n \n \n \n \n \n \n \n \n \n")
+    # Extract SAR data from agent's replay buffer
+    sar_data = agent.extract_sar()
+    #print("SAR_DATA_ARR:", sar_data)
+    #print("SAR SIZE:",sar_data.shape)
+    #print("CURR_EMB:", current_embedding)
 
-    return str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb, current_task_embedding, an_agent_seen_tasks, ground_truth_task_label#str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb    
+    # Produce task embedding from sar data using 
+    new_embedding = agent.compute_task_embedding(sar_data, agent.get_task_action_space_size())
+    current_embedding = agent.current_task_emb
+    #print("CURR_EMB:", current_embedding)
+    #print("NEW_EMB:", new_emb)
+    #print("EMBEDDING SIZE:", len(new_emb))
+
+    ground_truth_task_label = agent.get_current_task_label()
+    #print("Ground_Truth_Task_Label:", ground_truth_task_label)
+    #print(type(ground_truth_task_label))
+
+    emb_bool = current_embedding == new_embedding
+    emb_dist = agent.calculate_emb_distance(current_embedding, new_embedding)
+    task_change_detected = agent.assign_task_emb(new_embedding, emb_dist)
+
+
+    # Get the updated task embedding from agent
+    new_current_embedding = agent.current_task_emb
+    agent_seen_tasks = agent.get_seen_tasks()
+    #print("\n \n \n \n \n \n \n \n \n  Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEN TASKS:\n", an_agent_seen_tasks, "\n \n \n \n \n \n \n \n \n \n \n")
+
+    return task_change_detected, new_embedding, ground_truth_task_label, emb_dist, emb_bool, agent_seen_tasks #str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb

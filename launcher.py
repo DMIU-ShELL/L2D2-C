@@ -29,25 +29,6 @@ for i, port in enumerate(ports):
         commands.append(f'python run_shell_dist_mp.py {i} {port} -r reference.csv -e')'''
 
 
-# SINGLE AGENT EXPERIMENT FOR COMPARISON
-# Configuration for the accompanying single agent
-'''
-addresses_s, ports_s = [], []
-reference_file = open('reference_single.csv r')
-lines = reference_file.readlines()
-for line in lines:
-    line = line.strip('\n').split( )
-    addresses_s.append(line[0])
-    ports_s.append(int(line[1]))
-
-for port_s in ports_s:
-    if port_s in ports:
-        print(f'ERROR: port {port_s} in reference_single.csv is also used in reference.csv. Please use a different port for your single agent experiment')
-
-commands.append(f'python run_shell_dist_mp.py 0 {ports_s[0]} -r reference_single.csv')
-commands.append(f'python run_shell_dist_mp.py 0 {ports_s[1]} -r reference_single.csv -e')
-'''
-
 # FOCCAL
 commands = [
     # MIG 1 (0-7)
@@ -92,6 +73,27 @@ commands = [
     # MIG 14 (1-13)
     ['MIG-3045e3dd-28b6-5ee8-96b5-60a085c9fcf1', 'python run_shell_dist_mp.py 0 29513 -e']
 ]
+
+
+# SINGLE AGENT EXPERIMENT FOR COMPARISON
+# Configuration for the accompanying single agent
+'''
+addresses_s, ports_s = [], []
+reference_file = open('reference_single.csv r')
+lines = reference_file.readlines()
+for line in lines:
+    line = line.strip('\n').split( )
+    addresses_s.append(line[0])
+    ports_s.append(int(line[1]))
+
+for port_s in ports_s:
+    if port_s in ports:
+        print(f'ERROR: port {port_s} in reference_single.csv is also used in reference.csv. Please use a different port for your single agent experiment')
+
+commands.append(f'python run_shell_dist_mp.py 0 {ports_s[0]} -r reference_single.csv')
+commands.append(f'python run_shell_dist_mp.py 0 {ports_s[1]} -r reference_single.csv -e')
+'''
+
 
 '''
 # JAMMY
@@ -184,7 +186,7 @@ for command in commands:
     env['CUDA_VISIBLE_DEVICES'] = command[0]
     process = subprocess.Popen(shlex.split(command[1]), env=env)
     processes.append(process)
-    time.sleep(5)
+    #time.sleep(5)
 
 for process in processes:
     stdout, stderr = process.communicate()

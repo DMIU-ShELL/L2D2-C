@@ -12,18 +12,6 @@
 # \____|__  /____/  \___  >____/\___  >____  /__|    |____(____  /____/|___|  /\___  >___|  /  \___  >____/\____ |\___  >____  >
 #         \/            \/          \/     \/                  \/           \/     \/     \/       \/           \/    \/     \/ 
 
-
-
-
-'''
-Shared Experience Lifelong Learning (ShELL) experiments
-Multi-agent continual lifelong learners
-
-Each agent is a ppo agent with supermask superposition 
-lifelong learning algorithm.
-https://arxiv.org/abs/2006.14769
-'''
-
 import json
 import shutil
 import matplotlib
@@ -32,24 +20,25 @@ import multiprocessing as mp
 from deep_rl.utils.misc import mkdir, get_default_log_dir
 from deep_rl.utils.torch_utils import set_one_thread, random_seed, select_device
 from deep_rl.utils.config import Config
-from deep_rl.component.policy import SamplePolicy
 from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, RunningStatsNormalizer, RewardRunningStatsNormalizer
 from deep_rl.utils.logger import get_logger
-from deep_rl.utils.trainer_shell import shell_dist_train_mp, shell_dist_eval_mp
-from deep_rl.agent.PPO_agent import ShellAgent_DP
-from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient
+from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
+from deep_rl.component.policy import SamplePolicy
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
+from deep_rl.agent.PPO_agent import PPODetectShell
+from deep_rl.agent.SAC_agent import SACDetectShell
+
+from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient, ParallelCommDetect
+from deep_rl.shell_modules.detect.detect import Detect
+
 import argparse
 import torch
 import random
-from deep_rl.shell_modules.detect.detect import Detect   #Chris
 
-
-
-# helper function
-def global_config(config, name):
+# helper functions
+def mctgraph_global_config(config, name):
     config.env_name = name
     config.env_config_path = None
     config.lr = 0.00015
@@ -82,11 +71,205 @@ def global_config(config, name):
     config.eval_interval = None#1
     return config
 
+def minigrid_global_config(config, name):
+    config.env_name = name
+    config.env_config_path = None
+    config.lr = 0.00015
+    config.cl_preservation = 'supermask'
+    config.seed = 9157
+    random_seed(config.seed)
+    config.log_dir = None
+    config.logger = None 
+    config.num_workers = 1
+    config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
+
+    config.policy_fn = SamplePolicy
+    config.state_normalizer = ImageNormalizer()
+    config.discount = 0.99
+    config.use_gae = True
+    config.gae_tau = 0.99
+    config.entropy_weight = 0.1 #0.75
+    config.rollout_length = 512
+    config.optimization_epochs = 8
+    config.num_mini_batches = 64
+    config.ppo_ratio_clip = 0.1
+    config.iteration_log_interval = 1
+    config.gradient_clip = 5
+    config.max_steps = 25600
+    config.evaluation_episodes = 5#50
+    config.cl_requires_task_label = True
+    config.task_fn = None
+    config.eval_task_fn = None
+    config.network_fn = None 
+    config.eval_interval = None
+    return config
+
+def setup_configs_and_logs(config, args, shell_config, global_config):
+    config = global_config(config, name)
+
+    env_config_path = shell_config['env']['env_config_path']
+    config.seed = shell_config['seed']
+    config.backbone_seed = 9157
+    config.init_port = args.port
+
+    ###############################################################################
+    # Detect Module
+    config.detect_reference_num = shell_config['detect_reference_num']
+    config.detect_num_samples = shell_config['detect_num_samples']
+    config.emb_dist_threshold = shell_config['emb_dist_threshold']
+    config.detect_module_activation_frequency = shell_config['detect_module_activation_frequency']
+
+
+    ###############################################################################
+    # Logging
+    exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
+    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.curriculum_id)
+    log_dir = get_default_log_dir(path_name)
+    logger = get_logger(log_dir=log_dir, file_name='train-log')
+    config.logger = logger
+    config.log_dir = log_dir
+
+    # save shell config and env config
+    #shutil.copy(shell_config_path, log_dir)
+    with open(log_dir + '/shell_config.json', 'w') as f:
+        json.dump(shell_config, f, indent=4)
+    shutil.copy(env_config_path, log_dir)
+
+    # create/initialise agent
+    logger.info('*****initialising L2D2-C agent')
+
+
+    ###############################################################################
+    # Curriculum setup. TODO: Check how much of this is needed. Remove unnecessary stuff
+    num_tasks = len(set(shell_config['curriculum']['task_ids']))
+    config.cl_num_tasks = num_tasks
+    config.task_ids = shell_config['curriculum']['task_ids']
+    if isinstance(shell_config['curriculum']['max_steps'], list):
+        config.max_steps = shell_config['curriculum']['max_steps']
+    else:
+        config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
+
+    return config, env_config_path
+
+def detect_finalise_and_run(config, Agent):
+    config.use_task_label = False #Chris    # Saptarshi: What is this for?
+
+
+    ###############################################################################
+    # Setup detect module
+    #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
+    config.detect_fn = lambda reference_num, input_dim, num_samples: Detect(reference_num, input_dim, num_samples, one_hot=False, normalized=False)
+
+
+    ###############################################################################
+    # Initialise Manager() for handling shared variables over an internal server
+    config.manager = mp.Manager()
+    config.seen_tasks = config.manager.dict()
+    config.mode = config.manager.Value('b', args.omni)
+
+
+    ###############################################################################
+    # Setup agent module
+    agent = Agent(config)
+    config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.curriculum_id)
+
+    # Communication frequency. TODO: This will need a rework if we don't know the length of task encounters.
+    config.querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
+
+
+    ###############################################################################
+    # Read the reference ip-port pairs to enter a collective. Setup the parallelised
+    # communication module.
+    addresses, ports = [], []
+    reference_file = open(args.reference, 'r')
+    lines = reference_file.readlines()
+    for line in lines:
+        line = line.strip('\n').split(', ')
+        addresses.append(line[0])
+        ports.append(int(line[1]))
+
+    '''# TODO: Do we still need this? Remove if unnecessary.
+    if args.quick_start:
+        for i in range(args.agent_id + 1):
+            line = lines[i].strip('\n').split(', ')
+            addresses.append(line[0])
+            ports.append(int(line[1]))
+
+    else:
+        for line in lines:
+            line = line.strip('\n').split(', ')
+            addresses.append(line[0])
+            ports.append(int(line[1]))'''
+        
+    # If True then run the omnisicent mode agent, otherwise run the traditional agent.
+    # TODO: Have to figure out how a traditional learner can transition to omniscient whenever required. Not really implemented yet and doesn't really work properly.
+    #if GLOBAL_mode.value:
+    #    comm = ParallelCommOmniscient(agent.get_task_emb_size(), agent.model_mask_dim, config, zip(addresses, ports), GLOBAL_task_record, GLOBAL_manager, args.localhost, GLOBAL_mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
+    #    trainer_learner(agent, comm, args.curriculum_id, GLOBAL_manager, GLOBAL_task_record, config.querying_frequency, GLOBAL_mode)
+    
+    comm = ParallelCommDetect(agent.get_task_emb_size(), agent.model_mask_dim, config.logger, config.init_port, zip(addresses, ports), config.seen_tasks, config.manager, args.localhost, config.mode, args.dropout, config.emb_dist_threshold)
+
+    # Start training
+    trainer_learner(agent, comm, args.curriculum_id, config.manager, config.querying_frequency, config.mode)
+
+
+
+
 '''
-ShELL distributed system with multiprocessing.
-Currently only communication. Data collection and model optimisation to be added
-in the future.
+Lifelong Learning Distributed and Decentralised (L2D2-C) experiments
+Multi-agent continual lifelong learners
+
+Developed as part of work supported by the Defense Advanced Research Projects Agency
+(DARPA) under contract no. HR00112190132 (Shared Experience Lifelong Learning).
+
+Each agent is based on ppo and the modulating masks
+lifelong reinforcement learning algorithm.
+https://arxiv.org/abs/2212.11110
 '''
+
+# main experiment methods. currently implemented: meta-ctgraph with ppo. TODO: Implement evaluation agents with task labels instead of embeddings
+def mctgraph_ppo(name, args, shell_config):
+    # Initialise config object
+    config = Config()
+    config, env_config_path = setup_configs_and_logs(config, args, shell_config, mctgraph_global_config)
+
+
+    ###############################################################################
+    # ENVIRONMENT SPECIFIC SETUP. SETUP TRAINING AND EVALUATION TASK FUNCTIONS
+    # AND THE NETWORK FUNCTION.
+
+    # Training task lambda function
+    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
+
+    # Evaluation task labmda function. TODO: Is the evaluation task function necessary for a traditional learner?
+    eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    config.eval_task_fn = eval_task_fn
+
+    # Network lambda function
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
+        state_dim, action_dim, label_dim,
+        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
+        hidden_units=(200, 200, 200), num_tasks=300),
+        actor_body=DummyBody_CL(200),
+        critic_body=DummyBody_CL(200),
+        num_tasks=10)
+    
+    # Environment sepcific setup ends.
+    ###############################################################################
+    
+
+    # Select what agent to use here. Default is DetectShell which is an L2D2-C agent that uses the
+    # detect module for online task identity inference.
+    detect_finalise_and_run(config, PPODetectShell)
+
+
+
+
+
+
+
+# DEPRECATED EXPERIMENT METHODS
 ##### (Meta)CT-graph
 def shell_dist_mctgraph_mp(name, args, shell_config):
     # this might be deprecated
@@ -107,17 +290,16 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     config = global_config(config, name)
     config.state_normalizer = ImageNormalizer()
 
-    # set seed
-    config.seed = 9157#config_seed              # Chris
+    # Set the config seed to generate the backbone network of the agent
+    config.seed = 9157
 
-    #set varibles for the detect module in the config object. #Chris
+    # set varibles for the detect module in the config object. #Chris
     config.detect_reference_num = config_detect_reference_num #Chris
     config.detect_num_samples = config_detect_num_samples #Chris
     config.emb_dist_threshold = config_emb_dist_threshold #Chris
     config.detect_module_activation_frequency = config_detect_module_activation_frequency #Chris
     
     # set up logging system
-    #exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
     exp_id = '{0}-seed-{1}'.format(args.exp_id, config_seed)    # Chris
 
     path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
@@ -132,8 +314,7 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         with open(log_dir + '/shell_config.json', 'w') as f:
             json.dump(shell_config, f, indent=4)
             print('Shell configuration saved to shell_config.json')
-    except:
-        print('Something went terribly wrong. Unable to save shell configuration JSON')
+    except: print('Something went terribly wrong. Unable to save shell configuration JSON')
     shutil.copy(env_config_path, log_dir)
 
     # create/initialise agent
@@ -148,24 +329,17 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     else:
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
 
-    #task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
-    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)          # Chris
+    # Lambda functions for the training and evaluation task functions
+    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
-    #eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
 
-    #Creating function Pointers for the Constractors of the Detect Module object so it can be
-    #called later, so the object is created after the execution of the run file.
-    #Creatting a Detect Module Object
-    #NOTE: It can not work here because we do not know before hand the task
-    #obs size. Hence We will make it using a lmbda expration and pass it that
-    #to the agent.
-    #detect_module = Detect(one_hot=False, normalized=False, num_samples=100)
+    eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    config.eval_task_fn = eval_task_fn
 
     #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
     config.detect_fn = lambda reference_num, input_dim, num_samples: Detect(reference_num, input_dim, num_samples, one_hot=False, normalized=False) #Chris
 
-    eval_task_fn= lambda log_dir: MetaCTgraphFlatObs(name, env_config_path,log_dir)            # Chris
-    config.eval_task_fn = eval_task_fn
+    # Lambda function for the agents network
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
         phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
@@ -174,10 +348,11 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
         critic_body=DummyBody_CL(200),
         num_tasks=10)
 
-    config.seed = config_seed       # Chris
 
+    # Update the config seed for the rest of the code to run with
+    config.seed = config_seed       # Chris
     config.use_task_label = False #Chris
-    agent = ShellAgent_DP(config)
+    agent = DetectShell(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
     # Uncomment to print out the network parameters for visualisation. Can be useful for debugging.
@@ -209,15 +384,16 @@ def shell_dist_mctgraph_mp(name, args, shell_config):
     mode = manager.Value('b', args.omni)
 
     # If True then run the omnisicent mode agent, otherwise run the normal agent.
+    # TODO: Have to figure out how a traditional learner can transition to omniscient whenever required. Not really implemented yet and doesn't really work properly.
     if mode.value:
         comm = ParallelCommOmniscient(args.num_agents, agent.get_task_emb_size(), agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
-        shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
+        trainer_learner(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
     
     
     comm = ParallelComm(args.num_agents, agent.get_task_emb_size(), agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
+    trainer_learner(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
 
 def shell_dist_mctgraph_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path
@@ -326,19 +502,21 @@ def shell_dist_mctgraph_eval(name, args, shell_config):
     comm = ParallelCommEval(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost)
 
     # start training
-    shell_dist_eval_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base)
-
+    trainer_evaluator(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base)
 
 ##### Minigrid environment
 def shell_dist_minigrid_mp(name, args, shell_config):
-    shell_config_path = args.shell_config_path
-    num_agents = args.num_agents
+    #shell_config_path = args.shell_config_path
+    #num_agents = args.num_agents
 
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
+    config_detect_reference_num = shell_config['detect_reference_num'] #Chris
+    config_detect_num_samples = shell_config['detect_num_samples'] #Chris
+    config_emb_dist_threshold = shell_config['emb_dist_threshold'] #Chris
+    config_detect_module_activation_frequency = shell_config['detect_module_activation_frequency'] #Chris
     # address and port number of the master/first agent (rank/id 0) in the pool of agents
-    init_address = args.ip#shell_config['dist_only']['init_address']
-    init_port = args.port#shell_config['dist_only']['init_port']
+    init_port = args.port
 
     # set up config
     config = Config()
@@ -348,6 +526,12 @@ def shell_dist_minigrid_mp(name, args, shell_config):
 
     # set seed
     config.seed = 9157#config_seed              # Chris
+
+    # set varibles for the detect module in the config object. #Chris
+    config.detect_reference_num = config_detect_reference_num #Chris
+    config.detect_num_samples = config_detect_num_samples #Chris
+    config.emb_dist_threshold = config_emb_dist_threshold #Chris
+    config.detect_module_activation_frequency = config_detect_module_activation_frequency #Chris
     
     # set up logging system
     #exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
@@ -359,6 +543,7 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     config.logger = logger
     config.log_dir = log_dir
 
+
     # save shell config and env config
     #shutil.copy(shell_config_path, log_dir)
     try:
@@ -369,9 +554,11 @@ def shell_dist_minigrid_mp(name, args, shell_config):
         print('Something went wrong. Unable to save shell configuration json')
     shutil.copy(env_config_path, log_dir)
 
+
     # create/initialise agent
     logger.info('*****initialising agent {0}'.format(args.agent_id))
     
+
     num_tasks = len(set(shell_config['curriculum']['task_ids']))
     config.cl_num_tasks = num_tasks
     config.task_ids = shell_config['curriculum']['task_ids']
@@ -383,10 +570,15 @@ def shell_dist_minigrid_mp(name, args, shell_config):
 
     #task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, config.seed, False)
     task_fn = lambda log_dir: MiniGridFlatObs(name, env_config_path, log_dir, 9157, False)          # Chris
-    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=False)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
+
     #eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir,config.seed,True)
     eval_task_fn= lambda log_dir: MiniGridFlatObs(name, env_config_path,log_dir, 9157, True)            # Chris
     config.eval_task_fn = eval_task_fn
+
+    #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
+    config.detect_fn = lambda reference_num, input_dim, num_samples: Detect(reference_num, input_dim, num_samples, one_hot=False, normalized=False) #Chris
+
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
         phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
@@ -395,10 +587,9 @@ def shell_dist_minigrid_mp(name, args, shell_config):
         critic_body=DummyBody_CL(200),
         num_tasks=num_tasks)
 
-
     config.seed = config_seed       # Chris
 
-    agent = ShellAgent_DP(config)
+    agent = DetectShell(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.agent_id)
 
     #for k, v in agent.network.named_parameters():       # Chris
@@ -429,12 +620,18 @@ def shell_dist_minigrid_mp(name, args, shell_config):
     # Initialize dictionary to store the most up-to-date rewards for a particular embedding/task label.
     manager = mp.Manager()
     knowledge_base = manager.dict()
+    mode = manager.Value('b', args.omni)
 
-    mode = 'ondemand'
-    comm = ParallelComm(args.num_agents, agent.task_label_dim, agent.model_mask_dim, logger, init_port, mode, zip(addresses, ports), knowledge_base, manager, args.localhost)
+    # If True then run the omnisicent mode agent, otherwise run the normal agent.
+    # TODO: Have to figure out how a traditional learner can transition to omniscient whenever required. Not really implemented yet and doesn't really work properly.
+    if mode.value:
+        comm = ParallelCommOmniscient(args.num_agents, agent.get_task_emb_size(), agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
+        trainer_learner(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
+    
+    comm = ParallelComm(args.num_agents, agent.get_task_emb_size(), agent.model_mask_dim, logger, init_port, zip(addresses, ports), knowledge_base, manager, args.localhost, mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
 
     # start training
-    shell_dist_train_mp(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency)
+    trainer_learner(agent, comm, args.agent_id, args.num_agents, manager, knowledge_base, querying_frequency, mode)
 
 def shell_dist_minigrid_eval(name, args, shell_config):
     shell_config_path = args.shell_config_path
@@ -518,7 +715,6 @@ def shell_dist_minigrid_eval(name, args, shell_config):
 
     # start evaluation on curriculum
     shell_dist_eval_mp(agent, comm, args.agent_id, args.num_agents)
-
 
 ##### ContinualWorld environment
 # Need to add changes from Chris for seeds. Currently broken.
@@ -701,6 +897,7 @@ def shell_dist_continualworld_eval(name, args, shell_config):
 
 
 
+
 if __name__ == '__main__':
     mkdir('log')
     set_one_thread()
@@ -708,13 +905,12 @@ if __name__ == '__main__':
     mp.set_start_method('fork', force=True) # Set multiprocessing method as fork. Only available on UNIX (i.e., MacOS and Linux). DMIU is not currently compatible with Windows.
 
     ##################################################################################################################################################################################################################
-    #                                                                                            DMIU LAUNCH ARGUMENTS                                                                                               #
+    #                                                                                            LAUNCH ARGUMENTS                                                                                               #
     ##################################################################################################################################################################################################################
     parser = argparse.ArgumentParser()
-    parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
+    parser.add_argument('curriculum_id', help='index of the curriculum to use from the shell config json', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
-    parser.add_argument('--num_agents', help='world: total number of agents', type=int, default=1)                      # Will eventually be deprecated. Currently used to set the communication module initial world size.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_4x4.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/detect_module_tests.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
@@ -726,7 +922,7 @@ if __name__ == '__main__':
     parser.add_argument('--localhost', '--ls', '-ls', help='used to run DMIU in localhost mode', action='store_true')   # Flag used to start the system using localhost instead of public IP. Can be useful for debugging network related problems.
     parser.add_argument('--shuffle', '--s', '-s', help='randomise the task curriculum', action='store_true')            # Not required. If you want to randomise the order of tasks in the curriculum then you can change to 1
     parser.add_argument('--comm_interval', '--i', '-i', help='integer value indicating the number of communications '\
-        'to perform per task', type= int, default=5)                                                                    # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
+        'to perform per task', type= int, default=10)                                                                    # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
                                                                                                                         # Please do not modify this value unless you know what you're doing as it may cause unexpected results.
 
     parser.add_argument('--quick_start', '--qs', '-qs', help='use this to take advantage of the quick start method ' \
@@ -747,13 +943,13 @@ if __name__ == '__main__':
     with open(args.shell_config_path, 'r') as f:
         # Load shell configuration JSON
         shell_config = json.load(f)
-        shell_config['curriculum'] = shell_config['agents'][args.agent_id]
+        shell_config['curriculum'] = shell_config['agents'][args.curriculum_id]
 
         # Randomise the curriculum if shuffle raised and not in evaluation mode
         if args.shuffle and not args.eval: random.shuffle(shell_config['curriculum']['task_ids'])
 
         # Handle seeds
-        shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
+        shell_config['seed'] = shell_config['seed'][args.curriculum_id]      # Chris
         shell_config['detect_reference_num'] = shell_config['detect_reference_num']#[args.agent_id]#Chris
 
         shell_config['detect_num_samples'] = shell_config['detect_num_samples']#Chris
@@ -762,7 +958,7 @@ if __name__ == '__main__':
 
         shell_config['detect_module_activation_frequency'] = shell_config['detect_module_activation_frequency']#[args.agent_id] #Chris
         
-        del shell_config['agents'][args.agent_id]
+        del shell_config['agents'][args.curriculum_id]
 
 
     # Parse arguments and launch the correct environment-agent configuration.
@@ -780,7 +976,7 @@ if __name__ == '__main__':
             shell_dist_mctgraph_eval(name, args, shell_config)
 
         else:
-            shell_dist_mctgraph_mp(name, args, shell_config)
+            mctgraph_ppo(name, args, shell_config)
 
     elif shell_config['env']['env_name'] == 'continualworld':
         name = Config.ENV_CONTINUALWORLD

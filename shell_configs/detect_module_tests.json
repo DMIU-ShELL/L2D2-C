@@ -1,0 +1,50 @@
+{
+    "seed": [9157, 9157, 9157, 9157, 9157, 9157, 9158, 9157, 9158],
+    "detect_reference_num": 50,
+    "detect_num_samples": 128,
+    "emb_dist_threshold": 12,
+    "detect_module_activation_frequency": 1,
+    "agents": [
+        {
+            "task_ids": [0, 4, 8, 12],
+            "max_steps": 25600
+        },
+        {
+            "task_ids": [0],
+            "max_steps": 25600
+        },
+        {
+            "task_ids": [0, 4, 8, 12, 0, 4, 8, 12, 0, 4, 8, 12],
+            "max_steps": 25600
+        },
+        {
+            "task_ids": [0, 4, 0, 8, 0, 12, 0],
+            "max_steps": 25600
+        },
+        {
+            "task_ids": [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3],
+            "max_steps": 25600
+        },
+        {
+            "task_ids": [0, 0, 0, 0],
+            "max_steps": 25600
+        },
+        {
+            "task_ids": [0, 0, 0, 0],
+            "max_steps": 25600
+        },
+        {
+            "task_ids": [0, 4, 8, 12, 0, 4, 8, 12],
+            "max_steps": 25600
+        },
+        {
+            "task_ids": [12, 0, 4, 8, 12, 0, 4, 8],
+            "max_steps": 25600
+        }
+    ],
+    "env": {
+        "env_name": "ctgraph",
+        "env_config_path": "./env_configs/meta_ctgraph16.json"
+    
+    }
+}
