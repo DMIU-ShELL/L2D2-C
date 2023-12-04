@@ -387,8 +387,8 @@ class ParallelCommDetect(object):
             data = [
                 self.init_address,
                 self.init_port,
-                ParallelCommDetect.MSG_TYPE_SEND_MASK,
-                ParallelCommDetect.MSG_DATA_MSK,
+                ParallelCommDetect.MSG_TYPE_SEND_META,
+                ParallelCommDetect.MSG_DATA_META,
                 response.get('response_reward', None),
                 response.get('response_similarity', None),
                 response.get('response_embedding', None),
@@ -415,16 +415,42 @@ class ParallelCommDetect(object):
     def received_meta(self, data):
         
         def recv_meta(data):
-            # TODO: Unpack metadata into dictionary an return
-            pass
+            sender_address = str(data[ParallelCommDetect.META_INF_IDX_ADDRESS])
+            sender_port = int(data[ParallelCommDetect.META_INF_IDX_PORT])
+            sender_reward = data[4]
+            sender_similarity = data[5]
+            sender_embedding = data[6]
+            sender_task_id = data[7]
+            sender_label = data[8]
+            
+            # Create a dictionary with the unpacked data
+            ret = {
+                'sender_address': sender_address,
+                'sender_port': sender_port,
+                'sender_reward': sender_reward,
+                'sender_similarity' : sender_similarity,
+                'sender_embedding': sender_embedding,
+                'sender_task_id': sender_task_id,
+                'sender_label': sender_label
+            }
+
+            return ret
 
         def proc_requests(response):
             # TODO: Take metadata and determine top 5 agents to request mask from. Return list of mask request dicitonaries.
             pass
 
         def send_requests(response):
-            # TODO: Send mask requests to top 5 agents by iterating over list of mask request dictionaries.
-            pass
+            data = [
+                self.init_address,
+                self.init_port,
+                ParallelCommDetect.MSG_TYPE_SEND_REQ,
+                ParallelCommDetect.MSG_DATA_MSK_REQ,
+                response.get('request_task_id', None)
+            ]
+
+            self.logger.info(f'Sending mask request: {data}')
+            self.client(data, str(response['sender_address']), int(response['sender_port']))
 
         meta_data = recv_meta(data)
         self.logger.info(Fore.CYAN + f'Received metadata: {meta_data}')
@@ -438,11 +464,22 @@ class ParallelCommDetect(object):
     def received_request(self, data, queue_label_send, queue_mask_recv):
 
         def recv_request(data):
-            pass
+            sender_address = str(data[ParallelCommDetect.META_INF_IDX_ADDRESS])
+            sender_port = int(data[ParallelCommDetect.META_INF_IDX_PORT])
+            sender_task_id = data[4]
+            
+            # Create a dictionary with the unpacked data
+            ret = {
+                'sender_address': sender_address,
+                'sender_port': sender_port,
+                'sender_task_id': sender_task_id
+            }
+
+            return ret
 
         def proc_mask(response):
             queue_label_send.put(response)
-            self.logger.info('Mask request sent')
+            self.logger.info('Pulling mask from agent process')
             return queue_mask_recv.get()
 
         def send_mask(response):
@@ -457,7 +494,7 @@ class ParallelCommDetect(object):
                 response.get('response_label', None)
             ]
 
-            self.logger.info(f'Sending mask response: {data}')
+            self.logger.info(f'Sending mask: {data}')
             self.client(data, str(response['sender_address']), int(response['sender_port']))
 
 
@@ -576,7 +613,6 @@ class ParallelCommDetect(object):
             self.logger.info(Fore.MAGENTA + f'Failed to send {data} of length {len(_data)} to {address}:{port}')
 
     def event_handler(self, data, queue_mask_recv, queue_label_send):
-        ### EVENT HANDLING
         # Agent is sending a query table
         if data[ParallelCommDetect.META_INF_IDX_MSG_TYPE] == ParallelCommDetect.MSG_TYPE_SEND_TABLE:
             self.logger.info(Fore.CYAN + 'Data is a query table')
@@ -588,9 +624,19 @@ class ParallelCommDetect(object):
             self.logger.info(Fore.CYAN + 'Data is a query')
             self.received_query(data, queue_label_send, queue_mask_recv)
 
+        # An agent is sending metadata
+        elif data[ParallelCommDetect.META_INF_IDX_MSG_TYPE] == ParallelCommDetect.MSG_TYPE_SEND_META:
+            self.logger.info(Fore.CYAN + 'Data is metadata')
+            self.received_meta(data)
+
+        # An agent is sending a mask request
+        elif data[ParallelCommDetect.META_INF_IDX_MSG_TYPE] == ParallelCommDetect.MSG_TYPE_SEND_REQ:
+            self.logger.info(Fore.CYAN + 'Data is a mask request')
+            self.received_request(data, queue_label_send, queue_mask_recv)
+
         # An agent is sending a mask
         elif data[ParallelCommDetect.META_INF_IDX_MSG_TYPE] == ParallelCommDetect.MSG_TYPE_SEND_MASK:
-            self.logger.info(Fore.CYAN + 'Data is mask response')
+            self.logger.info(Fore.CYAN + 'Data is mask')
             self.received_mask(data)
 
         print('\n')

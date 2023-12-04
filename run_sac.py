@@ -11,14 +11,15 @@ from deep_rl.component.replay import Replay
 from deep_rl.component.random_process import GaussianProcess, OrnsteinUhlenbeckProcess
 from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, RunningStatsNormalizer, RewardRunningStatsNormalizer
 from deep_rl.utils.logger import get_logger
-from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
+from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator, trainer_learner_eps
 from deep_rl.utils.trainer_ll import run_iterations_w_oracle
 from deep_rl.utils.schedule import LinearSchedule
-from deep_rl.agent.SAC_agent import SACAgent
-from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient
-from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, Pendulum
+from deep_rl.agent.SAC_agent import SACAgent, SACContinualLearnerAgent, SACBaseAgent, SACLLAgent, SACShellAgent, SACDetectShell
+from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, PendulumWrapper
 from deep_rl.network.network_heads import SACNet, CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, DeterministicActorCriticNet
 from deep_rl.network.network_bodies import FCBody, FCBody_SS, DummyBody_CL, TwoLayerFCBodyWithAction
+from deep_rl.shell_modules.communication.comms_detect import ParallelCommDetect, ParallelCommDetectEval
+from deep_rl.shell_modules.detect.detect import Detect
 import argparse
 import torch
 import random
@@ -45,10 +46,10 @@ def global_config(config, name):
     config.use_gae = True
     config.gae_tau = 0.99
     config.entropy_weight = 0.00015 #0.75
-    config.rollout_length = 128         # UNUSED
+    config.rollout_length = 128
     config.optimization_epochs = 8
     config.num_mini_batches = 64
-    config.ppo_ratio_clip = 0.1         # UNUSED
+    config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 25600
@@ -63,29 +64,46 @@ def global_config(config, name):
 def sac_baseline(name, args, shell_config):
     env_config_path = shell_config['env']['env_config_path']
     config_seed = shell_config['seed']
-    init_port = args.port
 
     config = Config()
     config = global_config(config, name)
+    env_config_path = shell_config['env']['env_config_path']
+    config_seed = shell_config['seed']
+    config.backbone_seed = 9157
+    config.init_port = args.port
+
     config.state_normalizer = RescaleNormalizer()
     config.reward_normalizer = RescaleNormalizer()
 
     config.seed = 9157
 
+    ###############################################################################
+    # Curriculum setup. TODO: Check how much of this is needed. Remove unnecessary stuff
+    num_tasks = len(set(shell_config['curriculum']['task_ids']))
+    config.cl_num_tasks = num_tasks
+    config.task_ids = shell_config['curriculum']['task_ids']
+    if isinstance(shell_config['curriculum']['max_steps'], list):
+        config.max_steps = shell_config['curriculum']['max_steps']
+    else:
+        config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
+
+    ###############################################################################
+    # Logging
     exp_id = '{0}-seed-{1}'.format(args.exp_id, config_seed)
-    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.agent_id)
+    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.curriculum_id)
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
     config.logger = logger
     config.log_dir = log_dir
-    try:
-        with open(log_dir + '/shell_config.json', 'w') as f:
-            json.dump(shell_config, f, indent=4)
-            print('Shell configuration saved to shell_config.json')
-    except:
-        print('Something went terribly wrong. Unable to save shell configuration JSON')
+
+    # save shell config and env config
+    #shutil.copy(shell_config_path, log_dir)
+    with open(log_dir + '/shell_config.json', 'w') as f:
+        json.dump(shell_config, f, indent=4)
     shutil.copy(env_config_path, log_dir)
-    logger.info('*****initialising agent {0}'.format(args.agent_id))
+
+    # create/initialise agent
+    logger.info('*****initialising agent {0}'.format(args.curriculum_id))
 
     '''num_tasks = len(set(shell_config['curriculum']['task_ids']))
     config.cl_num_tasks = num_tasks
@@ -96,12 +114,12 @@ def sac_baseline(name, args, shell_config):
         config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])'''
 
     #config.max_steps = int(1e6)#config.max_steps[0]
-    config.max_steps = None
+    config.max_steps = int(1e6)
     config.episode_limit = int(1e6)
-    task_fn = lambda log_dir: Pendulum(log_dir)
+    task_fn = lambda log_dir: PendulumWrapper(name, env_config_path, log_dir)
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
     
-    eval_task_fn = lambda log_dir: Pendulum(log_dir)
+    eval_task_fn = lambda log_dir: PendulumWrapper(name, env_config_path, log_dir)
     config.eval_task_fn = eval_task_fn
 
     config.network_fn = lambda state_dim, action_dim: SACNet(
@@ -125,7 +143,7 @@ def sac_baseline(name, args, shell_config):
     #config.td3_noise_clip = 0.5
     #config.td3_delay = 2
     config.alpha = 0.1
-    #config.warm_up = int(1e4)
+    config.warm_up = int(1e4)
     config.min_memory_size = int(1e4)
     config.target_network_mix = 5e-3
 
@@ -135,6 +153,136 @@ def sac_baseline(name, args, shell_config):
     #config.cl_num_learn_blocks = 1
     run_episodes(agent)
 
+def sac_detect(name, args, shell_config):
+    config = Config()
+    config = global_config(config, name)
+    
+    env_config_path = shell_config['env']['env_config_path']
+    config_seed = shell_config['seed']
+    config.backbone_seed = 9157
+    config.init_port = args.port
+
+
+    ###############################################################################
+    # Detect Module
+    config.detect_reference_num = shell_config['detect_reference_num']
+    config.detect_num_samples = shell_config['detect_num_samples']
+    config.emb_dist_threshold = shell_config['emb_dist_threshold']
+    config.detect_module_activation_frequency = shell_config['detect_module_activation_frequency']
+
+
+    ###############################################################################
+    # Logging
+    exp_id = '{0}-seed-{1}'.format(args.exp_id, config_seed)
+    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.curriculum_id)
+    log_dir = get_default_log_dir(path_name)
+    logger = get_logger(log_dir=log_dir, file_name='train-log')
+    config.logger = logger
+    config.log_dir = log_dir
+
+    # save shell config and env config
+    #shutil.copy(shell_config_path, log_dir)
+    with open(log_dir + '/shell_config.json', 'w') as f:
+        json.dump(shell_config, f, indent=4)
+    shutil.copy(env_config_path, log_dir)
+
+    # create/initialise agent
+    logger.info('*****initialising agent {0}'.format(args.curriculum_id))
+
+
+    ###############################################################################
+    # Curriculum setup. TODO: Check how much of this is needed. Remove unnecessary stuff
+    num_tasks = len(set(shell_config['curriculum']['task_ids']))
+    config.cl_num_tasks = num_tasks
+    config.task_ids = shell_config['curriculum']['task_ids']
+    if isinstance(shell_config['curriculum']['max_steps'], list):
+        config.max_steps = shell_config['curriculum']['max_steps']
+    else:
+        config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
+
+
+    ###############################################################################
+    # SAC specific hyperparameters and functions
+    #config.max_steps = int(1e6)#config.max_steps[0]
+    #config.max_steps = None
+    config.episode_limit = int(1e6)
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=64)
+    config.discount = 0.99 # Gamma value
+    config.random_process_fn = lambda action_dim: GaussianProcess(
+        size=(action_dim,), std=LinearSchedule(0.1))
+    #config.td3_noise = 0.2
+    #config.td3_noise_clip = 0.5
+    #config.td3_delay = 2
+    config.alpha = 0.1
+    config.warm_up = int(1e4)
+    config.min_memory_size = int(1e4)
+    config.target_network_mix = 5e-3
+
+
+    ###############################################################################
+    # Environment and Network
+
+    # Training task function
+    task_fn = lambda log_dir: PendulumWrapper(name, env_config_path, log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir, single_process=True)
+    
+    # Evaluation task function
+    eval_task_fn = lambda log_dir: PendulumWrapper(name, env_config_path, log_dir)
+    config.eval_task_fn = eval_task_fn
+
+    # Network function
+    config.network_fn = lambda state_dim, action_dim: SACNet(
+        action_dim,
+        actor_body_fn  = lambda: FCBody(state_dim, (400, 300), gate=F.relu),
+        critic_body_fn = lambda: FCBody(state_dim+action_dim, (400, 300), gate=F.relu),
+        value_body_fn  = lambda: FCBody(state_dim, (400, 300), gate=F.relu),
+        actor_opt_fn   = lambda params: torch.optim.Adam(params, lr=1e-3),
+        critic_opt_fn  = lambda params: torch.optim.Adam(params, lr=1e-3),
+        value_opt_fn   = lambda params: torch.optim.Adam(params, lr=1e-3))
+    
+    #config.seed = config_seed
+
+
+    config.use_task_label = False
+
+
+    ###############################################################################
+    # Setup detect module
+    #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
+    config.detect_fn = lambda reference_num, input_dim, num_samples: Detect(reference_num, input_dim, num_samples, one_hot=False, normalized=False)
+
+
+    ###############################################################################
+    # Initialise Manager() for handling shared variables over an internal server
+    config.manager = mp.Manager()
+    config.seen_tasks = config.manager.dict()
+    config.mode = config.manager.Value('b', args.omni)
+
+
+    ###############################################################################
+    # Setup agent module
+    agent = SACDetectShell(config)
+    config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.curriculum_id)
+
+    # Communication frequency. TODO: This will need a rework if we don't know the length of task encounters.
+    config.querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
+
+
+    ###############################################################################
+    # Read the reference ip-port pairs to enter a collective. Setup the parallelised
+    # communication module.
+    addresses, ports = [], []
+    reference_file = open(args.reference, 'r')
+    lines = reference_file.readlines()
+    for line in lines:
+        line = line.strip('\n').split(', ')
+        addresses.append(line[0])
+        ports.append(int(line[1]))
+
+    comm = ParallelCommDetect(agent.get_task_emb_size(), agent.model_mask_dim, config.logger, config.init_port, zip(addresses, ports), config.seen_tasks, config.manager, args.localhost, config.mode, args.dropout, config.emb_dist_threshold)
+    
+    # Start training
+    trainer_learner_eps(agent, comm, args.curriculum_id, config.manager, config.querying_frequency, config.mode)
 
 if __name__ == '__main__':
     mkdir('log')
@@ -144,10 +292,10 @@ if __name__ == '__main__':
 
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('agent_id', help='rank: the process id or machine id of the agent', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
+    parser.add_argument('curriculum_id', help='rank: the process id or machine id of the agent', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
     parser.add_argument('--num_agents', help='world: total number of agents', type=int, default=1)                      # Will eventually be deprecated. Currently used to set the communication module initial world size.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/shell_1x1.json')                       # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/sac_pendulum_test.json')                       # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
@@ -165,7 +313,7 @@ if __name__ == '__main__':
     parser.add_argument('--quick_start', '--qs', '-qs', help='use this to take advantage of the quick start method ' \
         'for the reference table', action='store_true')                                                                 # Quick start allows you to use a complete reference table across all your agents, to quickly start localised experimentation. To use this
                                                                                                                         # you will need to simply put every address of all agents you intend to run on your system and use the same file on all your agents at launch.
-                                                                                                                        # Then you must use the unique values for your agents using the agent_id argument and start each agent sequentially. I.e., for 16 agents you 
+                                                                                                                        # Then you must use the unique values for your agents using the curriculum_id argument and start each agent sequentially. I.e., for 16 agents you 
                                                                                                                         # should have agents with ids 0 ~ 15. This will make each agent populate its known peers lists with all agents that have been started up to that point.
                                                                                                                         # Was implemented just to make internal testing easier during development.
 
@@ -178,15 +326,18 @@ if __name__ == '__main__':
     with open(args.shell_config_path, 'r') as f:
         # Load shell configuration JSON
         shell_config = json.load(f)
-        shell_config['curriculum'] = shell_config['agents'][args.agent_id]
+        shell_config['curriculum'] = shell_config['agents'][args.curriculum_id]
 
         # Randomise the curriculum if shuffle raised and not in evaluation mode
         #if args.shuffle and not args.eval: random.shuffle(shell_config['curriculum']['task_ids'])
 
         # Handle seeds
-        shell_config['seed'] = shell_config['seed'][args.agent_id]      # Chris
-        del shell_config['agents'][args.agent_id]
+        shell_config['seed'] = shell_config['seed'][args.curriculum_id]      # Chris
+        del shell_config['agents'][args.curriculum_id]
 
 
     name = 'Pendulum'
-    sac_baseline(name, args, shell_config)
+    #name = 'Simulation'
+
+    #sac_baseline(name, args, shell_config) # Without lifelong learning
+    sac_detect(name, args, shell_config)    # With lifelong learning + detect module

@@ -1,0 +1,6 @@
+{
+"gravity_values": [9.81, 3.71, 24.79, 0.62],
+"one_hot": true,
+"label_dim": 4,
+"action_dim": 1
+}

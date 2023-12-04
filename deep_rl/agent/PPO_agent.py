@@ -16,7 +16,7 @@ from .BaseAgent import BaseAgent, BaseContinualLearnerAgent
 from ..utils.torch_utils import random_seed, tensor
 from ..utils.misc import Batcher
 from ..component.replay import Replay
-from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask
+from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask, GetSubnetDiscrete, GetSubnetContinuous, mask_init, signed_constant
 
 import torch
 import torch.nn as nn
@@ -182,6 +182,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
     def iteration(self):
         '''This function performs the training iteration.
         It is where the learner of the agent (the neural network) is being optimized'''
+        
         config = self.config
         rollout = []
         states = self.states
@@ -536,7 +537,6 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         else: return np.mean(running_perf)
 
 
-
 class PPOBaselineAgent(PPOContinualLearnerAgent):
     '''PPO continual learning agent baseline (experiences catastrophic forgetting). Uses simplified task_*_start and task_*_end methods to override masking.'''
     def __init__(self, config):
@@ -827,6 +827,13 @@ class PPODetectShell(PPOShellAgent):
         self.current_task_emb = torch.zeros(self.get_task_emb_size())
         self.new_task_emb =  torch.zeros(self.get_task_emb_size())      # FIXME: We don't use this! Consider removal.
 
+
+        # Beta parameters for shared masks from network
+        #self.shared_betas = nn.Parameter(torch.zeros(32).type(torch.float32))#self.shared_betas = nn.Parameter(torch.zeros(32, 32).type(torch.float32)) #Ideally can be a 1D vector. 2D for analysis.
+        self.discrete = True
+        self._subnet_class = GetSubnetDiscrete if self.discrete else GetSubnetContinuous
+
+
         # Debugging outputs.
         print(f'Observation size: {observation_size}, Task embedding size: {self.task_emb_size}')
         print(f'Task action space size: {self.task_action_space_size}')
@@ -851,6 +858,7 @@ class PPODetectShell(PPOShellAgent):
         found_task_idx = None
         for task_idx, task_dict in self.seen_tasks.items():
             seen_task_embedding = task_dict['task_emb']
+            print(f'Seen task embedding: {seen_task_embedding}, embedding: {task_embedding}')
             cosine_similarity = F.cosine_similarity(task_embedding, seen_task_embedding, dim=0)
             self.config.logger.info(cosine_similarity)
             if cosine_similarity > 0.4:#np.linalg.norm(task_embedding - seen_task_embedding) < self.emb_dist_threshold:
@@ -908,10 +916,10 @@ class PPODetectShell(PPOShellAgent):
         self.new_task = False # reset flag
         return
 
-    def idx_to_mask(self, task_embedding, task_idx):
+    def embedding_to_mask(self, task_embedding):
         '''A method for finding the correspoding mask for the task tha it is currently encountered
         based on the agents task/mask registry (seen tasks dictionary)'''
-        #task_idx = self._embedding_to_idx(task_embedding)
+        task_idx = self._embedding_to_idx(task_embedding)
         #get the stored correspoding mask for that specific task
         if task_idx is None:
             mask = None
@@ -920,6 +928,56 @@ class PPODetectShell(PPOShellAgent):
             mask = get_mask(self.network, task_idx)
             mask = self.mask_to_vec(mask)
         return mask
+    
+    def idx_to_mask(self, task_idx):
+        '''A method for finding the correspoding mask for the task tha it is currently encountered
+        based on the agents task/mask registry (seen tasks dictionary)'''
+        #get the stored correspoding mask for that specific task
+        if task_idx is None:
+            mask = None
+        else:
+            #function from ssmask_utils.py
+            mask = get_mask(self.network, task_idx)
+            mask = self.mask_to_vec(mask)
+        return mask
+
+
+
+    ###############################################################################
+    # Mask linear combination methods.
+    def linear_combination(self, masks):
+        """
+        linearly combines incoming masks from the network
+        """
+        # Get current training mask
+        _subnet = self.idx_to_mask(self.current_task_key)
+
+        _subnets = [masks[idx].detach() for idx in range(len(masks))]
+        #assert len(_subnets) > 0, 'an error occured'
+        #_betas = self.shared_betas[len(masks), 0:len(masks)]    # 2D beta parameter vector
+        #_betas = self.shared_betas[0:len(masks)]   # 1D beta parameter vector
+
+        _betas = torch.zeros(len(_subnets)) # beta parameters with equal probability. We can manually set the weights on the beta parameters.
+        _betas = torch.softmax(_betas, dim=-1)
+        _subnets.append(_subnet)
+        #assert len(_betas) == len(_subnets), 'an error ocurred'
+        #_subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]  # beta coefficients applied
+        # element wise sum of various masks (weighted sum)
+        _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
+        #_subnet_linear_comb = torch.stack(_subnets, dim=0).mean(dim=0)  # equivalent to setting beta parameter as 1/num(masks)
+        return self._subnet_class.apply(_subnet_linear_comb)
+    
+    def consolidate_incoming(self, masks):
+        """
+        consolidates all incoming knowledge from the collective
+        """
+        with torch.no_grad():
+            # Initalise random mask
+            new_mask = self.linear_combination(masks)
+            self.distil_task_knowledge_embedding(new_mask)
+
+            #set_mask(new_mask, self.current_task_key)
+
 
 
     ###############################################################################
@@ -934,6 +992,7 @@ class PPODetectShell(PPOShellAgent):
         #print("RB_DATA_shape:", len(buffer_data))
         sar_data = []
         #ql = []
+        
         for tpl in buffer_data:
             tmp0 = tpl[:3]
             tmp1 = np.array(tmp0[1])

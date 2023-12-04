@@ -2,7 +2,7 @@
     "seed": [9157, 9157, 9157, 9157, 9157, 9157, 9158, 9157, 9158],
     "detect_reference_num": 50,
     "detect_num_samples": 128,
-    "emb_dist_threshold": 12,
+    "emb_dist_threshold": 24,
     "detect_module_activation_frequency": 1,
     "agents": [
         {

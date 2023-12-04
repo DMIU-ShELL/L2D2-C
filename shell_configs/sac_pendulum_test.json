@@ -1,0 +1,22 @@
+{
+    "seed": [9157],
+    "detect_reference_num": 50,
+    "detect_num_samples": 128,
+    "emb_dist_threshold": 7,
+    "detect_module_activation_frequency": 5,
+    "agents": [
+        {
+            "task_ids": [0, 1, 2, 3],
+            "max_steps": 2560000
+        }
+    ],
+    "env": {
+        "env_name": "ctgraph",
+        "env_config_path": "./env_configs/pendulum_4.json"
+    
+    },
+    "dist_only": {
+        "init_address": "127.0.0.1",
+        "init_port": "29500"
+    }
+}

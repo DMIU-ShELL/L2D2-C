@@ -688,17 +688,93 @@ class RamAtari(BaseTask):
         self.action_dim = self.env.action_space.n
         self.state_dim = 128
 
-class Pendulum(BaseTask):
-    def __init__(self, log_dir=None):
+class PendulumWrapper(BaseTask):
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000):
         BaseTask.__init__(self)
-        self.name = 'Pendulum-v1'
-        self.env = gym.make(self.name)
-        self.action_dim = self.env.action_space.shape[0]
-        self.state_dim = self.env.observation_space.shape[0]
-        self.env = self.set_monitor(self.env, log_dir)
+        self.name = name
+
+        # Load environment configurations from a JSON file
+        with open(env_config_path, 'r') as f:
+            env_config = json.load(f)
+        
+        # Store the environment configuration
+        self.env_config = env_config
+        
+        # Create instances of the Pendulum-v1 environment with different gravity settings
+        gravity_values = env_config.get("gravity_values", [9.8])  # Default gravity is 9.8
+        env_names = [f"Pendulum-v1_gravity_{g}" for g in gravity_values]
+        self.envs = {
+            env_name: self._create_pendulum_environment(env_name, g, seed)
+            for env_name, g in zip(env_names, gravity_values)
+        }
+        
+        # Set up observation and action spaces based on the first environment
+        self.observation_space = self.envs[env_names[0]].observation_space
+        self.action_space = self.envs[env_names[0]].action_space
+        self.state_dim = int(np.prod(self.observation_space.shape))
+        self.action_dim = int(np.prod(self.action_space.shape))
+        
+        # Apply monitoring to each environment
+        for env_name in self.envs.keys():
+            self.envs[env_name] = self.set_monitor(self.envs[env_name], log_dir)
+        
+        # Task label configuration
+        self.task_label_dim = env_config['label_dim']
+        self.one_hot_labels = True if env_config['one_hot'] else False
+        
+        # Create a list of tasks with optional task labels
+        self.tasks = [{'name': name, 'task': name, 'task_label': None} for name in self.envs.keys()]
+        
+        # Generate labels for tasks
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+        else:
+            labels = np.random.uniform(low=-1., high=1., size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32) 
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+        
+        # Set the default task and environment
+        self.current_task = self.tasks[0]
+        self.env = self.envs[self.current_task['task']]
 
     def step(self, action):
-        return BaseTask.step(self, [np.clip(action, -2, 2)])
+        _action = np.clip(action, self.env.action_space.low, self.env.action_space.high)
+        state, reward, done, info = self.env.step(_action)
+        if done:
+            state = self.reset()
+        return state, reward, done, info
+
+    def reset(self):
+        state = self.env.reset()
+        return state
+
+    def reset_task(self, taskinfo):
+        self.set_task(taskinfo)
+        return self.reset()
+
+    def set_task(self, taskinfo):
+        self.current_task = taskinfo
+        self.env = self.envs[self.current_task['task']]
+
+    def get_task(self):
+        return self.current_task
+
+    def get_all_tasks(self, requires_task_label=True):
+        return self.tasks
+
+    def random_tasks(self, num_tasks, requires_task_label=True):
+        raise NotImplementedError
+
+    def _create_pendulum_environment(self, env_name, gravity, seed):
+        # Create and configure a Pendulum-v1 environment with custom gravity setting
+        env = gym.make("Pendulum-v1")
+        env.env.gravity = gravity
+        env.seed(seed)
+        return env
 
 class Box2DContinuous(BaseTask):
     def __init__(self, name, log_dir=None):
@@ -799,6 +875,10 @@ class ProcessTask:
     def random_tasks(self, num_tasks, requires_task_label):
         self.pipe.send([ProcessWrapper.RANDOM_TASKS, [num_tasks, requires_task_label]])
         return self.pipe.recv()
+    
+    #def action_space_sample(self):
+    #    self.pipe.send([ProcessWrapper.ACTION_SPACE, None])
+    #    return self.pipe.recv()
 
 class ProcessWrapper(mp.Process):
     STEP = 0
@@ -811,6 +891,7 @@ class ProcessWrapper(mp.Process):
     GET_ALL_TASKS = 7
     RANDOM_TASKS = 8
     SET_CURR_TASK_INFO = 9
+    ACTION_SPACE = 10
     def __init__(self, pipe, task_fn, log_dir):
         mp.Process.__init__(self)
         self.pipe = pipe
@@ -853,6 +934,8 @@ class ProcessWrapper(mp.Process):
                 self.pipe.send(task.random_tasks(*data))
             elif op == self.SET_CURR_TASK_INFO:
                 self.pipe.send(task.set_current_task_info(data[0], data[1]))
+            #elif op == self.ACTION_SPACE:
+            #    self.pipe.send(task.action_space_sample())
             else:
                 raise Exception('Unknown command')
 
@@ -908,3 +991,6 @@ class ParallelizedTask:
     
     def random_tasks(self, num_tasks, requires_task_label):
         return self.tasks[0].random_tasks(num_tasks, requires_task_label)
+    
+    #def action_space_sample(self):
+    #    return self.tasks[0].action_space.sample()
