@@ -428,6 +428,7 @@ def get_mask(model, task, raw_score=True):
     return mask 
 
 def set_mask(model, mask, task):
+    print(f'In set_mask: {mask}, {task}')
     #print('mask in set_mask', mask, type(mask))
     #print('task in set_mask', task, type(task))
     for n, m in model.named_modules():

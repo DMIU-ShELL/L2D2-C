@@ -1,10 +1,14 @@
 {
-    "seed": [9157, 9157, 9157, 9157, 9157, 9157, 9158, 9157, 9158],
+    "seed": [9157, 9157, 9157, 9157, 9157, 9157, 9157, 9158, 9157, 9158],
     "detect_reference_num": 50,
     "detect_num_samples": 128,
-    "emb_dist_threshold": 24,
+    "emb_dist_threshold": 12,
     "detect_module_activation_frequency": 1,
     "agents": [
+        {
+            "task_ids": [0, 4, 8, 12],
+            "max_steps": 25600
+        },
         {
             "task_ids": [0, 4, 8, 12],
             "max_steps": 25600

@@ -29,50 +29,96 @@ for i, port in enumerate(ports):
         commands.append(f'python run_shell_dist_mp.py {i} {port} -r reference.csv -e')'''
 
 
-# FOCCAL
+# FOCCAL (CT-Graph)
 commands = [
     # MIG 1 (0-7)
-    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', 'python run_shell_dist_mp.py 0 29500 -d 0.0'],
+    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', "python run_shell_dist_mp.py 0 29500 -l -d 0.0 --exp_id='ct8_md_agent1'"],
 
     # MIG 2 (0-8)
-    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', 'python run_shell_dist_mp.py 1 29501 -d 0.0'],
+    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', "python run_shell_dist_mp.py 1 29501 -l -d 0.0 --exp_id='ct8_md_agent2'"],
 
     # MIG 3 (0-9)
-    ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', 'python run_shell_dist_mp.py 2 29502 -d 0.0'],
+    ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', "python run_shell_dist_mp.py 2 29502 -l -d 0.0 --exp_id='ct8_md_agent3'"],
 
     # MIG 4 (0-10)
-    ['MIG-e8f61a95-352a-56cc-b95d-0c35fc14e8bf', 'python run_shell_dist_mp.py 3 29503 -d 0.0'],
+    ['MIG-e8f61a95-352a-56cc-b95d-0c35fc14e8bf', "python run_shell_dist_mp.py 3 29503 -l -d 0.0 --exp_id='ct8_md_agent4'"],
 
     # MIG 5 (0-11)
-    ['MIG-35ecef79-db2e-590b-9e8c-2c07c787008e', 'python run_shell_dist_mp.py 4 29504 -d 0.0'],
+    ['MIG-35ecef79-db2e-590b-9e8c-2c07c787008e', "python run_shell_dist_mp.py 4 29504 -l -d 0.0 --exp_id='ct8_md_agent5'"],
 
     # MIG 6 (0-12)
-    ['MIG-76cd8dd7-7703-5581-8ac5-a7ee81a402a0', 'python run_shell_dist_mp.py 5 29505 -d 0.0'],
+    ['MIG-76cd8dd7-7703-5581-8ac5-a7ee81a402a0', "python run_shell_dist_mp.py 5 29505 -l -d 0.0 --exp_id='ct8_md_agent6'"],
 
     # MIG 7 (0-13)
-    ['MIG-b35e1a68-f7a4-5ef9-b34a-1abf6d1f8c2e', 'python run_shell_dist_mp.py 6 29506 -d 0.0'],
+    ['MIG-b35e1a68-f7a4-5ef9-b34a-1abf6d1f8c2e', "python run_shell_dist_mp.py 6 29506 -l -d 0.0 --exp_id='ct8_md_agent7'"],
 
     # MIG 8 (1-7)
-    ['MIG-2d5b6364-fc42-587b-97c6-ee316a82e2f3', 'python run_shell_dist_mp.py 7 29507 -d 0.0'],
+    ['MIG-2d5b6364-fc42-587b-97c6-ee316a82e2f3', "python run_shell_dist_mp.py 7 29507 -l -d 0.0 --exp_id='ct8_md_agent8'"],
 
     # MIG 9 (1-8)
-    ['MIG-4590f80d-be70-58e4-af75-eeb950255d4a', 'python run_shell_dist_mp.py 8 29508 -d 0.0'],
+    #['MIG-4590f80d-be70-58e4-af75-eeb950255d4a', "python run_shell_dist_mp.py 8 29508 -l -d 0.0 --exp_id='ct8_md_agent9'"],
 
     # MIG 10 (1-9)
-    ['MIG-e76a2a9b-9867-5f8a-b145-d857cd5ed8e2', 'python run_shell_dist_mp.py 9 29509 -d 0.0'],
+    #['MIG-e76a2a9b-9867-5f8a-b145-d857cd5ed8e2', "python run_shell_dist_mp.py 9 29509 -l -d 0.0 --exp_id='ct8_md_agent10'"],
 
     # MIG 11 (1-10)
-    ['MIG-2593b912-5975-58e9-bc3d-495311cee807', 'python run_shell_dist_mp.py 10 29510 -d 0.0'],
+    #['MIG-2593b912-5975-58e9-bc3d-495311cee807', "python run_shell_dist_mp.py 10 29510 -l -d 0.0 --exp_id='ct8_md_agent11'"],
 
     # MIG 12 (1-11)
-    ['MIG-51069529-f343-59c6-bac7-a75648296e7b', 'python run_shell_dist_mp.py 11 29511 -d 0.0'],
+    #['MIG-51069529-f343-59c6-bac7-a75648296e7b', "python run_shell_dist_mp.py 11 29511 -l -d 0.0 --exp_id='ct8_md_agent12'"],
 
     # MIG 13 (1-12)
-    ['MIG-187573d8-7df7-5e5f-87b2-c8b8f73c54e7', 'python run_shell_dist_mp.py 12 29512 -d 0.0'],
+    #['MIG-187573d8-7df7-5e5f-87b2-c8b8f73c54e7', "python run_shell_dist_mp.py 12 29512 -l -d 0.0 --exp_id='ct8_md_agent13'"],
 
     # MIG 14 (1-13)
-    ['MIG-3045e3dd-28b6-5ee8-96b5-60a085c9fcf1', 'python run_shell_dist_mp.py 0 29513 -e']
+    ['MIG-3045e3dd-28b6-5ee8-96b5-60a085c9fcf1', "python run_shell_dist_mp.py 8 29508 -l -e --exp_id='ct8_md_eval'"]
 ]
+
+
+# FOCCAL (Minigrid)
+'''commands = [
+    # MIG 1 (0-7)
+    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', "python run_shell_dist_mp.py 0 29500 -l -d 0.0 --exp_id='mg_agent1'"],
+
+    # MIG 2 (0-8)
+    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', "python run_shell_dist_mp.py 1 29501 -l -d 0.0 --exp_id='mg_agent2'"],
+
+    # MIG 3 (0-9)
+    ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', "python run_shell_dist_mp.py 2 29502 -l -d 0.0 --exp_id='mg_agent3'"],
+
+    # MIG 4 (0-10)
+    ['MIG-e8f61a95-352a-56cc-b95d-0c35fc14e8bf', "python run_shell_dist_mp.py 3 29503 -l -d 0.0 --exp_id='mg_agent4'"],
+
+    # MIG 5 (0-11)
+    ['MIG-35ecef79-db2e-590b-9e8c-2c07c787008e', "python run_shell_dist_mp.py 4 29504 -l -d 0.0 --exp_id='mg_agent5'"],
+
+    # MIG 6 (0-12)
+    ['MIG-76cd8dd7-7703-5581-8ac5-a7ee81a402a0', "python run_shell_dist_mp.py 5 29505 -l -d 0.0 --exp_id='mg_agent6'"],
+
+    # MIG 7 (0-13)
+    ['MIG-b35e1a68-f7a4-5ef9-b34a-1abf6d1f8c2e', "python run_shell_dist_mp.py 6 29506 -l -d 0.0 --exp_id='mg_agent7'"],
+
+    # MIG 8 (1-7)
+    ['MIG-2d5b6364-fc42-587b-97c6-ee316a82e2f3', "python run_shell_dist_mp.py 7 29507 -l -d 0.0 --exp_id='mg_agent8'"],
+
+    # MIG 9 (1-8)
+    ['MIG-4590f80d-be70-58e4-af75-eeb950255d4a', "python run_shell_dist_mp.py 8 29508 -l -d 0.0 --exp_id='mg_agent9'"],
+
+    # MIG 10 (1-9)
+    ['MIG-e76a2a9b-9867-5f8a-b145-d857cd5ed8e2', "python run_shell_dist_mp.py 9 29509 -l -d 0.0 --exp_id='mg_agent10'"],
+
+    # MIG 11 (1-10)
+    ['MIG-2593b912-5975-58e9-bc3d-495311cee807', "python run_shell_dist_mp.py 10 29510 -l -d 0.0 --exp_id='mg_agent11'"],
+
+    # MIG 12 (1-11)
+    ['MIG-51069529-f343-59c6-bac7-a75648296e7b', "python run_shell_dist_mp.py 11 29511 -l -d 0.0 --exp_id='mg_agent12'"],
+
+    # MIG 13 (1-12)
+    ['MIG-187573d8-7df7-5e5f-87b2-c8b8f73c54e7', "python run_shell_dist_mp.py 12 29512 -l -d 0.0 --exp_id='mg_agent13'"],
+
+    # MIG 14 (1-13)
+    ['MIG-3045e3dd-28b6-5ee8-96b5-60a085c9fcf1', "python run_shell_dist_mp.py 0 29513 -l -e --exp_id='mg_eval'"]
+]'''
 
 
 # SINGLE AGENT EXPERIMENT FOR COMPARISON

@@ -27,8 +27,8 @@ from deep_rl.component.policy import SamplePolicy
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
-from deep_rl.agent.PPO_agent import PPODetectShell
-from deep_rl.agent.SAC_agent import SACDetectShell
+from deep_rl.agent.PPO_agent import PPODetectShell, PPOShellAgent
+from deep_rl.agent.SAC_agent import SACDetectShell, SACShellAgent
 
 from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient
 from deep_rl.shell_modules.communication.comms_detect import ParallelCommDetect, ParallelCommDetectEval
@@ -171,6 +171,8 @@ def detect_finalise_and_run(config, Agent):
 
     ###############################################################################
     # Setup agent module
+    if args.eval:
+        config.entropy_weight = 0
     agent = Agent(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.curriculum_id)
 
@@ -207,11 +209,41 @@ def detect_finalise_and_run(config, Agent):
     #if GLOBAL_mode.value:
     #    comm = ParallelCommOmniscient(agent.get_task_emb_size(), agent.model_mask_dim, config, zip(addresses, ports), GLOBAL_task_record, GLOBAL_manager, args.localhost, GLOBAL_mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
     #    trainer_learner(agent, comm, args.curriculum_id, GLOBAL_manager, GLOBAL_task_record, config.querying_frequency, GLOBAL_mode)
-    
-    comm = ParallelCommDetect(agent.get_task_emb_size(), agent.model_mask_dim, config.logger, config.init_port, zip(addresses, ports), config.seen_tasks, config.manager, args.localhost, config.mode, args.dropout, config.emb_dist_threshold)
 
-    # Start training
-    trainer_learner(agent, comm, args.curriculum_id, config.manager, config.querying_frequency, config.mode)
+    if args.eval:
+        comm = ParallelCommDetectEval(
+            task_label_dim=   agent.task_label_dim, 
+            mask_dim=   agent.model_mask_dim, 
+            logger=     config.logger, 
+            init_port=  config.init_port, 
+            reference=  zip(addresses, ports), 
+            seen_tasks= config.seen_tasks, 
+            manager=    config.manager, 
+            localhost=  args.localhost, 
+            mode=       config.mode, 
+            dropout=    args.dropout, 
+            threshold=  config.emb_dist_threshold
+        )
+        # Start training
+        trainer_evaluator(agent, comm, args.curriculum_id, config.manager, config.seen_tasks)
+
+    else:
+        comm = ParallelCommDetect(
+            embd_dim=   agent.get_task_emb_size(), 
+            mask_dim=   agent.model_mask_dim, 
+            logger=     config.logger, 
+            init_port=  config.init_port, 
+            reference=  zip(addresses, ports), 
+            seen_tasks= config.seen_tasks, 
+            manager=    config.manager, 
+            localhost=  args.localhost, 
+            mode=       config.mode, 
+            dropout=    args.dropout, 
+            threshold=  config.emb_dist_threshold
+        )
+        # Start evaluating
+        trainer_learner(agent, comm, args.curriculum_id, config.manager, config.querying_frequency, config.mode)
+        
 
 
 
@@ -262,7 +294,10 @@ def mctgraph_ppo(name, args, shell_config):
 
     # Select what agent to use here. Default is DetectShell which is an L2D2-C agent that uses the
     # detect module for online task identity inference.
-    detect_finalise_and_run(config, PPODetectShell)
+    if args.eval:
+        detect_finalise_and_run(config, PPOShellAgent)
+    else:
+        detect_finalise_and_run(config, PPODetectShell)
 
 
 
@@ -911,7 +946,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('curriculum_id', help='index of the curriculum to use from the shell config json', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/detect_module_tests.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/ct8_md.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
@@ -974,7 +1009,7 @@ if __name__ == '__main__':
     elif shell_config['env']['env_name'] == 'ctgraph':
         name = Config.ENV_METACTGRAPH
         if args.eval:
-            shell_dist_mctgraph_eval(name, args, shell_config)
+            mctgraph_ppo(name, args, shell_config)
 
         else:
             mctgraph_ppo(name, args, shell_config)

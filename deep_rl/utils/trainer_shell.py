@@ -613,6 +613,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     logger.info(f"***** task_label: {shell_tasks[0]['task_label']}")
 
     # Set first task mask and record manually otherwise we run into issues with the implementation in the model.
+    #agent.task_train_start_emb(task_embedding=None)
     agent.task_train_start_emb(task_embedding=torch.zeros(agent.get_task_emb_size()))   # TODO: There is an issue with this which is that the first task will be set as zero and then the detect module with do some learning, find that the task does not match the zero embedding and start another task change. This leaves the first entry to a task change as useless. Also issues if we try to moving average this
     del states_
 
@@ -645,43 +646,46 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             _avg_embeddings = []
             _avg_rewards = []
             _mask_labels = []
+            print(f'masks list length: {len(masks_list)}')
 
             try:
-                for mask_response_dict in masks_list:
+                if len(masks_list) > 0:
+                    for mask_response_dict in masks_list:
 
-                    mask = mask_response_dict['mask']
-                    embedding = mask_response_dict['embedding']
-                    reward = mask_response_dict['reward']
-                    label = mask_response_dict['label']
-                    ip = mask_response_dict['ip']
-                    port = mask_response_dict['port']
+                        mask = mask_response_dict['mask']
+                        embedding = mask_response_dict['embedding']
+                        reward = mask_response_dict['reward']
+                        label = mask_response_dict['label']
+                        ip = mask_response_dict['ip']
+                        port = mask_response_dict['port']
 
-                    _masks.append(mask)
-                    _avg_embeddings.append(embedding)
-                    _avg_rewards.append(reward)
-                    _mask_labels.append(label)
+                        _masks.append(mask)
+                        _avg_embeddings.append(embedding)
+                        _avg_rewards.append(reward)
+                        _mask_labels.append(label)
 
-                    # Log successful mask transfer
-                    exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, len(mask), mask])
-                    np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
-            except Exception as e:
-                traceback.print_exc()
-
-
-            if len(_masks) > 0:
-                try:
-                    logger.info(Fore.WHITE + f'COMPOSING MASKS: {_avg_embeddings[0]}, {_avg_rewards[0]}, {_mask_labels[0]}')
-                    logger.info(Fore.WHITE + f'MASK: {_masks[0]}')
-
+                        # Log successful mask transfer
+                        exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, embedding, len(mask), mask])
+                        np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
+                    
+                    #logger.info(Fore.WHITE + f'Updating seen tasks dictionary with new data')
                     # Update the knowledge base with the expected reward
                     agent.update_seen_tasks(_avg_embeddings[0], _avg_rewards[0], _mask_labels[0])#knowledge_base.update({tuple(label.tolist()): reward})
                     
+                    # Traceback (most recent call last):
+                    # File "/home/lunet/cosn2/detect-l2d2c/deeprl-shell/deep_rl/utils/trainer_shell.py", line 671, in mask_handler
+                    #     agent.update_seen_tasks(_avg_embeddings[0], _avg_rewards[0], _mask_labels[0])
+                    # IndexError: list index out of range
+
+                    logger.info(Fore.WHITE + f'COMPOSING RECEIVED MASKS')
                     # Update the network with the linearly combined mask
-                    agent.consolidate_incoming(_masks)
+                    agent.distil_task_knowledge_embedding(_masks[0])
+                    #agent.consolidate_incoming(_masks)
+                    _masks = []
 
                     logger.info(Fore.WHITE + 'COMPOSED MASK ADDED TO NETWORK!')
-                except Exception as e:
-                    traceback.print_exc()
+            except Exception as e:
+                traceback.print_exc()
 
     def conv_handler():
         """
@@ -694,11 +698,17 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                 logger.info(Fore.WHITE + 'GOT ID TO CONVERT TO MASK')
                 logger.info(f"MASK/TASK ID: {to_convert['sender_task_id']}")
 
-                mask = agent.idx_to_mask(to_convert['sender_task_id'])
-                reward = agent.seen_tasks['sender_task_id']['reward']
-                emb = agent.seen_tasks['sender_task_id']['task_emb']
-                label = agent.seen_tasks['sender_task_id']['ground_truth']
+                sender_task_id = to_convert['sender_task_id']
+                mask = agent.idx_to_mask(sender_task_id)
+
+                print(sender_task_id)
+                print(agent.seen_tasks[sender_task_id])
+
+                reward = agent.seen_tasks[sender_task_id]['reward']
+                emb = agent.seen_tasks[sender_task_id]['task_emb']
+                label = agent.seen_tasks[sender_task_id]['ground_truth']
                 print(Fore.LIGHTRED_EX + f'Found valid mask: {mask} with reward: {reward} and emb: {emb}')
+
                 to_convert['response_mask'] = mask
                 to_convert['response_reward'] = reward
                 to_convert['response_embedding'] = emb
@@ -744,7 +754,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         logger.info(Fore.RED + 'GLOBAL REGISTRY (seen_tasks dict)')
         for key, val in agent.seen_tasks.items():
             logger.info(f"{key} --> embedding: {val['task_emb']}, reward: {val['reward']}, ground truth task id: {np.argmax(val['ground_truth'], axis=0)}")
-
+            
 
         ###############################################################################
         ### Query for knowledge using communication process. Send label/embedding to the communication module to query for relevant knowledge from other peers.
@@ -794,16 +804,34 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
             
             # Logging embeddings and labels
-            if new_emb is not None:
+            """if new_emb is not None:
                 _label = torch.tensor(np.array([ground_truth_task_label]))
                 _embeddings.append(new_emb)
                 _labels.append(_label)
                 emb_t = torch.stack(tuple(_embeddings))
-                #l_t = torch.stack(tuple(_labels))
+                l_t = torch.stack(tuple(_labels))
                 logger.info(Fore.WHITE + f'Embedding: {new_emb}\nLabel: {_label}\nDistance: {emb_dist}, Threshold: {agent.emb_dist_threshold}\n')
+                tb_writer_emb.add_embedding(emb_t, metadata=l_t, global_step=shell_iterations)"""
+
+            # Logging embeddings and labels
+            if new_emb is not None:
+                _label_one_hot = torch.tensor(np.array([ground_truth_task_label]))
+                
+                # Convert one-hot label to integer
+                _label = torch.argmax(_label_one_hot).item()
+
+                _embeddings.append(new_emb)
+                _labels.append(_label)
+                emb_t = torch.stack(tuple(_embeddings))
+                #l_t = torch.stack(tuple(_labels))
+                
+                logger.info(Fore.WHITE + f'Embedding: {new_emb}\nOne-hot Label: {_label_one_hot}\nInteger Label: {_label}\nDistance: {emb_dist}, Threshold: {agent.emb_dist_threshold}\n')
+                
                 tb_writer_emb.add_embedding(emb_t, metadata=_labels, global_step=shell_iterations)
 
 
+
+             
         ###############################################################################
         ### Logs metrics to tensorboard log file and updates the embedding, reward pair in this cycle for a particular task.
         if shell_iterations % agent.config.iteration_log_interval == 0:
@@ -893,7 +921,8 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
     # agent.seen_tasks = {_tasks}
     agent.seen_tasks = {}
     for idx, eval_task_info in enumerate(_tasks):
-        agent.seen_tasks[idx] =  eval_task_info['task_label']
+        agent.seen_tasks[idx] = eval_task_info['task_label']
+        knowledge_base[tuple(eval_task_info['task_label'])] = 0.0
     _names = [eval_task_info['name'] for eval_task_info in _tasks]
     eval_task_info = zip(_task_ids, _tasks)
 
@@ -914,15 +943,7 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
     # until a task change happens.
     msg = _tasks[0]['task_label']
 
-    queue_mask = manager.Queue()
-    queue_label = manager.Queue()
-    queue_label_send = manager.Queue()  # Used to send label from comm to agent to convert to mask
-    queue_mask_recv = manager.Queue()   # Used to send mask from agent to comm after conversion from label
-
-    # Start the communication module with the initial states and the first task label.
-    # Get the mask ahead of the start of the agent iteration loop so that it is available sooner
-    # Also pass the queue proxies to enable interaction between the communication module and the agent module
-    comm.parallel(queue_label, queue_mask, queue_label_send, queue_mask_recv)
+    queue_label, queue_mask, queue_label_send, queue_mask_recv = comm.parallel(manager)
 
     exchanges = []
     task_times = []
@@ -936,20 +957,29 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
         Handles incoming masks from other agents. Distills the mask knowledge to the agent's network.
         """
         while True:
-            mask, label, reward, ip, port  = queue_mask.get()
+            ret  = queue_mask.get()
+            mask = ret['mask']
+            reward = ret['reward']
+            label = ret['label']
+            ip = ret['ip']
+            port = ret['port']
+
             logger.info(Fore.WHITE + f'\nReceived mask: \nMask:{mask}\nReward:{reward}\nSrc:{ip, port}\nEmbedding:{label}')
                 
-            if mask is not None:
-                # Update the knowledge base with the expected reward
-                knowledge_base.update({label: reward})
-                # Update the network with the mask
-                agent.distil_task_knowledge_single_embedding(mask, label)
+            try:
+                if mask is not None:
+                    # Update the knowledge base with the expected reward
+                    knowledge_base.update({tuple(label): reward})
+                    # Update the network with the mask
+                    agent.distil_task_knowledge_single(mask, label)
 
-                logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
+                    logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
 
-                # Mask transfer logging.
-                exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, len(mask), mask])
-                np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
+                    # Mask transfer logging.
+                    exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, len(mask), mask])
+                    np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
+            except Exception as e:
+                traceback.print_exc()
 
     t_mask = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
@@ -963,7 +993,9 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
         # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
         # the communication module will do its thing.
         msg = _tasks[shell_task_counter]['task_label']
-        queue_label.put(msg)
+        reward = knowledge_base[tuple(msg)]
+        dict_to_query = {'task_emb':None, 'reward': reward, 'ground_truth': msg}
+        queue_label.put(dict_to_query)
 
         # Increment iterations
         shell_iterations += 1
@@ -1384,6 +1416,7 @@ def run_detect_module(agent):
     emb_bool = current_embedding == new_embedding
     emb_dist = agent.calculate_emb_distance(current_embedding, new_embedding)
     task_change_detected = agent.assign_task_emb(new_embedding, emb_dist)
+    #task_change_detected = agent.assign_task_emb_birch(new_embedding)          # For BIRCH clustering TODO: Needs fixing
 
 
     # Get the updated task embedding from agent
