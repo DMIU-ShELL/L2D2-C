@@ -58,6 +58,7 @@ class ParallelCommDetect(object):
 
     META_INF_IDX_DIST = 5
     META_INF_IDX_TASK_SZ_ = 6 # for the meta send recv buffer
+    META_INF_IDX_QUERY_PARAMS = 6 # search params for query
 
     META_INF_IDX_MASK_SZ = 4
     
@@ -219,7 +220,7 @@ class ParallelCommDetect(object):
         embedding = dict_to_query['task_emb']
         reward = dict_to_query['reward']
         label = dict_to_query['ground_truth']   # For validation purposes. We can feed this into pick_meta() to perform validation and log false positives.
-        #parameters = dict_to_query['parameters']   # Uncomment to introduce the querying parameters (similarity, reward, no. of masks, etc)
+        parameters = dict_to_query['parameters']   # Uncomment to introduce the querying parameters (similarity, reward, no. of masks, etc)
 
         self.current_task_reward = reward
 
@@ -227,7 +228,7 @@ class ParallelCommDetect(object):
         if embedding is None:
             data = [self.init_address, self.init_port, ParallelCommDetect.MSG_TYPE_SEND_QUERY, ParallelCommDetect.MSG_DATA_NULL]
         else:
-            data = [self.init_address, self.init_port, ParallelCommDetect.MSG_TYPE_SEND_QUERY, ParallelCommDetect.MSG_DATA_QUERY, embedding, reward]
+            data = [self.init_address, self.init_port, ParallelCommDetect.MSG_TYPE_SEND_QUERY, ParallelCommDetect.MSG_DATA_QUERY, embedding, reward, parameters]
 
         # Try to send a query to all known destinations. Skip the ones that don't work
         for addr in list(self.query_list):
@@ -276,13 +277,15 @@ class ParallelCommDetect(object):
             embedding = buffer[ParallelCommDetect.META_INF_IDX_TASK_SZ]
             sender_reward = buffer[-1]
             msg_type = buffer[ParallelCommDetect.META_INF_IDX_MSG_TYPE]
+            sender_parameters = buffer[ParallelCommDetect.META_INF_IDX_QUERY_PARAMS]
 
             # Create a dictionary with the unpacked data
             ret = {
                 'sender_address': sender_address,
                 'sender_port': sender_port,
                 'sender_embedding': embedding,
-                'sender_reward': sender_reward
+                'sender_reward': sender_reward,
+                'sender_parameters' : sender_parameters
             }
 
             # Handle when receiving a query from an unknown agent
@@ -307,6 +310,7 @@ class ParallelCommDetect(object):
             """
             target_embedding = query['sender_embedding']
             target_reward = query['sender_reward']
+            target_cosine_threshold = query['sender_parameters']
 
             self.logger.info(f'Sender emb: {target_embedding}, Sender rw: {target_reward}')
 
@@ -350,7 +354,7 @@ class ParallelCommDetect(object):
                     closest_similarity = torch.min(similarities).item()
 
                     # Define a threshold for cosine similarity (adjust as needed)
-                    cosine_similarity_threshold = 0.4  # Example threshold
+                    cosine_similarity_threshold = target_cosine_threshold
 
                     print(closest_key, closest_similarity)
 
@@ -491,7 +495,7 @@ class ParallelCommDetect(object):
         self.logger.info(Fore.CYAN + f'Received metadata {ret} from {sender_address}, {sender_port}')
         
     def send_mask_requests(self):
-        def proc_requests(n=1):
+        def proc_requests(n):
             requests = []
 
             try:
@@ -516,7 +520,7 @@ class ParallelCommDetect(object):
                         if sender_rw == torch.inf:
                             continue
 
-                        if 0.9 * self.current_task_reward < sender_rw and sender_dist <= self.threshold:
+                        if 0.9 * self.current_task_reward < sender_rw:# and sender_dist <= self.threshold:
                             # Create a new dictionary for each request
                             data = {
                                 'req_address': sender_address,

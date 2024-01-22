@@ -140,15 +140,31 @@ def setup_configs_and_logs(config, args, shell_config, global_config):
     logger.info('*****initialising L2D2-C agent')
 
 
+    print(shell_config)
+
     ###############################################################################
     # Curriculum setup. TODO: Check how much of this is needed. Remove unnecessary stuff
-    num_tasks = len(set(shell_config['curriculum']['task_ids']))
+    if 'task_ids' in shell_config['curriculum']:
+        num_tasks = len(set(shell_config['curriculum']['task_ids']))
+    else:
+        num_tasks = len(shell_config['curriculum']['task_paths'])
+
     config.cl_num_tasks = num_tasks
-    config.task_ids = shell_config['curriculum']['task_ids']
+    config.task_paths, config.task_ids = None, None
+    if 'task_paths' in shell_config['curriculum']:
+        config.task_paths = shell_config['curriculum']['task_paths']
+    elif 'task_ids' in shell_config['curriculum']:
+        config.task_ids = shell_config['curriculum']['task_ids']
+    else:
+        raise Exception('shell config is missing task_ids or task_paths')
+
     if isinstance(shell_config['curriculum']['max_steps'], list):
         config.max_steps = shell_config['curriculum']['max_steps']
     else:
-        config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
+        if 'task_paths' in shell_config['curriculum']:
+            config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_paths'])
+        elif 'task_ids' in shell_config['curriculum']:
+            config.max_steps = [shell_config['curriculum']['max_steps'], ] * len(shell_config['curriculum']['task_ids'])
 
     return config, env_config_path
 
@@ -171,8 +187,8 @@ def detect_finalise_and_run(config, Agent):
 
     ###############################################################################
     # Setup agent module
-    if args.eval:
-        config.entropy_weight = 0
+    #if args.eval:
+    #    config.entropy_weight = 0
     agent = Agent(config)
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.curriculum_id)
 
@@ -946,7 +962,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('curriculum_id', help='index of the curriculum to use from the shell config json', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/ct8_md.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/ct28_md.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.

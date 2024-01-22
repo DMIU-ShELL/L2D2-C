@@ -123,9 +123,29 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         else:
             self.evaluation_env = config.eval_task_fn(config.log_dir)
             self.task = self.evaluation_env if self.task is None else self.task
-        tasks_ = self.task.get_all_tasks(config.cl_requires_task_label)
-        tasks = [tasks_[task_id] for task_id in config.task_ids]
-        del tasks_
+
+        tasks = []
+        if config.task_ids is not None:
+            tasks_ = self.task.get_all_tasks(config.cl_requires_task_label)
+            tasks = [tasks_[task_id] for task_id in config.task_ids]
+            del tasks_
+        elif config.task_paths is not None:
+            tasks_ = self.task.get_all_tasks(config.cl_requires_task_label)
+
+            task_paths_set = set(tuple(path) for path in config.task_paths)
+
+            for task_dict in tasks_:
+                if tuple(task_dict['task']) in task_paths_set:
+                    tasks.append(task_dict)
+        
+        print(tasks)
+        for task in tasks:
+            # Convert one-hot encoding to integer
+            task_label = np.array(task['task_label'])
+            task_label_integer = np.argmax(task_label, axis=0)
+            
+            print(f"Task Name: {task['name']}, Task Label (One-Hot): {task['task_label']}, Task Label (Integer): {task_label_integer}")
+        
         self.config.cl_tasks_info = tasks
         label_dim = None if not config.use_task_label else len(tasks[0]['task_label'])
         #label_dim = 0 if tasks[0]['task_label'] is None else len(tasks[0]['task_label']) #CHANGE THAT FOR THE

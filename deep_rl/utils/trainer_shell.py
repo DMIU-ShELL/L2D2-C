@@ -797,6 +797,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             
             # Update the dictionary containing the current task embedding to query for.
             dict_to_query = agent.seen_tasks[agent.current_task_key]
+            dict_to_query['parameters'] = 0.4 #€ Cosine similarity threshold
 
             # Log the operation of the detect module. Currently this is broken (requires a custom tensorboard solution. ask Chris)
             log_string = f'Time: {time.time()}, Iteration: {shell_iterations}, Detect activation: {True}, Num samples for detection: {agent.detect.get_num_samples()}, Task change flag: {task_change_flag}, New embedding: {new_emb}, Ground truth label: {ground_truth_task_label}, Current embedding: {agent.current_task_emb}, Threshold: {_dist_threshold}, Distance: {emb_dist}, Embedding similarity: {emb_bool}, Agent seen tasks: {agent_seen_tasks}'
