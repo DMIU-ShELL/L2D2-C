@@ -106,3 +106,13 @@ class Config:
             config_dict = args.__dict__
         for key in config_dict.keys():
             setattr(self, key, config_dict[key])
+
+    def log_hyperparameters(self, log_file_path):
+        with open(log_file_path, 'a') as f:
+            f.write("Experiment Hyperparameters:\n")
+            for key, value in vars(self).items():
+                f.write(f"{key}: {value}\n")
+
+    def log_hyperparameters_tensorboard(self, writer):
+        for key, value in vars(self).items():
+            writer.add_text(key, str(value))

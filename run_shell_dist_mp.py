@@ -59,7 +59,7 @@ def mctgraph_global_config(config, name):
     config.entropy_weight = 0.00015 #0.75
     config.rollout_length = 512
     config.optimization_epochs = 8
-    config.num_mini_batches = 32
+    config.num_mini_batches = 64
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
@@ -226,36 +226,41 @@ def detect_finalise_and_run(config, Agent):
     #    comm = ParallelCommOmniscient(agent.get_task_emb_size(), agent.model_mask_dim, config, zip(addresses, ports), GLOBAL_task_record, GLOBAL_manager, args.localhost, GLOBAL_mode, args.dropout, config.emb_dist_threshold) #Chris added threshold
     #    trainer_learner(agent, comm, args.curriculum_id, GLOBAL_manager, GLOBAL_task_record, config.querying_frequency, GLOBAL_mode)
 
+
+    # Comm hyperparameters
+    config.query_wait = 0.2 # ms
+    config.mask_wait = 0.3  # ms
+    config.top_k = 5 # get top 5 masks for collective linear comb
+    config.reward_progression_factor = 0.6 # x * self.current_task_reward < sender_rw @send_mask_requests() # NOTE: NOT USED ANYMORE
+    config.reward_stability_threshold = 0.6 # Reward threshold at which point we don't want the agent to query anymore for stability
+
+    # Log all system hyperparameters and settings to log directory
+    config.log_hyperparameters(config.logger.log_dir + '/parameters.txt')
+
     if args.eval:
         comm = ParallelCommDetectEval(
-            task_label_dim=   agent.task_label_dim, 
-            mask_dim=   agent.model_mask_dim, 
-            logger=     config.logger, 
-            init_port=  config.init_port, 
-            reference=  zip(addresses, ports), 
-            seen_tasks= config.seen_tasks, 
-            manager=    config.manager, 
-            localhost=  args.localhost, 
-            mode=       config.mode, 
-            dropout=    args.dropout, 
-            threshold=  config.emb_dist_threshold
+            task_label_dim=agent.task_label_dim, 
+            mask_dim=agent.model_mask_dim, 
+            logger=config.logger, 
+            init_port=config.init_port, 
+            reference=zip(addresses, ports), 
+            seen_tasks=config.seen_tasks, 
+            manager=config.manager, 
+            localhost=args.localhost, 
+            mode=config.mode, 
+            dropout=args.dropout, 
+            threshold=config.emb_dist_threshold
         )
         # Start training
         trainer_evaluator(agent, comm, args.curriculum_id, config.manager, config.seen_tasks)
 
     else:
         comm = ParallelCommDetect(
-            embd_dim=   agent.get_task_emb_size(), 
-            mask_dim=   agent.model_mask_dim, 
-            logger=     config.logger, 
-            init_port=  config.init_port, 
-            reference=  zip(addresses, ports), 
-            seen_tasks= config.seen_tasks, 
-            manager=    config.manager, 
-            localhost=  args.localhost, 
-            mode=       config.mode, 
-            dropout=    args.dropout, 
-            threshold=  config.emb_dist_threshold
+            embd_dim = agent.get_task_emb_size(), 
+            mask_dim = agent.model_mask_dim, 
+            reference = zip(addresses, ports), 
+            args = args,
+            config = config
         )
         # Start evaluating
         trainer_learner(agent, comm, args.curriculum_id, config.manager, config.querying_frequency, config.mode)
@@ -302,7 +307,8 @@ def mctgraph_ppo(name, args, shell_config):
         hidden_units=(200, 200, 200), num_tasks=300),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
-        num_tasks=10)
+        num_tasks=config.cl_num_tasks,
+        new_task_mask='linear_comb')    # 'random' for mask RI. 'linear_comb' for mask LC.
     
     # Environment sepcific setup ends.
     ###############################################################################
@@ -974,7 +980,7 @@ if __name__ == '__main__':
     parser.add_argument('--localhost', '--ls', '-ls', help='used to run DMIU in localhost mode', action='store_true')   # Flag used to start the system using localhost instead of public IP. Can be useful for debugging network related problems.
     parser.add_argument('--shuffle', '--s', '-s', help='randomise the task curriculum', action='store_true')            # Not required. If you want to randomise the order of tasks in the curriculum then you can change to 1
     parser.add_argument('--comm_interval', '--i', '-i', help='integer value indicating the number of communications '\
-        'to perform per task', type= int, default=10)                                                                    # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
+        'to perform per task', type= int, default=20)                                                                    # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
                                                                                                                         # Please do not modify this value unless you know what you're doing as it may cause unexpected results.
 
     parser.add_argument('--quick_start', '--qs', '-qs', help='use this to take advantage of the quick start method ' \

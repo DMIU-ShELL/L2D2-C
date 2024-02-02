@@ -22,6 +22,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
+import torch.optim as optim
+from torch.optim import lr_scheduler
 from scipy.stats import wasserstein_distance
 import traceback
 from sklearn.cluster import Birch
@@ -139,12 +141,16 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                     tasks.append(task_dict)
         
         print(tasks)
+        #self.config.task_ids = []
         for task in tasks:
             # Convert one-hot encoding to integer
             task_label = np.array(task['task_label'])
             task_label_integer = np.argmax(task_label, axis=0)
             
             print(f"Task Name: {task['name']}, Task Label (One-Hot): {task['task_label']}, Task Label (Integer): {task_label_integer}")
+            #self.config.task_ids.append(task_label_integer)
+
+        
         
         self.config.cl_tasks_info = tasks
         label_dim = None if not config.use_task_label else len(tasks[0]['task_label'])
@@ -164,6 +170,11 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)#self.task_emb_size)
         _params = list(self.network.parameters())
         self.opt = config.optimizer_fn(_params, config.lr)
+
+        #self.scheduler = lr_scheduler.StepLR(self.opt, step_size=config.lr_decay_step, gamma=config.lr_decay_gamma)
+        #lambda_lr = lambda: config.lr / ((self.total_steps + 1) / 512) ** 0.5
+        #self.scheduler = lr_scheduler.LambdaLR(self.opt, lr_lambda=lambda_lr)
+
         self.total_steps = 0
         #for name, para in self.network.named_parameters():
         #    print('{}: {}'.format(name, para.shape))
@@ -1007,25 +1018,40 @@ class PPODetectShell(PPOShellAgent):
         try:
             # Get current training mask
             _subnet = self.idx_to_mask(self.current_task_key)
-            print(f'RI mask: {_subnet}')
-            print(f'Received mask: {masks}')
 
+            # Get incoming masks
             _subnets = [masks[idx].detach() for idx in range(len(masks))]
+            _subnets.append(_subnet)
+
             #assert len(_subnets) > 0, 'an error occured'
             #_betas = self.shared_betas[len(masks), 0:len(masks)]    # 2D beta parameter vector
             #_betas = self.shared_betas[0:len(masks)]   # 1D beta parameter vector
 
-            _betas = torch.zeros(len(_subnets)) # beta parameters with equal probability. We can manually set the weights on the beta parameters.
-            #print(f'Beta parameters: {_betas}')
-            _betas = torch.softmax(_betas, dim=-1)  # softmax of 0 is 0.5 so we will have equal probability of linear combination
-            _subnets.append(_subnet)
+            # Initialise beta parameters. By default zeros tensor will mean equal probability across
+            # all masks in the linear combination step.
+            _betas = torch.zeros(len(_subnets))
+
+            ########################################################################
+            # mask BLC modification. 1/2 on current mask and 1/(2k) on the incoming masks
+            _betas[-1] = 0.5
+            k = len(_subnets) - 1   # num masks excluding the current training mask
+            _betas[:-1] = 1 / (2 * k)
+            ########################################################################
+
+            # Convert betas to probability weights
+            _betas = torch.softmax(_betas, dim=-1)  
+            
             #assert len(_betas) == len(_subnets), 'an error ocurred'
-            _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]  # beta coefficients applied
-            # element wise sum of various masks (weighted sum)
+            
+            # Apply beta coefficients to masks
+            _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
+            
+            # Element wise sum/average of the incoming masks and current training mask (weighted sum/average)
             #_subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
-            _subnet_linear_comb = torch.stack(_subnets, dim=0).mean(dim=0)  # equivalent to setting beta parameter as 1/num(masks)
-            print(f'_subnet_linear_comb: {_subnet_linear_comb}')
+            _subnet_linear_comb = torch.stack(_subnets, dim=0).prod(dim=0)
+            #_subnet_linear_comb = torch.stack(_subnets, dim=0).mean(dim=0)  # using mean offers some more stability than sum when we have lots of masks or if one or more masks have large values.
             return _subnet_linear_comb.data #self._subnet_class.apply(_subnet_linear_comb)
+        
         except Exception as e:
             traceback.print_exc()
     

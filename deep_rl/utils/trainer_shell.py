@@ -26,6 +26,7 @@ from ..shell_modules import *
 import multiprocessing.dummy as mpd
 from colorama import Fore
 import psutil
+import pandas as pd
 
 try:
     # python >= 3.5
@@ -629,6 +630,8 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     tb_writer_emb = SummaryWriter(logger.log_dir + '/Detect_Component_Generated_Embeddings')
     _embeddings, _labels, exchanges, task_times, detect_module_activations = [], [], [], [], []
     task_times.append([0, shell_iterations, np.argmax(shell_tasks[0]['task_label'], axis=0), time.time()])
+    detect_activations_log_path = logger.log_dir + '/detect_activations.csv'
+    masks_log_path = logger.log_dir + '/exchanges.csv'
 
 
     ###############################################################################
@@ -665,12 +668,29 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                         _mask_labels.append(label)
 
                         # Log successful mask transfer
-                        exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, embedding, len(mask), mask])
-                        np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
+                        data = [
+                            {
+                                'iteration': shell_iterations,
+                                'ip': ip,
+                                'port': port,
+                                'task_id': np.argmax(label,axis=0),
+                                'reward': reward,
+                                'embedding': embedding,
+                                'mask_dim': len(mask),
+                                'mask_tensor': mask
+                            }
+                        ]
+                    
+                        df = pd.DataFrame(data)
+                        df.to_csv(masks_log_path, mode='a', header=not pd.io.common.file_exists(masks_log_path), index=False)
+
+
+                        #exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, embedding, len(mask), mask])
+                        #np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
                     
                     #logger.info(Fore.WHITE + f'Updating seen tasks dictionary with new data')
                     # Update the knowledge base with the expected reward
-                    agent.update_seen_tasks(_avg_embeddings[0], _avg_rewards[0], _mask_labels[0])#knowledge_base.update({tuple(label.tolist()): reward})
+                    #agent.update_seen_tasks(_avg_embeddings[0], _avg_rewards[0], _mask_labels[0])#knowledge_base.update({tuple(label.tolist()): reward})
                     
                     # Traceback (most recent call last):
                     # File "/home/lunet/cosn2/detect-l2d2c/deeprl-shell/deep_rl/utils/trainer_shell.py", line 671, in mask_handler
@@ -679,8 +699,8 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
 
                     logger.info(Fore.WHITE + f'COMPOSING RECEIVED MASKS')
                     # Update the network with the linearly combined mask
-                    agent.distil_task_knowledge_embedding(_masks[0])
-                    #agent.consolidate_incoming(_masks)
+                    #agent.distil_task_knowledge_embedding(_masks[0])       # This will only take the first mask in the list
+                    agent.consolidate_incoming(_masks)                      # This will take all the masks in the list and linearly combine with the random/current mask
                     _masks = []
 
                     logger.info(Fore.WHITE + 'COMPOSED MASK ADDED TO NETWORK!')
@@ -761,7 +781,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         if dict_to_query is not None:
             if shell_iterations % mask_interval == 0:
                 # Approach 2: At this point consolidate masks and then we can reset beta parameters. Then we can get new masks from network and combine.
-                
+                dict_to_query['shell_iteration'] = shell_iterations
                 queue_label.put(dict_to_query)
 
 
@@ -795,24 +815,31 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             if task_change_flag:
                 logger.info(Fore.YELLOW + f'TASK CHANGE DETECTED! NEW MASK CREATED. CURRENT TASK INDEX: {agent.current_task_key}')
             
+                #log_string = f'Time: {time.time()}, Iteration: {shell_iterations}, Num samples for detection: {agent.detect.get_num_samples()}, Task change flag: {task_change_flag}, New embedding: {new_emb}, Ground truth label: {ground_truth_task_label}, Current embedding: {agent.current_task_emb}, Threshold: {_dist_threshold}, Distance: {emb_dist}, Embedding similarity: {emb_bool}, Agent seen tasks: {agent_seen_tasks}'
+                #detect_module_activations.append([log_string])
+                #np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
+
+                data = [
+                    {
+                        'Iteration': shell_iterations,
+                        'Time': time.time(),
+                        'Num samples for detection': agent.detect.get_num_samples(),
+                        'New embedding': new_emb,
+                        'Ground truth label': ground_truth_task_label,
+                        'Current embedding': agent.current_task_emb,
+                        'Threshold': _dist_threshold,
+                        'Distance': emb_dist,
+                        'Similar': emb_bool,
+                        'Agent seen_tasks()': agent_seen_tasks 
+                    }
+                ]
+                df = pd.DataFrame(data)
+                df.to_csv(detect_activations_log_path, mode='a', header=not pd.io.common.file_exists(detect_activations_log_path), index=False)
+
+            
             # Update the dictionary containing the current task embedding to query for.
             dict_to_query = agent.seen_tasks[agent.current_task_key]
             dict_to_query['parameters'] = 0.4 #€ Cosine similarity threshold
-
-            # Log the operation of the detect module. Currently this is broken (requires a custom tensorboard solution. ask Chris)
-            log_string = f'Time: {time.time()}, Iteration: {shell_iterations}, Detect activation: {True}, Num samples for detection: {agent.detect.get_num_samples()}, Task change flag: {task_change_flag}, New embedding: {new_emb}, Ground truth label: {ground_truth_task_label}, Current embedding: {agent.current_task_emb}, Threshold: {_dist_threshold}, Distance: {emb_dist}, Embedding similarity: {emb_bool}, Agent seen tasks: {agent_seen_tasks}'
-            detect_module_activations.append([log_string])
-            np.savetxt(logger.log_dir + '/detect_activations_{0}.csv'.format(agent_id), detect_module_activations, delimiter=',', fmt='%s')
-            
-            # Logging embeddings and labels
-            """if new_emb is not None:
-                _label = torch.tensor(np.array([ground_truth_task_label]))
-                _embeddings.append(new_emb)
-                _labels.append(_label)
-                emb_t = torch.stack(tuple(_embeddings))
-                l_t = torch.stack(tuple(_labels))
-                logger.info(Fore.WHITE + f'Embedding: {new_emb}\nLabel: {_label}\nDistance: {emb_dist}, Threshold: {agent.emb_dist_threshold}\n')
-                tb_writer_emb.add_embedding(emb_t, metadata=l_t, global_step=shell_iterations)"""
 
             # Logging embeddings and labels
             if new_emb is not None:
@@ -1010,7 +1037,11 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
             _names = [eval_task_info['name'] for eval_task_info in _tasks]
             logger.info(Fore.BLUE + 'eval tasks: {0}'.format(', '.join(_names)))
             for eval_task_idx, eval_task_info in zip(_task_ids, _tasks):
-                agent.task_eval_start(eval_task_info['task_label'])
+                print('EVALUATION BLOCK')
+                print(eval_task_info)
+                print(eval_task_info['task_label'], len(eval_task_info['task_label']))
+                print(np.argmax(eval_task_info['task_label'],axis=0))
+                agent.task_eval_start(np.array(eval_task_info['task_label']))
                 eval_states = agent.evaluation_env.reset_task(eval_task_info)
                 agent.evaluation_states = eval_states
                 # performance (perf) can be success rate in (meta-)continualworld or

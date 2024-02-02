@@ -1,5 +1,5 @@
 '''
-Source from: https://github.com/RAIVNLab/supsup/blob/master/mnist.ipynb
+Adapted and extended from: https://github.com/RAIVNLab/supsup/blob/master/mnist.ipynb
 '''
 import math
 import torch
@@ -98,7 +98,8 @@ class MultitaskMaskLinear(nn.Linear):
 
     def forward(self, x):
         if self.task < 0:
-            # Superimposed forward pass
+            raise ValueError('`self.task` should be set to >= 0')
+            '''# Superimposed forward pass
             alpha_weights = self.alphas[: self.num_tasks_learned]
             idxs = (alpha_weights > 0).squeeze().view(self.num_tasks_learned)
             if len(idxs.shape) == 0:
@@ -106,7 +107,7 @@ class MultitaskMaskLinear(nn.Linear):
             subnet = (
                 alpha_weights[idxs]
                 * self.stacked[: self.num_tasks_learned][idxs]
-            ).sum(dim=0)
+            ).sum(dim=0)'''
         else:
             # Subnet forward pass (given task info in self.task)
             #subnet = self._subnet_class.apply(self.scores[self.task])
@@ -148,7 +149,13 @@ class MultitaskMaskLinear(nn.Linear):
 
     @torch.no_grad()
     def consolidate_mask(self):
-        if self.task <= 0 or self.new_mask_type == NEW_MASK_RANDOM:
+        if self.new_mask_type == NEW_MASK_RANDOM: return
+        if self.task <= 0: return
+        if self.task < self.num_tasks_learned:
+            # re-visiting a task that has been previously learnt (no need to consolidate)
+            # which should not get here though, because this secanrio should have been caught
+            # task_train_end(...) method in supermask_policy.py class.
+            # assert False, 'sanity check'
             return
         _subnet = self.scores[self.task]
         _subnets = [self.scores[idx].detach() for idx in range(self.task)]

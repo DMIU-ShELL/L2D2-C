@@ -479,7 +479,6 @@ class TD3Net(nn.Module, BaseNet):
         q_2 = self.fc_critic_2(self.critic_body_2(x))
         return q_1, q_2
     
-
 class SACNet(nn.Module, BaseNet):
     def __init__(self,
                  action_dim,
