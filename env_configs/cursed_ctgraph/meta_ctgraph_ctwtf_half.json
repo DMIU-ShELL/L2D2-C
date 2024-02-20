@@ -1,0 +1,23 @@
+{
+    "config_paths": [
+        "ctgraph_d2_imgseed1_pomdp_wait.json", 
+        "ctgraph_d3_imgseed1_pomdp_wait.json", 
+        "ctgraph_d4_imgseed1_pomdp_wait.json", 
+        "ctgraph_d5_imgseed1_pomdp_wait.json",
+        "ctgraph_d6_imgseed1_pomdp_wait.json",
+        "ctgraph_d7_imgseed1_pomdp_wait.json",
+        "ctgraph_d8_imgseed1_pomdp_wait.json",
+        "ctgraph_d2_imgseed2_pomdp_wait.json", 
+        "ctgraph_d3_imgseed2_pomdp_wait.json", 
+        "ctgraph_d4_imgseed2_pomdp_wait.json", 
+        "ctgraph_d5_imgseed2_pomdp_wait.json",
+        "ctgraph_d6_imgseed2_pomdp_wait.json",
+        "ctgraph_d7_imgseed2_pomdp_wait.json",
+        "ctgraph_d8_imgseed2_pomdp_wait.json"
+    ],
+    "task_order": "default",
+    "one_hot": true,
+    "label_dim": 65528,
+    "num_tasks": 14,
+    "filter_tasks": [1, 6, 17, 39, 82, 169, 342, 32767, 32774, 32789, 32818, 32877, 32994, 33229]
+}

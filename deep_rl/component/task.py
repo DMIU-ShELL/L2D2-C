@@ -397,6 +397,16 @@ class MetaCTgraph(BaseTask):
             for idx in range(len(self.tasks)):
                 self.tasks[idx]['task_label'] = labels[idx]
 
+        if 'filter_tasks' in env_meta_config.keys():
+            filtered_tasks = []
+            for idx_ in env_meta_config['filter_tasks']:
+                filtered_tasks.append(self.tasks[idx_])
+            self.tasks_ = self.tasks
+            self.tasks = filtered_tasks
+            
+        # set default task
+        self.set_task(self.tasks[0])
+
         # set default task
         self.set_task(self.tasks[0])
 

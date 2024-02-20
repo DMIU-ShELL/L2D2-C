@@ -22,7 +22,7 @@ def cfi_delta(data, conf_int_param=0.95): # confidence interval
 
 def plot(master, title='', xaxis_label='Iterations', yaxis_label=''):
     #fig = plt.figure(figsize=(25, 6))  # For wide graph
-    fig = plt.figure(figsize=(8, 6))
+    fig = plt.figure(figsize=(25, 6))
     
     ax = fig.subplots()
 
@@ -69,7 +69,7 @@ def plot(master, title='', xaxis_label='Iterations', yaxis_label=''):
     return fig
 
 # Depth 2
-mypaths = {
+"""mypaths = {
         'Full Communication' : ['Science Robotics Data/Full Comm/Depth 2/full_comm_agent_0_MetaCTgraph-shell-dist-ct8_md_agent1-seed-9157_agent_0_231213-154936.csv',
                                 'Science Robotics Data/Full Comm/Depth 2/full_comm_agent_0_MetaCTgraph-shell-dist-ct8_md_agent1-seed-9802_agent_0_231213-155737.csv',
                                 'Science Robotics Data/Full Comm/Depth 2/full_comm_agent_0_MetaCTgraph-shell-dist-ct8_md_agent1-seed-9822_agent_0_231213-160449.csv'],
@@ -110,6 +110,38 @@ mypaths = {
         'No Communication' : ['Science Robotics Data/No Comm/Depth 5/no_comm_agent_3_MetaCTgraph-shell-dist-ct8_md_agent4-seed-3519_agent_3_231213-161529.csv',
                                 'Science Robotics Data/No Comm/Depth 5/no_comm_agent_3_MetaCTgraph-shell-dist-ct8_md_agent4-seed-4446_agent_3_231213-162158.csv',
                                 'Science Robotics Data/No Comm/Depth 5/no_comm_agent_3_MetaCTgraph-shell-dist-ct8_md_agent4-seed-9160_agent_3_231213-163721.csv'],
+    }"""
+
+
+"""mypaths = {
+        'depth 2' : ['Initial_Results_Data/seed1_MetaCTgraph-shell-dist-ct28_agent1_left-seed-9157_agent_0_240209-150346.csv',
+                     'Initial_Results_Data/seed2_MetaCTgraph-shell-dist-ct28_agent1_left-seed-9802_agent_0_240210-124604.csv'],
+        'depth 3' : ['Initial_Results_Data/seed1_MetaCTgraph-shell-dist-ct28_agent2_left-seed-9158_agent_1_240209-150346.csv',
+                     'Initial_Results_Data/seed2_MetaCTgraph-shell-dist-ct28_agent2_left-seed-6302_agent_1_240210-124604.csv'],
+        'depth 4' : ['Initial_Results_Data/seed1_MetaCTgraph-shell-dist-ct28_agent3_left-seed-9159_agent_2_240209-150346.csv',
+                     'Initial_Results_Data/seed2_MetaCTgraph-shell-dist-ct28_agent3_left-seed-1902_agent_2_240210-124604.csv'],
+        'depth 5' : ['Initial_Results_Data/seed1_MetaCTgraph-shell-dist-ct28_agent4_left-seed-9160_agent_3_240209-150346.csv',
+                     'Initial_Results_Data/seed2_MetaCTgraph-shell-dist-ct28_agent4_left-seed-4446_agent_3_240210-124604.csv'],
+        'depth 6' : ['Initial_Results_Data/seed1_MetaCTgraph-shell-dist-ct28_agent5_left-seed-9161_agent_4_240209-150346.csv',
+                     'Initial_Results_Data/seed2_MetaCTgraph-shell-dist-ct28_agent5_left-seed-9575_agent_4_240210-124604.csv'],
+        'depth 7' : ['Initial_Results_Data/seed1_MetaCTgraph-shell-dist-ct28_agent6_left-seed-9162_agent_5_240209-150346.csv',
+                     'Initial_Results_Data/seed2_MetaCTgraph-shell-dist-ct28_agent6_left-seed-1954_agent_5_240210-124604.csv'],
+    }"""
+
+
+mypaths = {
+        'depth 2' : ['Initial_Results_Data/no_comm/seed1_MetaCTgraph-shell-dist-ct28_agent1_left-seed-9157_agent_0_240209-164032.csv',
+                     'Initial_Results_Data/no_comm/seed2_MetaCTgraph-shell-dist-ct28_agent1_left-seed-9802_agent_0_240210-155928.csv'],
+        'depth 3' : ['Initial_Results_Data/no_comm/seed1_MetaCTgraph-shell-dist-ct28_agent2_left-seed-9158_agent_1_240209-164033.csv',
+                     'Initial_Results_Data/no_comm/seed2_MetaCTgraph-shell-dist-ct28_agent2_left-seed-6302_agent_1_240210-155928.csv'],
+        'depth 4' : ['Initial_Results_Data/no_comm/seed1_MetaCTgraph-shell-dist-ct28_agent3_left-seed-9159_agent_2_240209-164032.csv',
+                     'Initial_Results_Data/no_comm/seed2_MetaCTgraph-shell-dist-ct28_agent3_left-seed-1902_agent_2_240210-155928.csv'],
+        'depth 5' : ['Initial_Results_Data/no_comm/seed1_MetaCTgraph-shell-dist-ct28_agent4_left-seed-9160_agent_3_240209-164032.csv',
+                     'Initial_Results_Data/no_comm/seed2_MetaCTgraph-shell-dist-ct28_agent4_left-seed-4446_agent_3_240210-155928.csv'],
+        'depth 6' : ['Initial_Results_Data/no_comm/seed1_MetaCTgraph-shell-dist-ct28_agent5_left-seed-9161_agent_4_240209-164032.csv',
+                     'Initial_Results_Data/no_comm/seed2_MetaCTgraph-shell-dist-ct28_agent5_left-seed-9575_agent_4_240210-155928.csv'],
+        'depth 7' : ['Initial_Results_Data/no_comm/seed1_MetaCTgraph-shell-dist-ct28_agent6_left-seed-9162_agent_5_240209-164032.csv',
+                     'Initial_Results_Data/no_comm/seed2_MetaCTgraph-shell-dist-ct28_agent6_left-seed-1954_agent_5_240210-155928.csv'],
     }
 
 

@@ -7,6 +7,7 @@
 from .config import *
 import torch
 import os
+import random
 
 def select_device(gpu_id):
     if torch.cuda.is_available() and gpu_id >= 0:
@@ -36,6 +37,8 @@ def to_np(t):
 
 
 def random_seed(seed):
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
 

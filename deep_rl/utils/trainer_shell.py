@@ -632,10 +632,11 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     task_times.append([0, shell_iterations, np.argmax(shell_tasks[0]['task_label'], axis=0), time.time()])
     detect_activations_log_path = logger.log_dir + '/detect_activations.csv'
     masks_log_path = logger.log_dir + '/exchanges.csv'
+    emb_dist_log = logger.log_dir + '/distances.csv'
 
 
     ###############################################################################
-    ### Comm module event handlers. These run in parallel to enable the interactions between the comm and agent.
+    '''### Comm module event handlers. These run in parallel to enable the interactions between the comm and agent.
     def mask_handler():
         """
         Handles incoming masks from other agents. Linearly combines masks and adds resulting mask to network.
@@ -743,9 +744,8 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     t_mask = mpd.Pool(processes=1)
     t_conv = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
-    t_conv.apply_async(conv_handler)
+    t_conv.apply_async(conv_handler)'''
     
-
     while True:
         start_time = time.time()
         ###############################################################################
@@ -811,6 +811,16 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         if shell_iterations != 0 and shell_iterations % agent.detect_module_activation_frequency == 0 and agent.data_buffer.size() >= (agent.detect.get_num_samples()):
             # Run the detect module on SAR and return some logging output.
             task_change_flag, new_emb, ground_truth_task_label, emb_dist, emb_bool, agent_seen_tasks = run_detect_module(agent)
+
+            data = [
+                {
+                    'iteration': shell_iterations,
+                    'distance' : float(emb_dist)    # convert from tensor to float
+                }
+            ]
+
+            df = pd.DataFrame(data)
+            df.to_csv(emb_dist_log, mode='a', header=not pd.io.common.file_exists(emb_dist_log), index=False)
             
             if task_change_flag:
                 logger.info(Fore.YELLOW + f'TASK CHANGE DETECTED! NEW MASK CREATED. CURRENT TASK INDEX: {agent.current_task_key}')
@@ -854,12 +864,11 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                 #l_t = torch.stack(tuple(_labels))
                 
                 logger.info(Fore.WHITE + f'Embedding: {new_emb}\nOne-hot Label: {_label_one_hot}\nInteger Label: {_label}\nDistance: {emb_dist}, Threshold: {agent.emb_dist_threshold}\n')
-                
                 tb_writer_emb.add_embedding(emb_t, metadata=_labels, global_step=shell_iterations)
 
 
 
-             
+            
         ###############################################################################
         ### Logs metrics to tensorboard log file and updates the embedding, reward pair in this cycle for a particular task.
         if shell_iterations % agent.config.iteration_log_interval == 0:
@@ -924,6 +933,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
 
 
         logger.info(f'----------------------- Iteration complete in {time.time() - start_time} seconds -----------------------\n')
+
 
 '''
 shell evaluation: concurrent processing for event-based communication.
@@ -1420,7 +1430,6 @@ def detect_module_activation_check(shell_training_iterations, detect_module_acti
     else:
         return False
         
-
 def run_detect_module(agent):
     '''Uitility function for running all the necassery methods and function for the detect module
     so the approprate embeddings are generated for each batch of SAR data'''
@@ -1447,8 +1456,10 @@ def run_detect_module(agent):
 
     emb_bool = current_embedding == new_embedding
     emb_dist = agent.calculate_emb_distance(current_embedding, new_embedding)
-    task_change_detected = agent.assign_task_emb(new_embedding, emb_dist)
-    #task_change_detected = agent.assign_task_emb_birch(new_embedding)          # For BIRCH clustering TODO: Needs fixing
+
+
+    #task_change_detected = agent.assign_task_emb(new_embedding, emb_dist)
+    task_change_detected = agent.assign_task_emb_birch(new_embedding)          # For BIRCH clustering TODO: Needs fixing
 
 
     # Get the updated task embedding from agent

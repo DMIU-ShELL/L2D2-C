@@ -45,7 +45,6 @@ def mctgraph_global_config(config, name):
     config.lr = 0.00015
     config.cl_preservation = 'supermask'
     config.seed = 9157
-    random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
     config.num_workers = 1
@@ -78,7 +77,6 @@ def minigrid_global_config(config, name):
     config.lr = 0.00015
     config.cl_preservation = 'supermask'
     config.seed = 9157
-    random_seed(config.seed)
     config.log_dir = None
     config.logger = None 
     config.num_workers = 1
@@ -110,6 +108,7 @@ def setup_configs_and_logs(config, args, shell_config, global_config):
 
     env_config_path = shell_config['env']['env_config_path']
     config.seed = shell_config['seed']
+    random_seed(config.seed)
     config.backbone_seed = 9157
     config.init_port = args.port
 

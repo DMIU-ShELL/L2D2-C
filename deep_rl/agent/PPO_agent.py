@@ -806,10 +806,10 @@ class PPODetectShell(PPOShellAgent):
         self.current_task_key = 0
 
         # BIRCH online clustering
-        self.threshold = 0.5
+        self.threshold = 1
         self.branching_factor = 50
-        self.birch = Birch(threshold=self.threshold, branching_factor=self.branching_factor, n_clusters=None)
-
+        self.birch = Birch(threshold=self.threshold, branching_factor=self.branching_factor, n_clusters=3)
+        self.current_cluster_label = 0
 
 
         ###############################################################################
@@ -1047,8 +1047,7 @@ class PPODetectShell(PPOShellAgent):
             _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
             
             # Element wise sum/average of the incoming masks and current training mask (weighted sum/average)
-            #_subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
-            _subnet_linear_comb = torch.stack(_subnets, dim=0).prod(dim=0)
+            _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
             #_subnet_linear_comb = torch.stack(_subnets, dim=0).mean(dim=0)  # using mean offers some more stability than sum when we have lots of masks or if one or more masks have large values.
             return _subnet_linear_comb.data #self._subnet_class.apply(_subnet_linear_comb)
         
@@ -1190,7 +1189,7 @@ class PPODetectShell(PPOShellAgent):
         # IF SAME TASK
         if emb_distance < self.emb_dist_threshold:
             old_emb = self.seen_tasks[self.current_task_key]['task_emb']
-            self.current_task_emb = (old_emb + new_emb) / 2   # Compute moving average. NOTE: We still don't use the self.current_task_emb for anything important.
+            self.current_task_emb = (old_emb + new_emb) / 2   # Compute moving average.
 
             # Update dictionary at current_task_key. Ideally we would have used a pointer to get this done but unfortunately we can't do so for mp.Manager() dictionaries because it is a proxy.
             self.update_seen_tasks(
@@ -1198,11 +1197,6 @@ class PPODetectShell(PPOShellAgent):
                 reward = np.mean(self.iteration_rewards),
                 label = self.task.get_task()['task_label']
             )
-            #self.seen_tasks.update({self.current_task_key : {
-            #    'task_emb': self.current_task_emb,                          # Update with the moving average embedding
-            #    'reward': np.mean(self.iteration_rewards),                  # Update the iteration rewards for the task
-            #    'ground_truth': self.task.get_task()['task_label']          # Set the ground truth for the task. The agent does not use this but we will need it for logging and the evaluation agent.
-            #}})
 
             task_change_bool = False
 
@@ -1216,33 +1210,35 @@ class PPODetectShell(PPOShellAgent):
         return task_change_bool
 
     def assign_task_emb_birch(self, new_emb):
-        #embeddings = [task['task_emb'] for task in self.seen_tasks.values()]
-
-        #embeddings.append(new_emb)
-
-        #embeddings_array = np.array(embeddings)
-
-
-
-        cluster_labels = self.birch.partial_fit(new_emb)
-
-
-        new_embedding_label = cluster_labels[-1]
+        old_emb = self.seen_tasks[self.current_task_key]['task_emb']
+        self.current_task_emb = (old_emb + new_emb) / 2   # Compute moving average of embedding for smoothing (Reduces cluster size)
+        
+        # Reshape the input array to have two dimensions
+        new_emb_2d = self.current_task_emb.reshape(1, -1)
 
         
-        with self.config.logger.tensorboard_writer.as_default():
-            tf.summary.tensor("Embedding", new_emb, step=self.iteration)
-            tf.summary.scalar("Cluster Label:", new_embedding_label, step=self.iteration)
+        self.birch.partial_fit(new_emb_2d)
 
-        if new_embedding_label >= 0:
-            task_key = list(self.seen_tasks.keys())[new_embedding_label]
+        label = self.birch.predict(new_emb_2d)
+        print('CLUSTER LABEL:', label)
+        self.current_cluster_label
+        '''with self.config.logger.tensorboard_writer.as_default():
+            tf.summary.tensor("Embedding", new_emb, step=self.iteration)
+            tf.summary.scalar("Cluster Label:", label, step=self.iteration)'''
+
+        print(label, label[0], self.current_cluster_label)
+        if label[0] == self.current_cluster_label:
+            print('TASK IS THE SAME')
+            #task_key = list(self.seen_tasks.keys())[label]
             self.update_seen_tasks(
                 embedding=new_emb,
                 reward=np.mean(self.iteration_rewards),
                 label=self.task.get_task()['task_label']
             )
             task_change_bool = False
+            self.current_cluster_label = label[0]
         else:
+            print('TASK CHANGING')
             self.task_train_end_emb()
             self.task_train_start_emb(new_emb)
             self.set_current_task_embedding(new_emb)

@@ -350,8 +350,8 @@ class ParallelCommDetect(object):
 
             # Get all embeddings/rewards from the knowledge base
             for key, value in self.knowledge_base.items():
-                #if 'task_emb' in value and value['reward'] > 0:
-                if 'task_emb' in value:
+                if 'task_emb' in value and value['reward'] > 0:
+                #if 'task_emb' in value:
                     known_embedding = value['task_emb']
                     known_reward = value['reward']
                     embeddings.append(known_embedding)
@@ -423,10 +423,10 @@ class ParallelCommDetect(object):
                     if (known_label == target_label).all() and 0.9 * known_reward > target_reward:
                         if best_match is None or known_reward > best_match['response_reward']:
                             best_match = {
-                        'response_reward': known_reward,
-                        'response_task_id': key,
-                        'response_label': known_label
-                    }
+                                'response_reward': known_reward,
+                                'response_task_id': key,
+                                'response_label': known_label
+                            }
 
             if best_match is not None:
                 # Update the query dictionary with the response data
@@ -1150,18 +1150,15 @@ class ParallelCommDetectEval(object):
                 
                 # Time to pick the best agents
                 if len(self.metadata) > 0:
-                    meta_copy = sorted(self.metadata, key=lambda d: (-d['sender_similarity'], -d['sender_reward']))
-                    #meta_copy = sorted(self.metadata, key=lambda d: -d['sender_reward'])
+                    #meta_copy = sorted(self.metadata, key=lambda d: (-d['sender_similarity'], -d['sender_reward']))
+                    meta_copy = sorted(self.metadata, key=lambda d: -d['sender_reward'])
 
                     num_requests_added = 0
 
                     # For every task record in the registry...
                     for meta_dict in meta_copy:
                         sender_rw = meta_dict['sender_reward']
-                        sender_dist = meta_dict['sender_similarity']
-                        sender_emb = meta_dict['sender_embedding']
                         sender_id = meta_dict['sender_task_id']
-
                         sender_address = meta_dict['sender_address']
                         sender_port = meta_dict['sender_port']
                         sender_label = meta_dict['sender_label']
@@ -1177,7 +1174,7 @@ class ParallelCommDetectEval(object):
                                 'req_address': sender_address,
                                 'req_port': sender_port,
                                 'req_id': sender_id,
-                                'req_emb': sender_emb,
+                                'req_label': sender_label,
                                 'req_rw': sender_rw
                             }
                             self.logger.info(f'Prepared mask request for task id from {sender_address}, {sender_port}')

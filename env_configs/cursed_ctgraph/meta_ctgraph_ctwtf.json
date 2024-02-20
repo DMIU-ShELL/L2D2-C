@@ -12,10 +12,25 @@
         "ctgraph_d11_imgseed1_pomdp_wait.json",
         "ctgraph_d12_imgseed1_pomdp_wait.json",
         "ctgraph_d13_imgseed1_pomdp_wait.json",
-        "ctgraph_d14_imgseed1_pomdp_wait.json"
+        "ctgraph_d14_imgseed1_pomdp_wait.json",
+        "ctgraph_d2_imgseed2_pomdp_wait.json", 
+        "ctgraph_d3_imgseed2_pomdp_wait.json", 
+        "ctgraph_d4_imgseed2_pomdp_wait.json", 
+        "ctgraph_d5_imgseed2_pomdp_wait.json",
+        "ctgraph_d6_imgseed2_pomdp_wait.json",
+        "ctgraph_d7_imgseed2_pomdp_wait.json",
+        "ctgraph_d8_imgseed2_pomdp_wait.json",
+        "ctgraph_d9_imgseed2_pomdp_wait.json",
+        "ctgraph_d10_imgseed2_pomdp_wait.json",
+        "ctgraph_d11_imgseed2_pomdp_wait.json",
+        "ctgraph_d12_imgseed2_pomdp_wait.json",
+        "ctgraph_d13_imgseed2_pomdp_wait.json",
+        "ctgraph_d14_imgseed2_pomdp_wait.json"
     ],
     "task_order": "default",
     "one_hot": true,
-    "label_dim": 32764,
-    "num_tasks": 32764
+    "label_dim": 65528,
+    "num_tasks": 65528,
+    "filter_tasks": [1, 6, 17, 39, 82, 169, 342, 688, 1381, 2766, 5537, 11078, 22161, 
+    32767, 32774, 32789, 32818, 32877, 32994, 33229, 33699, 34638, 36517, 40275, 47791, 62822]
 }
