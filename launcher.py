@@ -50,48 +50,48 @@ commands = [
 commands = [
     # IMG SEED 1 AGENTS
     # MIG 1 (0-7)
-    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', "python run_shell_dist_mp.py 0 29500 -l -d 0.0 --exp_id='ct28_agent1_left'"],
+    ['MIG-c8cbc779-6499-5d1f-86e7-ad789e047331', "python run_shell_dist_mp.py 0 29500 -l -d 0.0 --exp_id='ct28_agent1_left'"],
 
     # MIG 2 (0-8)
-    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', "python run_shell_dist_mp.py 1 29501 -l -d 0.0 --exp_id='ct28_agent2_left'"],
+    ['MIG-f6c4eed6-1edf-5515-8e0b-0a5521e81cbb', "python run_shell_dist_mp.py 1 29501 -l -d 0.0 --exp_id='ct28_agent2_left'"],
 
     # MIG 3 (0-9)
-    ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', "python run_shell_dist_mp.py 2 29502 -l -d 0.0 --exp_id='ct28_agent3_left'"],
+    ['MIG-ae777ac5-da68-5606-8581-1878288224dc', "python run_shell_dist_mp.py 2 29502 -l -d 0.0 --exp_id='ct28_agent3_left'"],
 
     # MIG 4 (0-10)
-    ['MIG-e8f61a95-352a-56cc-b95d-0c35fc14e8bf', "python run_shell_dist_mp.py 3 29503 -l -d 0.0 --exp_id='ct28_agent4_left'"],
+    ['MIG-b2a723b5-db7a-50d8-a267-70569dafe609', "python run_shell_dist_mp.py 3 29503 -l -d 0.0 --exp_id='ct28_agent4_left'"],
 
     # MIG 5 (0-11)
-    ['MIG-35ecef79-db2e-590b-9e8c-2c07c787008e', "python run_shell_dist_mp.py 4 29504 -l -d 0.0 --exp_id='ct28_agent5_left'"],
+    ['MIG-73000f9d-03d4-5dab-ad23-34b546569bdd', "python run_shell_dist_mp.py 4 29504 -l -d 0.0 --exp_id='ct28_agent5_left'"],
 
     # MIG 6 (0-12)
-    ['MIG-76cd8dd7-7703-5581-8ac5-a7ee81a402a0', "python run_shell_dist_mp.py 5 29505 -l -d 0.0 --exp_id='ct28_agent6_left'"],
+    ['MIG-f86cf155-b80e-56da-92ed-03c78bf647c7', "python run_shell_dist_mp.py 5 29505 -l -d 0.0 --exp_id='ct28_agent6_left'"],
 
     # MIG 7 (0-13)
     #['MIG-b35e1a68-f7a4-5ef9-b34a-1abf6d1f8c2e', "python run_shell_dist_mp.py 6 29506 -l -d 0.0 --exp_id='ct28_agent7_left'"],
 
     # IMG SEED 2 AGENTS
     # MIG 8 (1-7)
-    ['MIG-2d5b6364-fc42-587b-97c6-ee316a82e2f3', "python run_shell_dist_mp.py 13 29507 -l -d 0.0 --exp_id='ct28_agent8_right'"],
+    #['MIG-f61216a8-2a31-500e-acf7-f0158fbf7ce3', "python run_shell_dist_mp.py 7 29507 -l -d 0.0 --exp_id='ct28_agent8_right'"],
 
     # MIG 9 (1-8)
-    ['MIG-4590f80d-be70-58e4-af75-eeb950255d4a', "python run_shell_dist_mp.py 14 29508 -l -d 0.0 --exp_id='ct28_agent9_right'"],
+    #['MIG-bc91396f-1c2b-5319-8862-6f16d089ce5e', "python run_shell_dist_mp.py 8 29508 -l -d 0.0 --exp_id='ct28_agent9_right'"],
 
     # MIG 10 (1-9)
-    ['MIG-e76a2a9b-9867-5f8a-b145-d857cd5ed8e2', "python run_shell_dist_mp.py 15 29509 -l -d 0.0 --exp_id='ct28_agent10_right'"],
+    #['MIG-13d6b3aa-c302-5ac2-9183-5494d22547e6', "python run_shell_dist_mp.py 9 29509 -l -d 0.0 --exp_id='ct28_agent10_right'"],
 
     # MIG 11 (1-10)
-    ['MIG-2593b912-5975-58e9-bc3d-495311cee807', "python run_shell_dist_mp.py 16 29510 -l -d 0.0 --exp_id='ct28_agent11_right'"],
+    #['MIG-f2d8b14c-d00c-5b5f-be98-bd1bff3bf371', "python run_shell_dist_mp.py 10 29510 -l -d 0.0 --exp_id='ct28_agent11_right'"],
     
     # MIG 12 (1-11)
-    ['MIG-51069529-f343-59c6-bac7-a75648296e7b', "python run_shell_dist_mp.py 17 29511 -l -d 0.0 --exp_id='ct28_agent12_right'"],
+    #['MIG-62fabbf0-b8de-5040-b4db-93f62c477543', "python run_shell_dist_mp.py 1 29511 -l -d 0.0 --exp_id='ct28_agent12_right'"],
 
     # MIG 13 (1-12)
-    ['MIG-187573d8-7df7-5e5f-87b2-c8b8f73c54e7', "python run_shell_dist_mp.py 18 29512 -l -d 0.0 --exp_id='ct28_agent13_right'"],
+    #['MIG-fcda8ac4-e82d-5259-8495-c777d8c95d74', "python run_shell_dist_mp.py 12 29512 -l -d 0.0 --exp_id='ct28_agent13_right'"],
 
     # EVALUATION AGENT
     # MIG 14 (1-13)
-    ['MIG-3045e3dd-28b6-5ee8-96b5-60a085c9fcf1', "python run_shell_dist_mp.py 26 29513 -l -e --exp_id='ct28_md_eval_full' --reference='reference_eval.csv'"]
+    #['MIG-f4aecf22-d8a0-50a9-b804-c65cb2d2ff7e', "python run_shell_dist_mp.py 26 29513 -l -e --exp_id='ct28_md_eval_full' --reference='reference_eval.csv'"]
 ]
 
 """# FOCCAL (CT-Graph)

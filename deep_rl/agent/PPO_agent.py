@@ -808,7 +808,7 @@ class PPODetectShell(PPOShellAgent):
         # BIRCH online clustering
         self.threshold = 1
         self.branching_factor = 50
-        self.birch = Birch(threshold=self.threshold, branching_factor=self.branching_factor, n_clusters=3)
+        self.birch = Birch(threshold=self.threshold, branching_factor=self.branching_factor, n_clusters=None)
         self.current_cluster_label = 0
 
 
@@ -940,21 +940,17 @@ class PPODetectShell(PPOShellAgent):
         if self.current_task_key is None:
             # If no similar embedding record was found then its a new task
             self.current_task_key = len(self.seen_tasks)                                        # Generate an internal task index for new task
-            
+
             # Create the dictionary key-value pair for the new task
             self.update_seen_tasks(
                 embedding=task_embedding, 
                 reward=0,
                 label=self.task.get_task()['task_label']
             )
-            #self.seen_tasks[self.current_task_key] = {
-            #    'task_emb': task_embedding,
-            #    'reward': 0,
-            #    'ground_truth': self.task.get_task()['task_label']
-            #}
 
             self.new_task = True                                                                # Set the new_task flag to True
             set_model_task(self.network, self.current_task_key, new_task=True)                  # Set the new task mask inside the model
+            self.set_current_task_embedding(task_embedding)        # Set the self.current_task_emb for the newly detected task
 
         else:
             # Set model to use the existing task mask.
@@ -1113,19 +1109,13 @@ class PPODetectShell(PPOShellAgent):
         '''Function for computing the task embedding based on the current
         batch of SAR data derived from the replay buffer.'''
         #print("TASK NUM OF ACTIONS:", self.task.action_space.n)
-        task_embedding = self.detect.lwe(sar_data, action_space_size)
+        task_embedding, wasserstein_distance = self.detect.lwe(sar_data, action_space_size)
         self.new_task_emb = task_embedding
         #self.current_task_emb = task_embedding
         #self.task.set_current_task_info('task_emb', task_embedding)
         #self.task.get_task()['task_emb'] = task_embedding
         self.task_emb_size = len(task_embedding)
-        return task_embedding
-
-    def calculate_emb_distance(self, current_embedding, new_embedding):
-        '''Calculates the distance between the newly computed task embedding and the
-        existing embedding.'''
-        emb_dist = self.detect.emb_distance(current_embedding, new_embedding)
-        return emb_dist
+        return task_embedding, wasserstein_distance
 
     def update_seen_tasks(self, embedding, reward, label):
         self.seen_tasks.update({self.current_task_key : {
@@ -1204,32 +1194,57 @@ class PPODetectShell(PPOShellAgent):
         else:
             self.task_train_end_emb()                       # End training on previous task mask.
             self.task_train_start_emb(new_emb)              # Start training on new mask for the newly detected task
-            self.set_current_task_embedding(new_emb)        # Set the self.current_task_emb for the newly detected task
             task_change_bool = True
 
         return task_change_bool
 
+    def assign_task_weighted_avg(self, new_emb):
+        task_change_bool = None
+        self.current_task_key = self._embedding_to_idx(new_emb)
+        self.current_task_emb = self.detect.calculate_weighted_average()
+
+        print(f'CURRENT EMB {self.current_task_emb}, NEW EMB {new_emb}')
+        csim = F.cosine_similarity(self.current_task_emb, new_emb, dim=0)
+
+        if self.current_task_emb is None:
+            return task_change_bool
+
+        # IF SAME TASK
+        if csim > 0.9:
+            # Update dictionary at current_task_key. Ideally we would have used a pointer to get this done but unfortunately we can't do so for mp.Manager() dictionaries because it is a proxy.
+            self.update_seen_tasks(
+                embedding = self.current_task_emb,
+                reward = np.mean(self.iteration_rewards),
+                label = self.task.get_task()['task_label']
+            )
+            task_change_bool = False
+
+        # IF NEW TASK
+        else:
+            self.task_train_end_emb()                       # End training on previous task mask.
+            self.task_train_start_emb(new_emb)              # Start training on new mask for the newly detected task
+            task_change_bool = True
+
+        return task_change_bool
+    
     def assign_task_emb_birch(self, new_emb):
         old_emb = self.seen_tasks[self.current_task_key]['task_emb']
         self.current_task_emb = (old_emb + new_emb) / 2   # Compute moving average of embedding for smoothing (Reduces cluster size)
         
         # Reshape the input array to have two dimensions
         new_emb_2d = self.current_task_emb.reshape(1, -1)
-
-        
         self.birch.partial_fit(new_emb_2d)
 
         label = self.birch.predict(new_emb_2d)
         print('CLUSTER LABEL:', label)
-        self.current_cluster_label
         '''with self.config.logger.tensorboard_writer.as_default():
             tf.summary.tensor("Embedding", new_emb, step=self.iteration)
             tf.summary.scalar("Cluster Label:", label, step=self.iteration)'''
-
         print(label, label[0], self.current_cluster_label)
+
+
         if label[0] == self.current_cluster_label:
             print('TASK IS THE SAME')
-            #task_key = list(self.seen_tasks.keys())[label]
             self.update_seen_tasks(
                 embedding=new_emb,
                 reward=np.mean(self.iteration_rewards),
@@ -1241,8 +1256,8 @@ class PPODetectShell(PPOShellAgent):
             print('TASK CHANGING')
             self.task_train_end_emb()
             self.task_train_start_emb(new_emb)
-            self.set_current_task_embedding(new_emb)
             task_change_bool = True
+            self.current_cluster_label = label[0]
 
         return task_change_bool
 

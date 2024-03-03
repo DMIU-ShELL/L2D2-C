@@ -35,6 +35,8 @@ except:
     # python == 2.7
     from pathlib2 import Path
 
+from memory_profiler import profile
+
 
 def _shell_itr_log(logger, agent, agent_idx, itr_counter, task_counter, dict_logs):
     logger.info(Fore.BLUE + 'agent %d, task %d / iteration %d, total steps %d, ' \
@@ -567,6 +569,7 @@ def shell_dist_train(agent, comm, agent_id, num_agents):
 shell training: concurrent processing for event-based communication. a multitude of improvements have been made compared
 to the previous shell_dist_train.
 '''
+#@profile
 def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     ###############################################################################
     ### Setup logger
@@ -633,10 +636,16 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     detect_activations_log_path = logger.log_dir + '/detect_activations.csv'
     masks_log_path = logger.log_dir + '/exchanges.csv'
     emb_dist_log = logger.log_dir + '/distances.csv'
+    m_dist_log1 = logger.log_dir + '/maha_cov_ident.csv'
+    m_dist_log2 = logger.log_dir + '/maha_cov_mean.csv'
+    cossim_log = logger.log_dir + '/cos_sim.csv'
+    density_log = logger.log_dir + '/density.csv'
+    emd_log = logger.log_dir + '/emd.csv'
+    wdist_log = logger.log_dir + '/wdist_log.csv'
 
 
     ###############################################################################
-    '''### Comm module event handlers. These run in parallel to enable the interactions between the comm and agent.
+    ### Comm module event handlers. These run in parallel to enable the interactions between the comm and agent.
     def mask_handler():
         """
         Handles incoming masks from other agents. Linearly combines masks and adds resulting mask to network.
@@ -744,7 +753,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     t_mask = mpd.Pool(processes=1)
     t_conv = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
-    t_conv.apply_async(conv_handler)'''
+    t_conv.apply_async(conv_handler)
     
     while True:
         start_time = time.time()
@@ -755,6 +764,11 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         if shell_done:
             if idling:
                 print('Agent is idling...') # Once idling the agent acts as a server that can be queried for knowledge until the agent encounters a new task (support not implemented yet)
+                
+                # Log all the embeddings and labels to tensorboard projector
+                emb_t = torch.stack(tuple(_embeddings))
+                tb_writer_emb.add_embedding(emb_t, metadata=_labels, global_step=shell_iterations)
+                
                 idling = False
                 # Alternatively we can shutdown the agent here or do something for the experiment termination.
                 
@@ -769,11 +783,13 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         print()
 
 
+        
         ###############################################################################
-        ### Iteration logging output.
+        ### Registry logging output.
         logger.info(Fore.RED + 'GLOBAL REGISTRY (seen_tasks dict)')
         for key, val in agent.seen_tasks.items():
             logger.info(f"{key} --> embedding: {val['task_emb']}, reward: {val['reward']}, ground truth task id: {np.argmax(val['ground_truth'], axis=0)}")
+        
             
 
         ###############################################################################
@@ -785,6 +801,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                 queue_label.put(dict_to_query)
 
 
+        
         ###############################################################################
         ### Agent training iteration: collect on policy data and optimise the agent
         '''
@@ -805,22 +822,91 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         shell_iterations += 1
 
         
+        
         ###############################################################################
         ### Run detect module. Generates embedding for SAR. Perform check to see if there has been a task change or not.
         _dist_threshold = agent.emb_dist_threshold
         if shell_iterations != 0 and shell_iterations % agent.detect_module_activation_frequency == 0 and agent.data_buffer.size() >= (agent.detect.get_num_samples()):
             # Run the detect module on SAR and return some logging output.
-            task_change_flag, new_emb, ground_truth_task_label, emb_dist, emb_bool, agent_seen_tasks = run_detect_module(agent)
+            task_change_flag, new_emb, ground_truth_task_label, dist_arr, emb_bool, agent_seen_tasks = run_detect_module(agent)
 
+            emb_dist = dist_arr[0]
+            m_dist1 = dist_arr[1]
+            m_dist2 = dist_arr[2]
+            cos_sim = dist_arr[3]
+            density = dist_arr[4]
+            emd = dist_arr[5]
+            w_dist = dist_arr[6]
+
+            # Log euclidean distance with moving average on current embedding
             data = [
                 {
                     'iteration': shell_iterations,
                     'distance' : float(emb_dist)    # convert from tensor to float
                 }
             ]
-
             df = pd.DataFrame(data)
             df.to_csv(emb_dist_log, mode='a', header=not pd.io.common.file_exists(emb_dist_log), index=False)
+
+            # Log mahalanobis distance with moving average with identity covariance matrix
+            data = [
+                {
+                    'iteration': shell_iterations,
+                    'distance' : float(m_dist1)    # convert from tensor to float
+                }
+            ]
+            df = pd.DataFrame(data)
+            df.to_csv(m_dist_log1, mode='a', header=not pd.io.common.file_exists(m_dist_log1), index=False)
+
+            # Log mahalanobis distance with moving average with mean covariance matrix
+            data = [
+                {
+                    'iteration': shell_iterations,
+                    'distance' : float(m_dist2)    # convert from tensor to float
+                }
+            ]
+            df = pd.DataFrame(data)
+            df.to_csv(m_dist_log2, mode='a', header=not pd.io.common.file_exists(m_dist_log2), index=False)
+
+            # Log cosine similarity with moving average
+            data = [
+                {
+                    'iteration': shell_iterations,
+                    'distance' : float(cos_sim)    # convert from tensor to float
+                }
+            ]
+            df = pd.DataFrame(data)
+            df.to_csv(cossim_log, mode='a', header=not pd.io.common.file_exists(cossim_log), index=False)
+
+            # Kernel density with moving average
+            data = [
+                {
+                    'iteration': shell_iterations,
+                    'distance' : float(density)    # convert from tensor to float
+                }
+            ]
+            df = pd.DataFrame(data)
+            df.to_csv(density_log, mode='a', header=not pd.io.common.file_exists(density_log), index=False)
+
+            # Wasserstein distance / Earth Mover's Distance
+            data = [
+                {
+                    'iteration': shell_iterations,
+                    'distance' : float(emd)    # convert from tensor to float
+                }
+            ]
+            df = pd.DataFrame(data)
+            df.to_csv(emd_log, mode='a', header=not pd.io.common.file_exists(emd_log), index=False)
+
+            # Wasserstein distance reference
+            data = [
+                {
+                    'iteration': shell_iterations,
+                    'distance' : float(w_dist)    # convert from tensor to float
+                }
+            ]
+            df = pd.DataFrame(data)
+            df.to_csv(wdist_log, mode='a', header=not pd.io.common.file_exists(wdist_log), index=False)
             
             if task_change_flag:
                 logger.info(Fore.YELLOW + f'TASK CHANGE DETECTED! NEW MASK CREATED. CURRENT TASK INDEX: {agent.current_task_key}')
@@ -845,7 +931,6 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                 ]
                 df = pd.DataFrame(data)
                 df.to_csv(detect_activations_log_path, mode='a', header=not pd.io.common.file_exists(detect_activations_log_path), index=False)
-
             
             # Update the dictionary containing the current task embedding to query for.
             dict_to_query = agent.seen_tasks[agent.current_task_key]
@@ -860,15 +945,17 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
 
                 _embeddings.append(new_emb)
                 _labels.append(_label)
-                emb_t = torch.stack(tuple(_embeddings))
+
+                logger.info(Fore.WHITE + f'Embedding: {new_emb}')
+                logger.info(f'Task ID: {_label}')
+                logger.info(f'Distance: {emb_dist}')
+                logger.info(f'Threshold: {agent.emb_dist_threshold}')
+                #emb_t = torch.stack(tuple(_embeddings))
                 #l_t = torch.stack(tuple(_labels))
-                
-                logger.info(Fore.WHITE + f'Embedding: {new_emb}\nOne-hot Label: {_label_one_hot}\nInteger Label: {_label}\nDistance: {emb_dist}, Threshold: {agent.emb_dist_threshold}\n')
-                tb_writer_emb.add_embedding(emb_t, metadata=_labels, global_step=shell_iterations)
-
-
-
+                #tb_writer_emb.add_embedding(emb_t, metadata=_labels, global_step=shell_iterations)
+        
             
+        
         ###############################################################################
         ### Logs metrics to tensorboard log file and updates the embedding, reward pair in this cycle for a particular task.
         if shell_iterations % agent.config.iteration_log_interval == 0:
@@ -876,8 +963,10 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                 
             # Save agent model
             agent.save(agent.config.log_dir + '/%s-%s-model-%s.bin' % (agent.config.agent_name, agent.config.tag, agent.task.name))
+        
 
 
+        
         ###############################################################################
         ### Environment task change at the end of the max steps for each task. Agent is not aware of this change and must detect it using the detect module.
         '''
@@ -930,9 +1019,10 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                 logger.info(f'*****agent {agent_id} / end of all training')
 
             del task_counter_
+        
 
 
-        logger.info(f'----------------------- Iteration complete in {time.time() - start_time} seconds -----------------------\n')
+        logger.info(f'{Fore.BLUE}----------------------- Iteration complete in {time.time() - start_time} seconds -----------------------\n')
 
 
 '''
@@ -1435,36 +1525,56 @@ def run_detect_module(agent):
     so the approprate embeddings are generated for each batch of SAR data'''
     
     #Initilize the retun varibles with None values in the case of the detect module not being appropriate to run.
-    task_change_detected, emb_dist, emb_bool, new_emb, current_task_embedding, an_agent_seen_tasks, ground_truth_task_label = None, None, None, None, None, None, torch.tensor(0)
+    task_change_detected, emb_dist, emb_bool, ground_truth_task_label = None, None, None, torch.tensor(0)
+    emb_dist, m_dist1, m_dist2, cos_sim, density, emd, wasserstein_distance = 0, 0, 0, 0, 0, 0, 0
     
     # Extract SAR data from agent's replay buffer
     sar_data = agent.extract_sar()
-    #print("SAR_DATA_ARR:", sar_data)
-    #print("SAR SIZE:",sar_data.shape)
-    #print("CURR_EMB:", current_embedding)
 
     # Produce task embedding from sar data using 
-    new_embedding = agent.compute_task_embedding(sar_data, agent.get_task_action_space_size())
+    new_embedding, wasserstein_distance = agent.compute_task_embedding(sar_data, agent.get_task_action_space_size())
+    
+    # Add up history of embeddings to rewards over time.
+    #agent.detect.add_embedding(new_embedding, np.mean(agent.iteration_rewards))
+
     current_embedding = agent.current_task_emb
-    #print("CURR_EMB:", current_embedding)
-    #print("NEW_EMB:", new_emb)
-    #print("EMBEDDING SIZE:", len(new_emb))
-
     ground_truth_task_label = agent.get_current_task_label()
-    #print("Ground_Truth_Task_Label:", ground_truth_task_label)
-    #print(type(ground_truth_task_label))
 
+    # Compute distance
     emb_bool = current_embedding == new_embedding
-    emb_dist = agent.calculate_emb_distance(current_embedding, new_embedding)
+    emb_dist = agent.detect.emb_distance(current_embedding, new_embedding)
+
+    '''# Mahalanobis distance from identity matrix
+    cov_matrix = np.eye(len(new_embedding))
+    m_dist1 = agent.detect.mahalanobis_distance(current_embedding, new_embedding, cov_matrix)
+
+    # Mahalanobis distance from mean covariance matrix
+    embeddings = np.vstack([new_embedding, current_embedding])
+    mean_vector = np.mean(embeddings, axis=0)
+    centered_embeddings = embeddings - mean_vector
+    cov_matrix = np.cov(centered_embeddings, rowvar=False)
+    m_dist2 = agent.detect.mahalanobis_distance(current_embedding, new_embedding, cov_matrix)
+
+    # Cosine similarity
+    cos_sim = agent.detect.cosine_sim(current_embedding, new_embedding)
+
+    # Kernel Density Estimation
+    density = agent.detect.estimate_density(current_embedding, new_embedding, 0.5)
+
+    # Wasserstein distance / Earth Mover's Distance
+    emd = agent.detect.wasserstein_distance(current_embedding, new_embedding)'''
+
+
 
 
     #task_change_detected = agent.assign_task_emb(new_embedding, emb_dist)
-    task_change_detected = agent.assign_task_emb_birch(new_embedding)          # For BIRCH clustering TODO: Needs fixing
+    #task_change_detected = agent.assign_task_emb_birch(new_embedding)          # For BIRCH clustering TODO: Needs fixing
+    task_change_detected = agent.assign_task_weighted_avg(new_embedding)
 
 
     # Get the updated task embedding from agent
-    new_current_embedding = agent.current_task_emb
     agent_seen_tasks = agent.get_seen_tasks()
-    #print("\n \n \n \n \n \n \n \n \n  Agent SEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEN TASKS:\n", an_agent_seen_tasks, "\n \n \n \n \n \n \n \n \n \n \n")
 
-    return task_change_detected, new_embedding, ground_truth_task_label, emb_dist, emb_bool, agent_seen_tasks #str_task_chng_msg, task_change_flag, emb_dist, emb_bool, new_emb
+    distances = [emb_dist, m_dist1, m_dist2, cos_sim, density, emd, wasserstein_distance]
+
+    return task_change_detected, new_embedding, ground_truth_task_label, distances, emb_bool, agent_seen_tasks
