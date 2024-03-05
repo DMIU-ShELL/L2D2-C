@@ -192,8 +192,9 @@ class Detect:
       return emd
 
 
+    # NOTE: WEIGHTED AVG COSINE SIM
     def add_embedding(self, embedding, reward):
-       self.embeddings.append(embedding.clone().detach())
+       self.embeddings.append(embedding)
        self.rewards.append(reward)
 
     def calculate_weighted_average(self):
@@ -203,18 +204,21 @@ class Detect:
         # Convert rewards to PyTorch tensor for easier manipulation
         rewards_tensor = torch.tensor(self.rewards, dtype=torch.float)
 
+        # Add a small epsilon value to prevent division by zero
+        epsilon = torch.tensor(1e-8)
+        total_reward = torch.sum(rewards_tensor) + epsilon
+
         # Normalize rewards to sum up to 1
-        total_reward = torch.sum(rewards_tensor)
         normalized_rewards = rewards_tensor / total_reward
 
         # Calculate weighted average
-        weighted_sum = torch.zeros_like(self.embeddings[0])
+        weighted_sum = torch.zeros_like(self.embeddings[0], dtype=torch.float)
         for embedding, reward in zip(self.embeddings, normalized_rewards):
             weighted_sum += reward * embedding
         weighted_average = weighted_sum / len(self.embeddings)
 
         return weighted_average
-    
+
     def refresh_buffers(self):
        self.embeddings = []
        self.rewards = []

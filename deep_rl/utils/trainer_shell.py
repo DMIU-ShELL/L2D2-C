@@ -618,7 +618,11 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
 
     # Set first task mask and record manually otherwise we run into issues with the implementation in the model.
     #agent.task_train_start_emb(task_embedding=None)
-    agent.task_train_start_emb(task_embedding=torch.zeros(agent.get_task_emb_size()))   # TODO: There is an issue with this which is that the first task will be set as zero and then the detect module with do some learning, find that the task does not match the zero embedding and start another task change. This leaves the first entry to a task change as useless. Also issues if we try to moving average this
+
+    # NOTE: ADDED detect.add_embedding() to accomodate the WEIGHTED AVG COSINE SIM
+    agent.current_task_emb = torch.zeros(agent.get_task_emb_size())
+    agent.task_train_start_emb(task_embedding=agent.current_task_emb)   # TODO: There is an issue with this which is that the first task will be set as zero and then the detect module with do some learning, find that the task does not match the zero embedding and start another task change. This leaves the first entry to a task change as useless. Also issues if we try to moving average this
+    #agent.detect.add_embedding(agent.current_task_emb, np.mean(agent.iteration_rewards))
     del states_
 
 
@@ -1542,6 +1546,7 @@ def run_detect_module(agent):
 
     # Compute distance
     emb_bool = current_embedding == new_embedding
+    print(f'IN RUN DETECT MODULE CURRENT: {current_embedding},  NEW: {new_embedding}')
     emb_dist = agent.detect.emb_distance(current_embedding, new_embedding)
 
     '''# Mahalanobis distance from identity matrix
@@ -1567,9 +1572,9 @@ def run_detect_module(agent):
 
 
 
-    #task_change_detected = agent.assign_task_emb(new_embedding, emb_dist)
+    task_change_detected = agent.assign_task_emb(new_embedding, emb_dist)
     #task_change_detected = agent.assign_task_emb_birch(new_embedding)          # For BIRCH clustering TODO: Needs fixing
-    task_change_detected = agent.assign_task_weighted_avg(new_embedding)
+    #task_change_detected = agent.assign_task_weighted_avg(new_embedding)
 
 
     # Get the updated task embedding from agent

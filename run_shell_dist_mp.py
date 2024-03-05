@@ -967,7 +967,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('curriculum_id', help='index of the curriculum to use from the shell config json', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/ct28_md_half.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/ct28_md.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.

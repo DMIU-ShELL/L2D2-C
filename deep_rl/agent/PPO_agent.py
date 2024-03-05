@@ -1054,6 +1054,24 @@ class PPODetectShell(PPOShellAgent):
         """
         consolidates all incoming knowledge from the collective
         """
+        # TODO: This needs to be changed to first consolidate the current shared masks
+        #       and then perform the linear combination of the new shared masks
+        #       with trainable beta parameters.
+
+        # i.e.,
+        
+        '''with torch.no_grad():
+            task_mask = self.consolidate_current_shared_masks()
+            self.distil_task_knowledge_embedding(task_mask)
+            
+            self.betas = nn.Parameter(torch.zeros(masks, masks).type(torch.float32))
+            
+            self.betas = self.betas[masks, 0:self.task+1]
+
+            ...
+            '''
+        
+        
         with torch.no_grad():
         # Initalise random mask
             new_mask = self.linear_combination(masks)
@@ -1198,35 +1216,6 @@ class PPODetectShell(PPOShellAgent):
 
         return task_change_bool
 
-    def assign_task_weighted_avg(self, new_emb):
-        task_change_bool = None
-        self.current_task_key = self._embedding_to_idx(new_emb)
-        self.current_task_emb = self.detect.calculate_weighted_average()
-
-        print(f'CURRENT EMB {self.current_task_emb}, NEW EMB {new_emb}')
-        csim = F.cosine_similarity(self.current_task_emb, new_emb, dim=0)
-
-        if self.current_task_emb is None:
-            return task_change_bool
-
-        # IF SAME TASK
-        if csim > 0.9:
-            # Update dictionary at current_task_key. Ideally we would have used a pointer to get this done but unfortunately we can't do so for mp.Manager() dictionaries because it is a proxy.
-            self.update_seen_tasks(
-                embedding = self.current_task_emb,
-                reward = np.mean(self.iteration_rewards),
-                label = self.task.get_task()['task_label']
-            )
-            task_change_bool = False
-
-        # IF NEW TASK
-        else:
-            self.task_train_end_emb()                       # End training on previous task mask.
-            self.task_train_start_emb(new_emb)              # Start training on new mask for the newly detected task
-            task_change_bool = True
-
-        return task_change_bool
-    
     def assign_task_emb_birch(self, new_emb):
         old_emb = self.seen_tasks[self.current_task_key]['task_emb']
         self.current_task_emb = (old_emb + new_emb) / 2   # Compute moving average of embedding for smoothing (Reduces cluster size)
@@ -1261,6 +1250,39 @@ class PPODetectShell(PPOShellAgent):
 
         return task_change_bool
 
+
+
+    def assign_task_weighted_avg(self, new_emb):
+        task_change_bool = None
+        self.current_task_key = self._embedding_to_idx(new_emb)
+        print(f'IN ASSIGN TAKS: BEFORE AVG {self.current_task_emb}')
+        self.current_task_emb = self.detect.calculate_weighted_average()
+        print(f'IN ASSIGN TASK: {self.current_task_emb}')
+
+        print(f'IN ASSIGN TASK CURRENT EMB {self.current_task_emb}, NEW EMB {new_emb}')
+        csim = F.cosine_similarity(self.current_task_emb, new_emb, dim=0)
+
+        if self.current_task_emb is None:
+            return task_change_bool
+
+        # IF SAME TASK
+        if csim > 0.9:
+            # Update dictionary at current_task_key. Ideally we would have used a pointer to get this done but unfortunately we can't do so for mp.Manager() dictionaries because it is a proxy.
+            self.update_seen_tasks(
+                embedding = self.current_task_emb,
+                reward = np.mean(self.iteration_rewards),
+                label = self.task.get_task()['task_label']
+            )
+            task_change_bool = False
+
+        # IF NEW TASK
+        else:
+            self.task_train_end_emb()                       # End training on previous task mask.
+            self.task_train_start_emb(new_emb)              # Start training on new mask for the newly detected task
+            task_change_bool = True
+
+        return task_change_bool
+    
 
 
     def store_embeddings(self, new_embedding):
