@@ -119,7 +119,7 @@ class FCBody_CL(nn.Module): # fcbody for continual learning setup
                 x = self.gate(layer(x))
         return x, ret_act
 
-from ..shell_modules.mmn.ssmask_utils import MultitaskMaskLinear
+from ..shell_modules.mmn.ssmask_utils import MultitaskMaskLinear, MultitaskMaskConv2d
 from ..shell_modules.mmn.ssmask_utils import NEW_MASK_RANDOM
 from ..shell_modules.mmn.ssmask_utils import NEW_MASK_LINEAR_COMB
 class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learning algorithm
@@ -149,9 +149,75 @@ class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learn
                 x = self.gate(layer(x))
                 ret_act.append(('{0}.layers.{1}'.format(prefix, i), x))
         else:
-            for layer in self.layers:
-                x = self.gate(layer(x))#NOTE Here is where we crash !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            for i, layer in enumerate(self.layers):
+                x = self.gate(layer(x))
+
         return x, ret_act
+
+class MinigridConvBody_SS(nn.Module): # conv body for supermask lifelong learning algorithm
+    def __init__(self, state_shape=[3, 64, 64], lstm_hidden_size=200, feature_dim=512, task_label_dim=None, \
+        gate=F.relu, discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM):
+        super(MinigridConvBody_SS, self).__init__()
+
+        #print(state_shape)
+        in_channels = state_shape[0] # assumes state_state with dim: num_channels x height x width
+        self.conv1 = MultitaskMaskConv2d(in_channels, 16, kernel_size=(3,3), stride=1, padding=1, num_tasks=num_tasks, new_mask_type=new_task_mask)
+        self.maxp1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.conv2 = MultitaskMaskConv2d(16, 32, kernel_size=(3,3), stride=1, padding=1, num_tasks=num_tasks, new_mask_type=new_task_mask)
+        self.conv3 = MultitaskMaskConv2d(32, 64, kernel_size=(3,3), stride=1, padding=1, num_tasks=num_tasks, new_mask_type=new_task_mask)
+
+        self.direction_emb = nn.Embedding(4, 4)
+        self.mission_emb = nn.Embedding(100, 16)
+        
+        self.lstm = nn.LSTM(input_size=32 * 7 * 7 + 4 + 16, hidden_size=lstm_hidden_size, num_layers=1, batch_first=True)
+        
+        # Fully connected layer for output
+        self.fc = MultitaskMaskLinear(1344 , feature_dim, num_tasks=num_tasks, new_mask_type=new_task_mask)
+
+        self.gate = gate
+        self.feature_dim = feature_dim
+        self.task_label_dim = task_label_dim
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+
+        ret_act = []
+
+        # conv1
+        y = self.gate(self.conv1(x))
+        print(y.shape)
+        if return_layer_output:
+            ret_act.append(('{0}.conv.1'.format(prefix), y.detach().cpu().reshape(-1,)))
+        
+        # maxp1
+        #y = self.maxp1(y)
+        
+        # conv2
+        y = self.gate(self.conv2(y))
+        print(y.shape)
+        if return_layer_output:
+            ret_act.append(('{0}.conv.2'.format(prefix), y.detach().cpu().reshape(-1,)))
+        
+        # conv3
+        y = self.gate(self.conv3(y))
+        print(y.shape)
+        if return_layer_output:
+            ret_act.append(('{0}.conv.3'.format(prefix), y.detach().cpu().reshape(-1,)))
+
+        # flatten
+        y = y.view(y.shape[0], -1)
+        print(y.shape)
+        
+        
+        if self.task_label_dim is not None:
+            y = torch.cat([y, task_label], dim=1)
+        
+        # fc1
+        y = self.gate(self.fc(y))
+        if return_layer_output:
+            ret_act.append(('{0}.fc.1'.format(prefix), y.detach().cpu().reshape(-1,)))
+        return y, ret_act
 
 class TwoLayerFCBodyWithAction(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_units=(64, 64), gate=F.relu):
@@ -197,6 +263,7 @@ class DummyBody_CL(nn.Module):
         if self.task_label_dim is not None:
             assert task_label is not None, '`task_label` should be set'
             x = torch.cat([x, task_label], dim=1)
+        
         return x, []
 
 class DummyBody_CL_Mask(nn.Module):

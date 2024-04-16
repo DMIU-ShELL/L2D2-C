@@ -24,9 +24,9 @@ from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, Running
 from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
 from deep_rl.component.policy import SamplePolicy
-from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld
+from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, MiniGrid, MetaCTgraph
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
-from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
+from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL, MinigridConvBody_SS
 from deep_rl.agent.PPO_agent import PPODetectShell, PPOShellAgent
 from deep_rl.agent.SAC_agent import SACDetectShell, SACShellAgent
 
@@ -42,9 +42,10 @@ import random
 def global_config(config, name):
     config.env_name = name
     config.env_config_path = None
-    config.lr = 0.00015
+    config.lr = 0.00025
     config.cl_preservation = 'supermask'
-    config.seed = 9157
+    config.seed = None
+    config.backbone_seed = 9157
     config.log_dir = None
     config.logger = None 
     config.num_workers = 1
@@ -55,8 +56,8 @@ def global_config(config, name):
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
-    config.entropy_weight = 0.1 #0.75
-    config.rollout_length = 512
+    config.entropy_weight = 0.01 #0.75
+    config.rollout_length = 2048
     config.optimization_epochs = 8
     config.num_mini_batches = 64
     config.ppo_ratio_clip = 0.1
@@ -91,7 +92,7 @@ def setup_configs_and_logs(config, args, shell_config, global_config):
     ###############################################################################
     # Logging
     exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
-    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.curriculum_id)
+    path_name = args.pathheader + '/{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.curriculum_id)
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
     config.logger = logger
@@ -266,15 +267,22 @@ def minigrid_ppo(name, args, shell_config):
     eval_task_fn= lambda log_dir: MiniGridFlatObs(name=name, env_config_path=env_config_path, log_dir=log_dir, eval_mode=True)
     config.eval_task_fn = eval_task_fn
 
+
+    '''task_fn = lambda log_dir: MiniGrid(name=name, env_config_path=env_config_path, log_dir=log_dir, eval_mode=False)
+    config.task_fn = lambda: ParallelizedTask(task_fn, config.num_workers, log_dir=config.log_dir, single_process=True)
+
+    eval_task_fn = lambda log_dir: MiniGrid(name=name, env_config_path=env_config_path, log_dir=log_dir, eval_mode=True)
+    config.eval_task_fn = eval_task_fn'''
+
     # Network lambda function
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
-        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
-        hidden_units=(200, 200, 200), num_tasks=300),
+        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200), num_tasks=300),
+        #phi_body=MinigridConvBody_SS(state_dim, feature_dim=128, task_label_dim=label_dim, num_tasks=300, new_task_mask=args.new_task_mask),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
         num_tasks=config.cl_num_tasks,
-        new_task_mask='linear_comb')    # 'random' for mask RI. 'linear_comb' for mask LC.
+        new_task_mask=args.new_task_mask)    # 'random' for mask RI. 'linear_comb' for mask LC.
     
     # Environment sepcific setup ends.
     ###############################################################################
@@ -319,6 +327,8 @@ if __name__ == '__main__':
     parser.add_argument('--device', help='select device 1 for GPU or 0 for CPU. default is GPU', type=int, default=1)   # Used to select device. By default system will try to use the GPU. Currently PyTorch is only compatible with NVIDIA GPUs or Apple M Series processors.
     parser.add_argument('--reference', '--r', '-r', help='reference.csv file path', type=str, default='reference.csv')
     parser.add_argument('--dropout', '--d', '-d', help='Comunication dropout parameter', type=float, default=0.0)
+    parser.add_argument('--new_task_mask', help='', default='linear_comb', type=str)
+    parser.add_argument('--pathheader', '--p', '-p', help='experiment header to log path for launcher.py', type=str, default='')
     args = parser.parse_args()
 
     select_device(args.device)
@@ -344,7 +354,9 @@ if __name__ == '__main__':
         
         del shell_config['agents'][args.curriculum_id]
 
-
+    if args.pathheader == '':
+        args.pathheader = shell_config['env']['env_name']
+        
     # Parse arguments and launch the correct environment-agent configuration.
     if shell_config['env']['env_name'] == 'minigrid':
         name = Config.ENV_MINIGRID

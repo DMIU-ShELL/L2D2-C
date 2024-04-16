@@ -183,8 +183,8 @@ class CTgraph(BaseTask):
     def __init__(self, name, env_config_path, log_dir=None):
         BaseTask.__init__(self)
         self.name = name
-        import gym
-        import gym_CTgraph
+        #import gym
+        #import gym_CTgraph
         env = gym.make(name, config_path=env_config_path)
 
         state = env.reset()
@@ -418,7 +418,7 @@ class MetaCTgraph(BaseTask):
 
     def reset(self):
         ret = self.env.reset()
-        state = ret
+        state, _ = ret
         if self.env.oneD: state = state.ravel()
         return state
 
@@ -452,12 +452,12 @@ class MetaCTgraphFlatObs(MetaCTgraph):
         self.state_dim = int(np.prod(self.env.observation_space.shape))
 
     def step(self, action):
-        state, reward, done, info = self.env.step(action)
+        state, reward, done, truncated, info = self.env.step(action)
         if done: state = self.reset()
         return state.ravel(), reward, done, info
 
     def reset(self):
-        state = self.env.reset()
+        state, done= self.env.reset()
         return state.ravel()
 
 class MiniGrid(BaseTask):
@@ -530,12 +530,13 @@ class MiniGrid(BaseTask):
         self.env = self.envs[self.current_task['task']]
 
     def step(self, action):
-        state, reward, done, info = self.env.step(action)
+        state, reward, done, truncated, info = self.env.step(action)
         if done: state = self.reset()
+        if truncated: state = self.reset()
         return state, reward, done, info
 
     def reset(self):
-        state = self.env.reset()
+        state, done = self.env.reset()
         return state
 
     def reset_task(self, taskinfo):
@@ -560,9 +561,24 @@ class MiniGridFlatObs(MiniGrid):
         super(MiniGridFlatObs, self).__init__(name, env_config_path, log_dir, seed, eval_mode)
         self.state_dim = int(np.prod(self.env.observation_space.shape))
 
+        self.action_map = {
+            0: 0,           # left
+            1: 1,           # right
+            2: 2,           # forward
+            3: 3,           # pickup
+            4: 4,           # drop
+            5: 5,           # toggle
+            6: 6            # done
+        }
+
     def step(self, action):
-        state, reward, done, info = self.env.step(action)
+        # Remap action using action map
+        # We do this to reduce the action space and make things a bit quicker to learn for our agents.
+        action = self.action_map[action]
+
+        state, reward, done, truncated, info = self.env.step(action)
         if done: state = self.reset()
+        if truncated: state = self.reset()
 
         # Adding noise to reward for synchronised learning
         #noise = float(np.random.uniform(0, 0.001, 1))
@@ -572,7 +588,7 @@ class MiniGridFlatObs(MiniGrid):
         return state.ravel(), reward, done, info
 
     def reset(self):
-        state = self.env.reset()
+        state, done = self.env.reset()
         return state.ravel()
 
 class ContinualWorld(BaseTask):

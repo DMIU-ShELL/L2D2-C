@@ -759,6 +759,9 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     t_mask.apply_async(mask_handler)
     t_conv.apply_async(conv_handler)
     
+
+    ###############################################################################
+    ### MAIN OPERATIONAL LOOP
     while True:
         start_time = time.time()
         ###############################################################################
@@ -853,14 +856,14 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             df.to_csv(emb_dist_log, mode='a', header=not pd.io.common.file_exists(emb_dist_log), index=False)
 
             # Log mahalanobis distance with moving average with identity covariance matrix
-            data = [
+            '''data = [
                 {
                     'iteration': shell_iterations,
                     'distance' : float(m_dist1)    # convert from tensor to float
                 }
             ]
             df = pd.DataFrame(data)
-            df.to_csv(m_dist_log1, mode='a', header=not pd.io.common.file_exists(m_dist_log1), index=False)
+            df.to_csv(m_dist_log1, mode='a', header=not pd.io.common.file_exists(m_dist_log1), index=False)'''
 
             # Log mahalanobis distance with moving average with mean covariance matrix
             data = [
@@ -883,14 +886,14 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             df.to_csv(cossim_log, mode='a', header=not pd.io.common.file_exists(cossim_log), index=False)
 
             # Kernel density with moving average
-            data = [
+            '''data = [
                 {
                     'iteration': shell_iterations,
                     'distance' : float(density)    # convert from tensor to float
                 }
             ]
             df = pd.DataFrame(data)
-            df.to_csv(density_log, mode='a', header=not pd.io.common.file_exists(density_log), index=False)
+            df.to_csv(density_log, mode='a', header=not pd.io.common.file_exists(density_log), index=False)'''
 
             # Wasserstein distance / Earth Mover's Distance
             data = [
@@ -903,14 +906,14 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             df.to_csv(emd_log, mode='a', header=not pd.io.common.file_exists(emd_log), index=False)
 
             # Wasserstein distance reference
-            data = [
+            '''data = [
                 {
                     'iteration': shell_iterations,
                     'distance' : float(w_dist)    # convert from tensor to float
                 }
             ]
             df = pd.DataFrame(data)
-            df.to_csv(wdist_log, mode='a', header=not pd.io.common.file_exists(wdist_log), index=False)
+            df.to_csv(wdist_log, mode='a', header=not pd.io.common.file_exists(wdist_log), index=False)'''
             
             if task_change_flag:
                 logger.info(Fore.YELLOW + f'TASK CHANGE DETECTED! NEW MASK CREATED. CURRENT TASK INDEX: {agent.current_task_key}')
@@ -1549,9 +1552,9 @@ def run_detect_module(agent):
     print(f'IN RUN DETECT MODULE CURRENT: {current_embedding},  NEW: {new_embedding}')
     emb_dist = agent.detect.emb_distance(current_embedding, new_embedding)
 
-    '''# Mahalanobis distance from identity matrix
-    cov_matrix = np.eye(len(new_embedding))
-    m_dist1 = agent.detect.mahalanobis_distance(current_embedding, new_embedding, cov_matrix)
+    # Mahalanobis distance from identity matrix
+    #cov_matrix = np.eye(len(new_embedding))
+    #m_dist1 = agent.detect.mahalanobis_distance(current_embedding, new_embedding, cov_matrix)
 
     # Mahalanobis distance from mean covariance matrix
     embeddings = np.vstack([new_embedding, current_embedding])
@@ -1564,10 +1567,10 @@ def run_detect_module(agent):
     cos_sim = agent.detect.cosine_sim(current_embedding, new_embedding)
 
     # Kernel Density Estimation
-    density = agent.detect.estimate_density(current_embedding, new_embedding, 0.5)
+    #density = agent.detect.estimate_density(current_embedding, new_embedding, 0.5)
 
     # Wasserstein distance / Earth Mover's Distance
-    emd = agent.detect.wasserstein_distance(current_embedding, new_embedding)'''
+    emd = agent.detect.wasserstein_distance(current_embedding, new_embedding)
 
 
 

@@ -57,11 +57,12 @@ class Monitor(Wrapper):
         #print 'monitor step'
         if self.needs_reset:
             raise RuntimeError("Tried to step environment that needs reset")
-        ob, rew, done, info = self.env.step(action)
+        ob, rew, done, truncated, info = self.env.step(action)
         #print self.env
         #print done
         self.rewards.append(rew)
-        if done:
+        if done or truncated:
+            print('DONE')
             self.needs_reset = True
             eprew = sum(self.rewards)
             eplen = len(self.rewards)
@@ -79,8 +80,9 @@ class Monitor(Wrapper):
                 self.logger.writerow(epinfo)
                 self.f.flush()
             info['episode'] = epinfo
+            print(info, done, truncated)
         self.total_steps += 1
-        return (ob, rew, done, info)
+        return (ob, rew, done, truncated, info)
 
     def close(self):
         if self.f is not None:

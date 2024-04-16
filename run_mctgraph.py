@@ -91,7 +91,7 @@ def setup_configs_and_logs(config, args, shell_config, global_config):
     ###############################################################################
     # Logging
     exp_id = '{0}-seed-{1}'.format(args.exp_id, config.seed)
-    path_name = '{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.curriculum_id)
+    path_name = args.pathheader + '/{0}-shell-dist-{1}/agent_{2}'.format(name, exp_id, args.curriculum_id)
     log_dir = get_default_log_dir(path_name)
     logger = get_logger(log_dir=log_dir, file_name='train-log')
     config.logger = logger
@@ -174,18 +174,6 @@ def detect_finalise_and_run(config, Agent):
         addresses.append(line[0])
         ports.append(int(line[1]))
 
-    '''# TODO: Do we still need this? Remove if unnecessary.
-    if args.quick_start:
-        for i in range(args.agent_id + 1):
-            line = lines[i].strip('\n').split(', ')
-            addresses.append(line[0])
-            ports.append(int(line[1]))
-
-    else:
-        for line in lines:
-            line = line.strip('\n').split(', ')
-            addresses.append(line[0])
-            ports.append(int(line[1]))'''
         
     # If True then run the omnisicent mode agent, otherwise run the traditional agent.
     # TODO: Have to figure out how a traditional learner can transition to omniscient whenever required. Not really implemented yet and doesn't really work properly.
@@ -297,24 +285,26 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('curriculum_id', help='index of the curriculum to use from the shell config json', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/ct28_md.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/ct28_2_dist.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
-    parser.add_argument('--omni', '--o', '-o', help='launches agetn in omniscient mode. omniscient agents use the '\
+    parser.add_argument('--omni', '--o', '-o', help='launches agent in omniscient mode. omniscient agents use the '\
         'gather all querying method to gather all knowledge from the network while still operating as a functional '\
             'learning agent', action='store_true')                                                                      # Flag used to start the system in omniscient agent mode. By default the system will run in learning mode.
                                                                                                                         # Omnisicient agent mode cannot be combined with evaluation mode.
 
     parser.add_argument('--localhost', '--ls', '-ls', help='used to run DMIU in localhost mode', action='store_true')   # Flag used to start the system using localhost instead of public IP. Can be useful for debugging network related problems.
     parser.add_argument('--shuffle', '--s', '-s', help='randomise the task curriculum', action='store_true')            # Not required. If you want to randomise the order of tasks in the curriculum then you can change to 1
-    parser.add_argument('--comm_interval', '--i', '-i', help='integer value indicating the number of communications '\
+    parser.add_argument('--comm_interval', '--ci', '-ci', help='integer value indicating the number of communications '\
         'to perform per task', type= int, default=20)                                                                   # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
                                                                                                                         # Please do not modify this value unless you know what you're doing as it may cause unexpected results.
 
     parser.add_argument('--device', help='select device 1 for GPU or 0 for CPU. default is GPU', type=int, default=1)   # Used to select device. By default system will try to use the GPU. Currently PyTorch is only compatible with NVIDIA GPUs or Apple M Series processors.
     parser.add_argument('--reference', '--r', '-r', help='reference.csv file path', type=str, default='reference.csv')
     parser.add_argument('--dropout', '--d', '-d', help='Comunication dropout parameter', type=float, default=0.0)
+    parser.add_argument('--new_task_mask', help='', default='linear_comb', type=str)
+    parser.add_argument('--pathheader', '--p', '-p', help='experiment header to log path for launcher.py', type=str, default='')
     args = parser.parse_args()
 
     select_device(args.device)
@@ -340,6 +330,8 @@ if __name__ == '__main__':
         
         del shell_config['agents'][args.curriculum_id]
 
+    if args.pathheader == '':
+        args.pathheader = shell_config['env']['env_name']
 
     # Parse arguments and launch the correct environment-agent configuration.
     if shell_config['env']['env_name'] == 'ctgraph':

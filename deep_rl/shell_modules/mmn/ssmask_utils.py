@@ -402,44 +402,45 @@ class MultitaskMaskLinearSparse(nn.Linear):
 # Utility functions
 def set_model_task(model, task, verbose=False, new_task=False):
     for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse) or \
+            isinstance(m, MultitaskMaskConv2d) or isinstance(m, MultitaskMaskConv2dSparse):
             if verbose:
-                print(Fore.BLUE + f"=> Set task of {n} to {task}")
+                print(f"=> Set task of {n} to {task}")
             m.set_task(task, new_task)
 
 def cache_masks(model, verbose=False):
     for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse) or \
+            isinstance(m, MultitaskMaskConv2d) or isinstance(m, MultitaskMaskConv2dSparse):
             if verbose:
-                print(Fore.BLUE + f"=> Caching mask state for {n}")
+                print(f"=> Caching mask state for {n}")
             m.cache_masks()
 
 def set_num_tasks_learned(model, num_tasks_learned):
     for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
-            print(Fore.BLUE + f"=> Setting learned tasks of {n} to {num_tasks_learned}")
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse) or \
+            isinstance(m, MultitaskMaskConv2d) or isinstance(m, MultitaskMaskConv2dSparse):
+            print(f"=> Setting learned tasks of {n} to {num_tasks_learned}")
             m.num_tasks_learned = num_tasks_learned
 
 def set_alphas(model, alphas, verbose=False):
     for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse) or \
+            isinstance(m, MultitaskMaskConv2d) or isinstance(m, MultitaskMaskConv2dSparse):
             if verbose:
-                print(Fore.BLUE + f"=> Setting alphas for {n}")
+                print(f"=> Setting alphas for {n}")
             m.alphas = alphas
 
 def get_mask(model, task, raw_score=True):
     mask = {}
     for n, m in model.named_modules():
-        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
+        if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse) or \
+            isinstance(m, MultitaskMaskConv2d) or isinstance(m, MultitaskMaskConv2dSparse):
             mask[n] = m.get_mask(task, raw_score)
     return mask 
 
 def set_mask(model, mask, task):
-    print(f'In set_mask: {mask}, {task}')
-    #print('mask in set_mask', mask, type(mask))
-    #print('task in set_mask', task, type(task))
     for n, m in model.named_modules():
-        #print(n, type(m))
         if isinstance(m, MultitaskMaskLinear) or isinstance(m, MultitaskMaskLinearSparse):
             m.set_mask(mask[n], task)
 
@@ -630,6 +631,17 @@ class MultitaskMaskConv2d(nn.Conv2d):
         # agents. the binary masks would not be trained but rather
         # generated from raw scores in other agents
         if raw_score:
+            return self.scores[task]
+        else:
+            return self._subnet_class.apply(self.scores[task])
+
+    '''@torch.no_grad() 
+    def get_mask(self, task, raw_score=True):
+        # return raw scores and not the processed mask, since the
+        # scores are the parameters that will be trained in other
+        # agents. the binary masks would not be trained but rather
+        # generated from raw scores in other agents
+        if raw_score:
             # Check if we are using MASK RI or MASK LC
             if self.new_mask_type == NEW_MASK_RANDOM:
                 return self.scores[task]
@@ -649,7 +661,7 @@ class MultitaskMaskConv2d(nn.Conv2d):
                     raise ValueError('sanity check')
                     # return self.scores[task]  # Return random initialised mask
         else:
-            return self._subnet_class.apply(self.scores[task])
+            return self._subnet_class.apply(self.scores[task])'''
 
     @torch.no_grad()
     def set_mask(self, mask, task):

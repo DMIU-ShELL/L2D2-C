@@ -823,7 +823,7 @@ class PPODetectShell(PPOShellAgent):
 
         # Variable for storing the action space size of the task for using it to 
         # convert the actions to one-hot vectors.
-        self.task_action_space_size = self.task.tasks[0].action_space.n
+        self.task_action_space_size = self.task.action_dim
 
         # Variable for storing the detect reference number.
         self.detect_reference_num = config.detect_reference_num
