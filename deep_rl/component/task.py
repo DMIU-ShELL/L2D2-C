@@ -561,7 +561,8 @@ class MiniGridFlatObs(MiniGrid):
         super(MiniGridFlatObs, self).__init__(name, env_config_path, log_dir, seed, eval_mode)
         self.state_dim = int(np.prod(self.env.observation_space.shape))
 
-        self.action_map = {
+        # Standard full action mapping for MiniGrid
+        '''self.action_map = {
             0: 0,           # left
             1: 1,           # right
             2: 2,           # forward
@@ -569,12 +570,23 @@ class MiniGridFlatObs(MiniGrid):
             4: 4,           # drop
             5: 5,           # toggle
             6: 6            # done
+        }'''
+
+        # Action mapping for curriculum with
+        # SimpleCrossing
+        # LavaCrossing
+        # MultiRoomEnv
+        self.action_map = {
+            0: 0,           # left
+            1: 1,           # right
+            2: 2,           # forward
+            3: 5            # pickup -> toggle
         }
 
     def step(self, action):
         # Remap action using action map
         # We do this to reduce the action space and make things a bit quicker to learn for our agents.
-        action = self.action_map[action]
+        #action = self.action_map[action]
 
         state, reward, done, truncated, info = self.env.step(action)
         if done: state = self.reset()
@@ -590,6 +602,84 @@ class MiniGridFlatObs(MiniGrid):
     def reset(self):
         state, done = self.env.reset()
         return state.ravel()
+
+class Procgen(BaseTask):
+    def __init__(self, name, env_config_path, log_dir=None):
+        BaseTask.__init__(self)
+        self.name = name
+        with open(env_config_path, 'r') as f:
+            env_config = json.load(f)
+        self.env_config = env_config
+        env_names = env_config['tasks']
+        if 'seeds' in env_config.keys():
+            seeds = env_config['seeds']
+
+        if isinstance(seeds, int): seeds = [seeds,] * len(env_names)
+        elif isinstance(seeds, list):
+            assert len(seeds) == len(env_names), 'number of seeds in config file should match the number of tasks.'
+        else: raise ValueError('invalid seed specification in config file')
+
+        self.envs = {'{0}_seed{1}'.format(name, seed) : (gym.make(name)), seeds=[seed,]) for name, seed in zip(env_names, seeds)}
+
+        env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
+
+        self.observation_space = self.envs[env_names[0]].observation_space
+        self.action_space = self.envs[env_names[0]].action_space
+        self.action_dim = self.envs[env_names[0]].action_space.n
+        self.state_dim = self.observation_space.shape
+
+        
+        # env monitors
+        for name in self.envs.keys():
+            self.envs[name] = self.set_monitor(self.envs[name], log_dir)
+        # task label config
+        self.task_label_dim = env_config['label_dim']
+        self.one_hot_labels = True if env_config['one_hot'] else False
+        # all tasks
+        self.tasks = [{'name': name, 'task': name, 'task_label': None} \
+            for name in self.envs.keys()]
+        # generate label for each task
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+        else:
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32) 
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+        # set default task
+        self.current_task = self.tasks[0]
+        self.env = self.envs[self.current_task['task']]
+
+    def step(self, action):
+        state, reward, done, truncated, info = self.env.step(action)
+        if done: state = self.reset()
+        if truncated: state = self.reset()
+        return state, reward, done, info
+
+    def reset(self):
+        state, done = self.env.reset()
+        return state
+
+    def reset_task(self, taskinfo):
+        self.set_task(taskinfo)
+        return self.reset()
+
+    def set_task(self, taskinfo):
+        self.current_task = taskinfo
+        self.env = self.envs[self.current_task['task']]
+    
+    def get_task(self):
+        return self.current_task
+
+    def get_all_tasks(self, requires_task_label=True):
+        return self.tasks
+    
+    def random_tasks(self, num_tasks, requires_task_label=True):
+        raise NotImplementedError
+
 
 class ContinualWorld(BaseTask):
 

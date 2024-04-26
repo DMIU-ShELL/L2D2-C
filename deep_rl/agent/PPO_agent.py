@@ -1012,7 +1012,7 @@ class PPODetectShell(PPOShellAgent):
         linearly combines incoming masks from the network
         """
         try:
-            # Get current training mask
+            # Get current training mask (this starts off as the random trainig mask for the task)
             _subnet = self.idx_to_mask(self.current_task_key)
 
             # Get incoming masks

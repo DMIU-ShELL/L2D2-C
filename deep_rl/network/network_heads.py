@@ -158,8 +158,8 @@ class ActorCriticNetSS(nn.Module):
         self.phi_body = phi_body
         self.actor_body = actor_body
         self.critic_body = critic_body
-        self.fc_action = MultitaskMaskLinear(actor_body.feature_dim, action_dim, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask)
-        self.fc_critic = MultitaskMaskLinear(critic_body.feature_dim, 1, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask)
+        self.fc_action = ComposeMultitaskMaskLinear(actor_body.feature_dim, action_dim, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask)
+        self.fc_critic = ComposeMultitaskMaskLinear(critic_body.feature_dim, 1, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask)
 
         ap = [p for p in self.actor_body.parameters() if p.requires_grad is True]
         ap += [p for p in self.fc_action.parameters() if p.requires_grad is True]

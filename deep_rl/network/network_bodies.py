@@ -119,7 +119,7 @@ class FCBody_CL(nn.Module): # fcbody for continual learning setup
                 x = self.gate(layer(x))
         return x, ret_act
 
-from ..shell_modules.mmn.ssmask_utils import MultitaskMaskLinear, MultitaskMaskConv2d
+from ..shell_modules.mmn.ssmask_utils import MultitaskMaskLinear, MultitaskMaskConv2d, ComposeMultitaskMaskLinear
 from ..shell_modules.mmn.ssmask_utils import NEW_MASK_RANDOM
 from ..shell_modules.mmn.ssmask_utils import NEW_MASK_LINEAR_COMB
 class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learning algorithm
@@ -129,7 +129,7 @@ class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learn
             dims = (state_dim, ) + hidden_units
         else:
             dims = (state_dim + task_label_dim, ) + hidden_units
-        self.layers = nn.ModuleList([MultitaskMaskLinear(dim_in, dim_out, discrete=discrete_mask, \
+        self.layers = nn.ModuleList([ComposeMultitaskMaskLinear(dim_in, dim_out, discrete=discrete_mask, \
             num_tasks=num_tasks, new_mask_type=new_task_mask) \
             for dim_in, dim_out in zip(dims[:-1], dims[1:])
         ])

@@ -53,8 +53,7 @@ def signed_constant(module):
 NEW_MASK_RANDOM = 'random'
 NEW_MASK_LINEAR_COMB = 'linear_comb'
 class MultitaskMaskLinear(nn.Linear):
-    def __init__(self, *args, discrete=True, num_tasks=1, new_mask_type=NEW_MASK_RANDOM, \
-        bias=False, **kwargs):
+    def __init__(self, *args, discrete=True, num_tasks=1, new_mask_type=NEW_MASK_RANDOM, bias=False, **kwargs):
         super().__init__(*args, bias=False, **kwargs)
         self.num_tasks = num_tasks
         self.scores = nn.ParameterList(
@@ -199,6 +198,76 @@ class MultitaskMaskLinear(nn.Linear):
                 k = task + 1
                 self.betas.data[task, 0:k] = 1. / k
                 #print(self.betas)
+
+
+class ComposeMultitaskMaskLinear(MultitaskMaskLinear):
+    def __init__(self, *args, discrete=True, num_tasks=1, new_mask_type=NEW_MASK_RANDOM, bias=False, **kwargs):
+        super().__init__(*args, discrete=discrete, num_tasks=num_tasks, new_mask_type=new_mask_type, bias=bias, **kwargs)
+        self.comm_masks = []
+        self.comm_betas = nn.Parameter(torch.zeros(1, 1).type(torch.float32))
+
+
+    def _forward_mask_linear_comb(self):
+        _subnet = self.scores[self.task]
+        if self.task < self.num_tasks_learned: return self._subnet_class.apply(_subnet)
+        
+        _subnets = [self.scores[idx].detach() for idx in range(self.task)]
+        _betas = self.betas[self.task, 0:self.task+1]
+
+        # Incorporate community masks and betas
+        _subnets.extend(self.comm_masks)
+        _betas = torch.cat((_betas, self.comm_betas), dim=0)
+
+        _betas = torch.softmax(_betas, dim=-1)
+        _subnets = [_b * _s for _b, _s in zip(_betas, _subnets)]
+        
+        _subnet_linear_comb = torch.stack(_subnet, dim=0).sum(dim=0)
+        return self._subnet_class.apply(_subnet_linear_comb)
+        return super()._forward_mask_linear_comb()
+    
+    @torch.no_grad()
+    def consolidate_mask(self):
+        if self.new_mask_type == NEW_MASK_RANDOM: return
+        if self.task <= 0: return
+        if self.task < self.num_tasks_learned:
+            # re-visiting a task that has been previously learnt (no need to consolidate)
+            # which should not get here though, because this secanrio should have been caught
+            # task_train_end(...) method in supermask_policy.py class.
+            # assert False, 'sanity check'
+            return
+        
+        _subnet = self.scores[self.task]
+        _subnets = [self.scores[idx].detach() for idx in range(self.task)]
+        assert len(_subnets) > 0, 'an error occured'
+        
+        _betas = self.betas[self.task, 0:self.task+1]
+        _betas = torch.softmax(_betas, dim=-1)
+        _subnets.append(_subnet)
+        assert len(_betas) == len(_subnets), 'an error ocurred'
+
+
+        _subnets.extend(self.comm_masks)
+        _betas = torch.cat((_betas, self.comm_betas), dim=0)
+        
+        
+        _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
+        # element wise sum of various masks (weighted sum)
+        
+        _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
+        self.scores[self.task].data = _subnet_linear_comb.data
+        return
+
+    
+    @torch.no_grad()
+    def update_comm_masks(self, masks):
+        self.comm_masks = masks
+
+    @torch.no_grad()
+    def reset_comm_betas(self):
+        num_comm_masks = len(self.comm_masks)
+        self.comm_betas = nn.Parameter(torch.zeros(num_comm_masks, num_comm_masks).type(torch.float32))
+    
+
 
 # Subnetwork forward from hidden networks
 # Sparse mask (using edge-pop algorithm)
