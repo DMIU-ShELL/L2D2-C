@@ -160,7 +160,7 @@ def detect_finalise_and_run(config, Agent):
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.curriculum_id)
 
     # Communication frequency. TODO: This will need a rework if we don't know the length of task encounters.
-    config.querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
+    config.querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval     # This comes out to how many iterations between communication cycles
 
 
     ###############################################################################
@@ -254,12 +254,19 @@ def mctgraph_ppo(name, args, shell_config):
     # Network lambda function
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
-        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim,
-        hidden_units=(200, 200, 200), num_tasks=300),
+        phi_body=FCBody_SS(
+            state_dim, 
+            task_label_dim=label_dim,
+            hidden_units=(200, 200, 200), 
+            num_tasks=config.cl_num_tasks,
+            new_task_mask='linear_comb',
+            seed=config.seed
+            ),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
         num_tasks=config.cl_num_tasks,
-        new_task_mask='linear_comb')    # 'random' for mask RI. 'linear_comb' for mask LC.
+        new_task_mask='linear_comb',
+        seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
     
     # Environment sepcific setup ends.
     ###############################################################################

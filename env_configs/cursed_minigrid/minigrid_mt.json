@@ -2,8 +2,6 @@
     "tasks": [
         "MiniGrid-SimpleCrossingS9N1-v0",
         "MiniGrid-SimpleCrossingS9N2-v0",
-        "MiniGrid-SimpleCrossingS9N1-v0",
-        "MiniGrid-SimpleCrossingS9N2-v0",
         "MiniGrid-LavaCrossingS9N1-v0",
         "MiniGrid-LavaCrossingS9N2-v0",
         "MiniGrid-MultiRoom-N2-S4-v0",
@@ -16,8 +14,6 @@
     "seeds": [
         840, 
         840,
-        841,
-        841,
         840,
         840,
         840,

@@ -6,7 +6,7 @@
     "detect_module_activation_frequency": 1,
     "agents": [
         {
-            "task_ids": [0, 1, 2, 3, 4, 0, 1, 2, 3, 4],
+            "task_ids": [0],
             "max_steps": 102400
         },
         {

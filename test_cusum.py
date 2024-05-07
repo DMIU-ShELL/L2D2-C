@@ -1,3 +1,7 @@
+import pandas as pd
+import numpy as np
+import time
+
 def cusum(data, threshold):
     """
     CUSUM algorithm for detecting significant changes in a data stream.
@@ -18,38 +22,70 @@ def cusum(data, threshold):
 
         # Update the cumulative sum
         cumulative_sum = max(0, cumulative_sum + diff - threshold)
-        print(data[i], diff, cumulative_sum)
+        #print(data[i], diff, cumulative_sum)
 
         # Check if the cumulative sum exceeds the threshold
         if cumulative_sum >= threshold:
-            change_points.append((i, data[i]))
+            change_points.append((i, data[i], diff))
 
     return change_points
 
-# Example usage:
-#history = [6.42, 5.19, 4.11, 5.48, 3.86, 4.15, 3.87, 3.96, 3.11, 4.16]  # History of the last 10 data points
-#new_data_point = 9.26  # Newly generated data point
+def fir_cusum(data, threshold, k):
+    """
+    Fast Initial Response (FIR) CUSUM algorithm for change point detection.
 
-history = [3.75, 3.69, 4.74, 4.21, 4.46, 3.67, 5.58, 3.85, 1.96, 4.23]
-new_data_point = 16.57
+    Parameters:
+    - data: List or array of data points.
+    - threshold: Threshold for detecting changes.
+    - k: Number of initial observations to use for fast initial response.
 
-# Calculate the difference between the new data point and the mean of the history
-mean_history = sum(history) / len(history)
-diff = new_data_point - mean_history
+    Returns:
+    - List of change points where significant changes are detected.
+    """
+    change_points = []
+    s = 0  # Cumulative sum
+    s_fast = 0  # Cumulative sum for fast initial response
+    n = len(data)
+    
+    for i in range(n):
+        # Calculate the deviation from the mean
+        deviation = data[i] - sum(data[:i+1]) / (i + 1)
+        
+        # Update the cumulative sums
+        s = max(0, s + deviation - threshold)
+        if i < k:
+            s_fast = max(0, s_fast + deviation - threshold)
+        
+        # Check for change points
+        if i >= k and s >= threshold:
+            change_points.append(i)
+        elif i >= k and i >= 2 * k and s_fast >= threshold:
+            change_points.append(i - k)
+    
+    return change_points
 
-# Set a threshold (this value may need to be adjusted based on the data)
-threshold = 1 # Example threshold
 
-# Apply CUSUM algorithm
-history.append(new_data_point)
-change_points = cusum(history, threshold)
 
-print(diff, threshold, change_points)
+if __name__ == '__main__':
+    df = pd.read_csv('log/ctgraph_seq_img_seed_sanity_check/MetaCTgraph-shell-dist-upz-seed-6652/agent_4/240411-184231/distances.csv')
+    dataset = df['distance'].tolist()
 
-# Check if the difference exceeds the threshold at any change point
-significant_change = any(diff >= threshold for change_point in change_points)
+    history = []
+    threshold = 2
+    k = 0
 
-if significant_change:
-    print("Significant change detected!")
-else:
-    print("No significant change detected.")
+    for i, data_point in enumerate(dataset):
+        #time.sleep(0.1)
+        print(i, data_point)
+
+        if len(history) > 0:
+            mean_history = sum(history) / len(history)
+            diff = data_point - mean_history
+
+        history.append(data_point)
+        change_points = cusum(history, threshold)
+
+        significant_change = any(diff >= threshold for change_point in change_points)
+
+        if significant_change:
+            print(f'Significant change detected with change points: {change_points[-1]} diff: {diff} mean_history: {mean_history}')

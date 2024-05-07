@@ -602,7 +602,7 @@ class MiniGridFlatObs(MiniGrid):
     def reset(self):
         state, done = self.env.reset()
         return state.ravel()
-
+'''
 class Procgen(BaseTask):
     def __init__(self, name, env_config_path, log_dir=None):
         BaseTask.__init__(self)
@@ -679,7 +679,7 @@ class Procgen(BaseTask):
     
     def random_tasks(self, num_tasks, requires_task_label=True):
         raise NotImplementedError
-
+'''
 
 class ContinualWorld(BaseTask):
 

@@ -16,7 +16,7 @@ from .BaseAgent import BaseAgent, BaseContinualLearnerAgent
 from ..utils.torch_utils import random_seed, tensor
 from ..utils.misc import Batcher
 from ..component.replay import Replay
-from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask, GetSubnetDiscrete, GetSubnetContinuous, GetSubnetContinuousV2, mask_init, signed_constant
+from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask, GetSubnetDiscrete, GetSubnetContinuous, GetSubnetContinuousV2, mask_init, signed_constant, consolidate_comm_mask, update_comm_masks
 
 import torch
 import torch.nn as nn
@@ -28,7 +28,7 @@ from scipy.stats import wasserstein_distance
 import traceback
 from sklearn.cluster import Birch
 import tensorboardX as tf
-
+from collections import deque
 
 # Base PPO agent implementations
 class PPOAgent(BaseAgent):
@@ -812,6 +812,8 @@ class PPODetectShell(PPOShellAgent):
         self.current_cluster_label = 0
 
 
+        self.distance_history = deque([])   # List of computed embedding distances for the last 10 timesteps
+
         ###############################################################################
         # Detect Module Attributes
 
@@ -937,6 +939,8 @@ class PPODetectShell(PPOShellAgent):
         # Get the task idx (key) for if the task record exists (based on embedding similarity)
         self.current_task_key = self._embedding_to_idx(task_embedding)
 
+        print(f'Current task key: {self.current_task_key}')
+ 
         if self.current_task_key is None:
             # If no similar embedding record was found then its a new task
             self.current_task_key = len(self.seen_tasks)                                        # Generate an internal task index for new task
@@ -1004,7 +1008,6 @@ class PPODetectShell(PPOShellAgent):
         return mask
 
 
-
     ###############################################################################
     # Mask linear combination methods.
     def linear_combination(self, masks):
@@ -1032,11 +1035,13 @@ class PPODetectShell(PPOShellAgent):
             _betas[-1] = 0.5
             k = len(_subnets) - 1   # num masks excluding the current training mask
             _betas[:-1] = 1 / (2 * k)
+            _betas = torch.log(_betas)
             ########################################################################
-
+            print(f'Betas before softmax: {_betas}')
             # Convert betas to probability weights
             _betas = torch.softmax(_betas, dim=-1)  
-            
+            print(f'Betas after softmax {_betas}')
+
             #assert len(_betas) == len(_subnets), 'an error ocurred'
             
             # Apply beta coefficients to masks
@@ -1079,7 +1084,6 @@ class PPODetectShell(PPOShellAgent):
             self.distil_task_knowledge_embedding(new_mask)
 
             #set_mask(new_mask, self.current_task_key)
-
 
 
     ###############################################################################
@@ -1216,6 +1220,7 @@ class PPODetectShell(PPOShellAgent):
 
         return task_change_bool
 
+    # Experimental WTE + online BIRCH clustering for task detection
     def assign_task_emb_birch(self, new_emb):
         old_emb = self.seen_tasks[self.current_task_key]['task_emb']
         self.current_task_emb = (old_emb + new_emb) / 2   # Compute moving average of embedding for smoothing (Reduces cluster size)
@@ -1250,8 +1255,7 @@ class PPODetectShell(PPOShellAgent):
 
         return task_change_bool
 
-
-
+    # Exerimental WTE + normalized reward weighted avg history for task detection
     def assign_task_weighted_avg(self, new_emb):
         task_change_bool = None
         self.current_task_key = self._embedding_to_idx(new_emb)
@@ -1283,12 +1287,71 @@ class PPODetectShell(PPOShellAgent):
 
         return task_change_bool
     
+    # Experimental WTE + CUSUM based task detection
+    def assign_task_emb_cusum(self, new_emb, emb_distance):
+        task_change_bool = None
+        significant_change = False
 
+
+        if len(self.distance_history) == 10:
+            mean_history = sum(self.distance_history) / len(self.distance_history)
+            diff = emb_distance - mean_history
+
+            self.distance_history.append(emb_distance)  # Append the computed distance for the current timestep
+            if len(self.distance_history) > 10: self.distance_history.popleft()     # Remove the last item
+
+            threshold = 1
+            change_points = self.cusum(self.distance_history, threshold)
+            
+            significant_change = any(diff >= threshold for change_point in change_points[0])
+            significant_change = any(diff >= threshold for change_point in change_points)
+            print(diff)
+            print(f'Change points detected: {change_points}')
+
+        else:
+            self.distance_history.append(emb_distance)  # Append the computed distance for the current timestep
+            if len(self.distance_history) > 10: self.distance_history.popleft()     # Remove the last item
+
+        print(f'New emb distance: {emb_distance}')
+        print(self.distance_history, sum(self.distance_history), len(self.distance_history))
+        
+
+        if not significant_change:
+            old_emb = self.seen_tasks[self.current_task_key]['task_emb']
+            self.current_task_emb = (old_emb + new_emb) / 2
+
+            self.update_seen_tasks(
+                embedding = self.current_task_emb,
+                reward = np.mean(self.iteration_rewards),
+                label = self.task.get_task()['task_label']
+            )
+            task_change_bool = False
+
+        else:
+            self.distance_history = []      # If we detect a new task then reset the buffer
+            self.task_train_end_emb()
+            self.task_train_start_emb(new_emb)
+            task_change_bool = True
+
+        return task_change_bool
+    
+    def cusum(self, data, threshold):
+        change_points = []
+        cumulative_sum = 0
+
+        for i in range(1, len(data)):
+            diff = data[i] - data[i-1]
+            cumulative_sum = max(0, cumulative_sum + diff - threshold)
+
+            if cumulative_sum > threshold:
+                change_points.append((i, data[i]))
+
+        
+        return change_points
 
     def store_embeddings(self, new_embedding):
         '''Appends new encountered task embedding to list of encountered embeddings.'''
         self.encountered_task_embs.append(new_embedding)
-
 
     ###############################################################################
     # Methods for distilling incoming masks to model
@@ -1338,6 +1401,9 @@ class PPODetectShell(PPOShellAgent):
             return True
         else:
             return False
+
+    def update_community_masks(self, masks):
+        update_comm_masks(self.network, masks)
 
 
     ###############################################################################

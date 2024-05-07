@@ -277,7 +277,13 @@ def minigrid_ppo(name, args, shell_config):
     # Network lambda function
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
-        phi_body=FCBody_SS(state_dim, task_label_dim=label_dim, hidden_units=(200, 200, 200), num_tasks=300),
+        phi_body=FCBody_SS(
+            state_dim, 
+            task_label_dim=label_dim, 
+            hidden_units=(200, 200, 200), 
+            num_tasks=config.cl_num_tasks, 
+            new_task_mask=args.new_task_mask
+            ),
         #phi_body=MinigridConvBody_SS(state_dim, feature_dim=128, task_label_dim=label_dim, num_tasks=300, new_task_mask=args.new_task_mask),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),

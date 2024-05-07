@@ -676,7 +676,8 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                         ip = mask_response_dict['ip']
                         port = mask_response_dict['port']
 
-                        _masks.append(mask)
+                        #_masks.append(mask)
+                        _masks.append(agent.vec_to_mask(mask)) # Use this one if using unified LC
                         _avg_embeddings.append(embedding)
                         _avg_rewards.append(reward)
                         _mask_labels.append(label)
@@ -714,7 +715,8 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                     logger.info(Fore.WHITE + f'COMPOSING RECEIVED MASKS')
                     # Update the network with the linearly combined mask
                     #agent.distil_task_knowledge_embedding(_masks[0])       # This will only take the first mask in the list
-                    agent.consolidate_incoming(_masks)                      # This will take all the masks in the list and linearly combine with the random/current mask
+                    #agent.consolidate_incoming(_masks)                      # This will take all the masks in the list and linearly combine with the random/current mask
+                    agent.update_community_masks(_masks)
                     _masks = []
 
                     logger.info(Fore.WHITE + 'COMPOSED MASK ADDED TO NETWORK!')
@@ -1575,9 +1577,10 @@ def run_detect_module(agent):
 
 
 
-    task_change_detected = agent.assign_task_emb(new_embedding, emb_dist)
-    #task_change_detected = agent.assign_task_emb_birch(new_embedding)          # For BIRCH clustering TODO: Needs fixing
-    #task_change_detected = agent.assign_task_weighted_avg(new_embedding)
+    task_change_detected = agent.assign_task_emb(new_embedding, emb_dist)      # Task change detection purely on thresholding
+    #task_change_detected = agent.assign_task_emb_birch(new_embedding)          # Task change detection using BIRCH clustering TODO: Needs fixing
+    #task_change_detected = agent.assign_task_weighted_avg(new_embedding)       # Task change detection using a normalized reward weighted distance history
+    #task_change_detected = agent.assign_task_emb_cusum(new_embedding, emb_dist) # Task change detection using CUSUM algorithm with a last 10 timestep distance history
 
 
     # Get the updated task embedding from agent
