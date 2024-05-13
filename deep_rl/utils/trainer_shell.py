@@ -1289,7 +1289,7 @@ def trainer_learner_eps(agent, comm, agent_id, manager, mask_interval, mode):
 
     ###############################################################################
     ### Comm module event handlers. These run in parallel to enable the interactions between the comm and agent.
-    '''def mask_handler():
+    def mask_handler():
         """
         Handles incoming masks from other agents. Linearly combines masks and adds resulting mask to network.
         """
@@ -1370,7 +1370,7 @@ def trainer_learner_eps(agent, comm, agent_id, manager, mask_interval, mode):
     t_mask = mpd.Pool(processes=1)
     t_conv = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
-    t_conv.apply_async(conv_handler)'''
+    t_conv.apply_async(conv_handler)
 
     while True:
         start_time = time.time()
@@ -1541,7 +1541,7 @@ def run_detect_module(agent):
     sar_data = agent.extract_sar()
 
     # Produce task embedding from sar data using 
-    new_embedding, wasserstein_distance = agent.compute_task_embedding(sar_data, agent.get_task_action_space_size())
+    new_embedding = agent.compute_task_embedding(sar_data, agent.get_task_action_space_size())
     
     # Add up history of embeddings to rewards over time.
     #agent.detect.add_embedding(new_embedding, np.mean(agent.iteration_rewards))
@@ -1559,20 +1559,20 @@ def run_detect_module(agent):
     #m_dist1 = agent.detect.mahalanobis_distance(current_embedding, new_embedding, cov_matrix)
 
     # Mahalanobis distance from mean covariance matrix
-    embeddings = np.vstack([new_embedding, current_embedding])
-    mean_vector = np.mean(embeddings, axis=0)
-    centered_embeddings = embeddings - mean_vector
-    cov_matrix = np.cov(centered_embeddings, rowvar=False)
-    m_dist2 = agent.detect.mahalanobis_distance(current_embedding, new_embedding, cov_matrix)
+    #embeddings = np.vstack([new_embedding, current_embedding])
+    #mean_vector = np.mean(embeddings, axis=0)
+    #centered_embeddings = embeddings - mean_vector
+    #cov_matrix = np.cov(centered_embeddings, rowvar=False)
+    #m_dist2 = agent.detect.mahalanobis_distance(current_embedding, new_embedding, cov_matrix)
 
     # Cosine similarity
-    cos_sim = agent.detect.cosine_sim(current_embedding, new_embedding)
+    #cos_sim = agent.detect.cosine_sim(current_embedding, new_embedding)
 
     # Kernel Density Estimation
     #density = agent.detect.estimate_density(current_embedding, new_embedding, 0.5)
 
     # Wasserstein distance / Earth Mover's Distance
-    emd = agent.detect.wasserstein_distance(current_embedding, new_embedding)
+    #emd = agent.detect.wasserstein_distance(current_embedding, new_embedding)
 
 
 

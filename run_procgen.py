@@ -24,9 +24,9 @@ from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, Running
 from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
 from deep_rl.component.policy import SamplePolicy
-from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, MiniGrid, MetaCTgraph
+from deep_rl.component.task import ParallelizedTask, Procgen
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
-from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
+from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL, ConvBody_SS
 from deep_rl.agent.PPO_agent import PPODetectShell, PPOShellAgent
 from deep_rl.agent.SAC_agent import SACDetectShell, SACShellAgent
 
@@ -42,7 +42,7 @@ import random
 def global_config(config, name):
     config.env_name = name
     config.env_config_path = None
-    config.lr = 0.00025
+    config.lr = 0.00005
     config.cl_preservation = 'supermask'
     config.seed = None
     config.backbone_seed = 9157
@@ -52,15 +52,15 @@ def global_config(config, name):
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
-    config.state_normalizer = RescaleNormalizer(1./10.)
-    config.discount = 0.99
+    config.state_normalizer = ImageNormalizer()
+    config.discount = 0.999
     config.use_gae = True
-    config.gae_tau = 0.99
+    config.gae_tau = 0.95
     config.entropy_weight = 0.01 #0.75
     config.rollout_length = 2048
-    config.optimization_epochs = 8
-    config.num_mini_batches = 64
-    config.ppo_ratio_clip = 0.1
+    config.optimization_epochs = 3
+    config.num_mini_batches = 8
+    config.ppo_ratio_clip = 0.2
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 25600
@@ -222,6 +222,8 @@ def detect_finalise_and_run(config, Agent):
         
 
 
+
+
 '''
 Lifelong Learning Distributed and Decentralised (L2D2-C) experiments
 Multi-agent continual lifelong learners
@@ -235,7 +237,7 @@ https://arxiv.org/abs/2212.11110
 '''
 
 # main experiment methods. currently implemented: meta-ctgraph with ppo. TODO: Implement evaluation agents with task labels instead of embeddings
-def minigrid_ppo(name, args, shell_config):
+def procgen_ppo(name, args, shell_config):
     # Initialise config object
     config = Config()
     config, env_config_path = setup_configs_and_logs(config, args, shell_config, global_config)
@@ -245,26 +247,26 @@ def minigrid_ppo(name, args, shell_config):
     # ENVIRONMENT SPECIFIC SETUP. SETUP TRAINING AND EVALUATION TASK FUNCTIONS
     # AND THE NETWORK FUNCTION.
     # Training task lambda function
-    task_fn = lambda log_dir: MiniGridFlatObs(name=name, env_config_path=env_config_path, log_dir=log_dir, eval_mode=False)
+    task_fn = lambda log_dir: Procgen(name=name, env_config_path=env_config_path, log_dir=log_dir)
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
 
     # Evaluation task mabda function. TODO: Is the evaluation task function necessary for a traditional learner?
-    eval_task_fn= lambda log_dir: MiniGridFlatObs(name=name, env_config_path=env_config_path, log_dir=log_dir, eval_mode=True)
+    eval_task_fn= lambda log_dir: Procgen(name=name, env_config_path=env_config_path, log_dir=log_dir)
     config.eval_task_fn = eval_task_fn
 
     # Network lambda function
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
         state_dim, action_dim, label_dim,
-        phi_body=FCBody_SS(
+        phi_body=ConvBody_SS(
             state_dim, 
-            task_label_dim=label_dim, 
-            hidden_units=(200, 200, 200), 
+            feature_dim=256,
+            task_label_dim=label_dim,
             num_tasks=config.cl_num_tasks, 
             new_task_mask=args.new_task_mask,
             seed=config.seed
             ),
-        actor_body=DummyBody_CL(200),
-        critic_body=DummyBody_CL(200),
+        actor_body=DummyBody_CL(256),
+        critic_body=DummyBody_CL(256),
         num_tasks=config.cl_num_tasks,
         new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
@@ -294,7 +296,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('curriculum_id', help='index of the curriculum to use from the shell config json', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/mgc.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/procgen_multi.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
@@ -343,13 +345,14 @@ if __name__ == '__main__':
         args.pathheader = shell_config['env']['env_name']
         
     # Parse arguments and launch the correct environment-agent configuration.
-    if shell_config['env']['env_name'] == 'minigrid':
-        name = Config.ENV_MINIGRID
+    if shell_config['env']['env_name'] == 'procgen':
+        name = Config.ENV_PROCGEN
+        print(name)
         if args.eval:
-            minigrid_ppo(name, args, shell_config)
+            procgen_ppo(name, args, shell_config)
 
         else:
-            minigrid_ppo(name, args, shell_config)
+            procgen_ppo(name, args, shell_config)
 
     else:
         raise ValueError('--env_name {0} not implemented'.format(args.env_name))

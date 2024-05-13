@@ -1,0 +1,37 @@
+{
+    "tasks": [
+        "climber-v0",
+        "dodgeball-v0",
+        "ninja-v0",
+        "starpilot-v0",
+        "bigfish-v0",
+        "fruitbot-v0"
+    ],
+    "one_hot": true,
+    "label_dim": 6,
+    "action_dim": 15,
+    "num_levels": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+    ],
+    "start_levels": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    ],
+    "distribution_modes": [
+        "easy",
+        "easy",
+        "easy",
+        "easy",
+        "easy",
+        "easy"
+    ]
+}

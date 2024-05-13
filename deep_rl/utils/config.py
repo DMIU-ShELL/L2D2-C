@@ -13,6 +13,7 @@ class Config:
     ENV_METACTGRAPH = 'MetaCTgraph'
     ENV_METAWORLD = 'MetaWorld'
     ENV_CONTINUALWORLD = 'ContinualWorld'
+    ENV_PROCGEN = 'Procgen'
     def __init__(self):
         self.parser = argparse.ArgumentParser()
         self.task_fn = None

@@ -806,13 +806,13 @@ class PPODetectShell(PPOShellAgent):
         self.current_task_key = 0
 
         # BIRCH online clustering
-        self.threshold = 1
-        self.branching_factor = 50
-        self.birch = Birch(threshold=self.threshold, branching_factor=self.branching_factor, n_clusters=None)
-        self.current_cluster_label = 0
+        #self.threshold = 1
+        #self.branching_factor = 50
+        #self.birch = Birch(threshold=self.threshold, branching_factor=self.branching_factor, n_clusters=None)
+        #self.current_cluster_label = 0
 
 
-        self.distance_history = deque([])   # List of computed embedding distances for the last 10 timesteps
+        #self.distance_history = deque([])   # List of computed embedding distances for the last 10 timesteps
 
         ###############################################################################
         # Detect Module Attributes
@@ -856,7 +856,7 @@ class PPODetectShell(PPOShellAgent):
         # Precalculate the embedding size based on the reference and the network observation size.
         tmp_state_obs  = self.task.reset()
         tmp_state_obs = config.state_normalizer(tmp_state_obs)
-        observation_size = tmp_state_obs.shape[1]
+        observation_size = tmp_state_obs.ravel().shape[0]       # ravel() to accomodate for 2D obs as well when using a convolutional model...
 
         # Initialise detect module within the agent
         self.detect = config.detect_fn(self.detect_reference_num, observation_size, self.detect_num_samples)
@@ -1100,13 +1100,16 @@ class PPODetectShell(PPOShellAgent):
         #ql = []
         
         for tpl in buffer_data:
-            tmp0 = tpl[:3]
-            tmp1 = np.array(tmp0[1])
-            tmp1 = tmp1.reshape(1,)
-            tmp2 = np.array(tmp0[2])
-            tmp2 = tmp2.reshape(1,)
-            tmp3 = np.concatenate([tmp0[0].ravel(), tmp1, tmp2])
+            tmp0 = tpl[:3]                                              # Get the obs, action, reward
+            tmp1 = np.array(tmp0[1])                                    # Convert action tensor to np.array
+            tmp1 = tmp1.reshape(1,)                                     # Reshape data to one axis? Not sure what this is for.. maybe for multiple workers?
+            tmp2 = np.array(tmp0[2])                                    # Convert reward to np.array
+            tmp2 = tmp2.reshape(1,)                                     # Also reshape
+            tmp3 = np.concatenate([tmp0[0].ravel(), tmp1, tmp2])        # Concatenate together obs, action, reward as sar_data
             sar_data.append(tmp3)
+        
+        # (147,) (1,) (1,)
+        #
 
         '''for tpl in sar_data:
             tmp1 = np.array(tpl[1])
@@ -1131,13 +1134,13 @@ class PPODetectShell(PPOShellAgent):
         '''Function for computing the task embedding based on the current
         batch of SAR data derived from the replay buffer.'''
         #print("TASK NUM OF ACTIONS:", self.task.action_space.n)
-        task_embedding, wasserstein_distance = self.detect.lwe(sar_data, action_space_size)
+        task_embedding = self.detect.lwe(sar_data, action_space_size)
         self.new_task_emb = task_embedding
         #self.current_task_emb = task_embedding
         #self.task.set_current_task_info('task_emb', task_embedding)
         #self.task.get_task()['task_emb'] = task_embedding
         self.task_emb_size = len(task_embedding)
-        return task_embedding, wasserstein_distance
+        return task_embedding
 
     def update_seen_tasks(self, embedding, reward, label):
         self.seen_tasks.update({self.current_task_key : {

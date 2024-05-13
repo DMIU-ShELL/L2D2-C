@@ -142,7 +142,7 @@ def detect_finalise_and_run(config, Agent):
     ###############################################################################
     # Setup detect module
     #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
-    config.detect_fn = lambda reference_num, input_dim, num_samples: Detect(reference_num, input_dim, num_samples, one_hot=False, normalized=False)
+    config.detect_fn = lambda reference_num, input_dim, num_samples: Detect(reference_num, input_dim, num_samples, one_hot=True, normalized=True)
 
 
     ###############################################################################
@@ -259,13 +259,13 @@ def mctgraph_ppo(name, args, shell_config):
             task_label_dim=label_dim,
             hidden_units=(200, 200, 200), 
             num_tasks=config.cl_num_tasks,
-            new_task_mask='linear_comb',
+            new_task_mask=args.new_task_mask,
             seed=config.seed
             ),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
         num_tasks=config.cl_num_tasks,
-        new_task_mask='linear_comb',
+        new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
     
     # Environment sepcific setup ends.

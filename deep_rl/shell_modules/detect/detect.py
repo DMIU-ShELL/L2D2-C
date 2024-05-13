@@ -10,10 +10,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.neighbors import KernelDensity
 from scipy.stats import wasserstein_distance
+from sklearn.decomposition import IncrementalPCA
+import matplotlib.pyplot as plt
 
 
 class Detect:
-    def __init__(self, reference_num, input_dim, num_samples, reference=200,  device='cpu',title = '', num_iter=10, one_hot=True, normalized=True, demo=True):
+    def __init__(self, reference_num, input_dim, num_samples, reference=200,  device='cpu',title = '', num_iter=10, one_hot=True, normalized=True, demo=True, n_components=100):
         assert reference is not None, f'Reference not found.'
         self.ref = None
         self.device = device
@@ -28,6 +30,9 @@ class Detect:
 
         self.embeddings = []
         self.rewards = []
+
+        self.ipca = IncrementalPCA(n_components=n_components)
+        self.n_components = n_components
 
     def set_input_dim(self, an_input_dim):
         '''A setter method, for manually setting and setting the input dimensionality of the detect
@@ -86,11 +91,11 @@ class Detect:
       act = X[:,self.input_dim:-1]
       reward = X[:,-1].unsqueeze(1)
 
-      if not self.normalized:
+      if self.normalized:
           mean = torch.mean(img.float())
           std = torch.std(img.float())
           img = (img.float()-mean)/std
-      if not self.oh:
+      if self.oh:
           act_oh = torch.zeros(X.shape[0], some_task_action_space_size)
           #print("INITIAL ACT_OH:", act_oh, act_oh.shape)
           #print(act, act.shape)
@@ -118,8 +123,10 @@ class Detect:
       gamma = torch.from_numpy(ot.emd(ot.unif(X.shape[0]), ot.unif(ref_size), C, numItermax=700000)).float()
       # Calculating the transport map via barycenter projection /gamma.sum(dim=0).unsqueeze(1)
       f=(torch.matmul((ref_size*gamma).T,X.cpu())-self.ref)/np.sqrt(ref_size)
-      wasserstein_distance = torch.sum(gamma * C)
-      return f.ravel(), wasserstein_distance.item()
+
+      # Update IPCA model with new embedding
+      #self.ipca.partial_fit(f.ravel().reshape(1, -1))
+      return f.ravel()
       
     def calculate_lwes_distance(self, lwe1, lwe2):
       '''Calculates the Euclidian Distance of the old vs the new embedding
@@ -223,6 +230,26 @@ class Detect:
     def refresh_buffers(self):
        self.embeddings = []
        self.rewards = []
+
+
+    def elbow_method(self, X):
+       explained_variance = []
+       n_components_range = range(1, self.n_components + 1)
+
+       for n_components in n_components_range:
+          # Fit IPCA model with current number of components
+          ipca = IncrementalPCA(n_components=n_components)
+          ipca.fit(X)
+          explained_variance.append(np.sum(ipca.explained_variance_ratio_))
+
+       plt.plot(n_components_range, explained_variance, marker='o')
+       plt.xlabel('Number of Components')
+       plt.ylabel('Explained Variance Ratio')
+       plt.title('Elbow Method for Selecting Number of Components')
+       plt.grid(True)
+       plt.savefig('elbowplt.pdf')
+    
+    
 
 
 

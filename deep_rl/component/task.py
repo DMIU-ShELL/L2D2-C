@@ -468,6 +468,8 @@ class MiniGrid(BaseTask):
         from gym.wrappers import TimeLimit
         import gym_minigrid
         from gym_minigrid.wrappers import ImgObsWrapper, ReseedWrapper, ActionBonus, StateBonus
+        from CurriculumMinigrid.curriculumMultiRoomEnv import register_custom_multiroom_curriculum
+        register_custom_multiroom_curriculum()  # Registers custom curriculum multi room envs (10 tasks of 2 to 11 rooms)
         self.wrappers_dict = {'ActionBonus': ActionBonus, 'StateBonus': StateBonus}
         with open(env_config_path, 'r') as f:
             env_config = json.load(f)
@@ -602,84 +604,93 @@ class MiniGridFlatObs(MiniGrid):
     def reset(self):
         state, done = self.env.reset()
         return state.ravel()
-'''
+
 class Procgen(BaseTask):
-    def __init__(self, name, env_config_path, log_dir=None):
-        BaseTask.__init__(self)
+    def __init__(self, name, env_config_path, log_dir=None, num_threads=1):
         self.name = name
         with open(env_config_path, 'r') as f:
             env_config = json.load(f)
         self.env_config = env_config
         env_names = env_config['tasks']
-        if 'seeds' in env_config.keys():
-            seeds = env_config['seeds']
+        
+        num_levels = env_config['num_levels']
+        start_levels = env_config['start_levels']
+        distribution_modes = env_config['distribution_modes']
 
-        if isinstance(seeds, int): seeds = [seeds,] * len(env_names)
-        elif isinstance(seeds, list):
-            assert len(seeds) == len(env_names), 'number of seeds in config file should match the number of tasks.'
-        else: raise ValueError('invalid seed specification in config file')
+        if isinstance(num_levels, int): num_levels = [num_levels,] * len(env_names)
+        elif isinstance(num_levels, list): assert len(num_levels) == len(env_names), 'number of num_levels in config file should match the number of tasks.'
+        else: raise ValueError('invalid num_levels specification in config file.')
 
-        self.envs = {'{0}_seed{1}'.format(name, seed) : (gym.make(name)), seeds=[seed,]) for name, seed in zip(env_names, seeds)}
+        if isinstance(start_levels, int): start_levels = [start_levels,] * len(env_names)
+        elif isinstance(start_levels, list): assert len(start_levels) == len(env_names), 'number of start_levels in config file should match the number of tasks.'
+        else: raise ValueError('invalid start_levels specification in config file.')
+        
+        if isinstance(distribution_modes, str): distribution_modes = [distribution_modes,] * len(env_names)
+        elif isinstance(distribution_modes, list): assert len(distribution_modes) == len(env_names), 'number of distribution_modes in config file should match the number of tasks.'
+        else: raise ValueError('invalid num_levels specification in config file.')
 
-        env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
+        self.envs = {f'{en}_NL{nl}_SL{sl}' : gym.make(f'procgen:procgen-{en}', num_levels=nl, start_level=sl, distribution_mode=dm) for en, nl, sl, dm in zip(env_names, num_levels, start_levels, distribution_modes)}
+        env_names = [f'{en}_NL{nl}_SL{sl}' for en, nl, sl in zip(env_names, num_levels, start_levels)]
 
+        # observation/action space configuration
         self.observation_space = self.envs[env_names[0]].observation_space
         self.action_space = self.envs[env_names[0]].action_space
-        self.action_dim = self.envs[env_names[0]].action_space.n
         self.state_dim = self.observation_space.shape
+        if 'action_dim' in env_config.keys(): self.action_dim = env_config['action_dim']
+        else: self.action_dim = self.envs[env_names[0]].action_space.n
 
-        
-        # env monitors
+        #env monitors
         for name in self.envs.keys():
             self.envs[name] = self.set_monitor(self.envs[name], log_dir)
-        # task label config
+        
         self.task_label_dim = env_config['label_dim']
         self.one_hot_labels = True if env_config['one_hot'] else False
+
         # all tasks
-        self.tasks = [{'name': name, 'task': name, 'task_label': None} \
-            for name in self.envs.keys()]
+        self.tasks = [{'name' : name, 'task' : name, 'task_label' : None} for name in self.envs.keys()]
+
         # generate label for each task
         if self.one_hot_labels:
             for idx in range(len(self.tasks)):
                 label = np.zeros((self.task_label_dim,)).astype(np.float32)
                 label[idx] = 1.
                 self.tasks[idx]['task_label'] = label
+
         else:
-            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
-            labels = labels.astype(np.float32) 
+            labels = np.random.uniform(low=-1., high=1., size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32)
             for idx in range(len(self.tasks)):
                 self.tasks[idx]['task_label'] = labels[idx]
+
         # set default task
         self.current_task = self.tasks[0]
         self.env = self.envs[self.current_task['task']]
 
     def step(self, action):
-        state, reward, done, truncated, info = self.env.step(action)
+        state, reward, done, info = self.env.step(action)
         if done: state = self.reset()
-        if truncated: state = self.reset()
         return state, reward, done, info
-
+    
     def reset(self):
-        state, done = self.env.reset()
+        state = self.env.reset()
         return state
-
+    
     def reset_task(self, taskinfo):
         self.set_task(taskinfo)
         return self.reset()
-
+    
     def set_task(self, taskinfo):
         self.current_task = taskinfo
         self.env = self.envs[self.current_task['task']]
-    
+
     def get_task(self):
         return self.current_task
-
+    
     def get_all_tasks(self, requires_task_label=True):
         return self.tasks
     
     def random_tasks(self, num_tasks, requires_task_label=True):
         raise NotImplementedError
-'''
 
 class ContinualWorld(BaseTask):
 
