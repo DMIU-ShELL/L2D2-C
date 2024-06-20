@@ -25,8 +25,8 @@ from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
 from deep_rl.component.policy import SamplePolicy
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld
-from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
-from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
+from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, CategoricalActorCriticNet_SS_Comp
+from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL, FCBody_SS_Comp
 from deep_rl.agent.PPO_agent import PPODetectShell, PPOShellAgent
 from deep_rl.agent.SAC_agent import SACDetectShell, SACShellAgent
 
@@ -42,7 +42,7 @@ import random
 def global_config(config, name):
     config.env_name = name
     config.env_config_path = None
-    config.lr = 0.00015
+    config.lr = 0.00025
     config.cl_preservation = 'supermask'
     config.seed = 9157
     config.log_dir = None
@@ -63,7 +63,7 @@ def global_config(config, name):
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 84480
-    config.evaluation_episodes = 25
+    config.evaluation_episodes = 50
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
@@ -150,6 +150,7 @@ def detect_finalise_and_run(config, Agent):
     config.manager = mp.Manager()
     config.seen_tasks = config.manager.dict()
     config.mode = config.manager.Value('b', args.omni)
+    config.evaluator_present = config.manager.Value('b', False)
 
 
     ###############################################################################
@@ -199,7 +200,7 @@ def detect_finalise_and_run(config, Agent):
             logger=config.logger, 
             init_port=config.init_port, 
             reference=zip(addresses, ports), 
-            seen_tasks=config.seen_tasks, 
+            knowledge_base=config.seen_tasks, 
             manager=config.manager, 
             localhost=args.localhost, 
             mode=config.mode, 
@@ -252,19 +253,19 @@ def mctgraph_ppo(name, args, shell_config):
     config.eval_task_fn = eval_task_fn
 
     # Network lambda function
-    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS_Comp(\
         state_dim, action_dim, label_dim,
-        phi_body=FCBody_SS(
+        phi_body=FCBody_SS_Comp(
             state_dim, 
             task_label_dim=label_dim,
             hidden_units=(200, 200, 200), 
-            num_tasks=config.cl_num_tasks,
+            num_tasks=25,#config.cl_num_tasks,
             new_task_mask=args.new_task_mask,
             seed=config.seed
             ),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
-        num_tasks=config.cl_num_tasks,
+        num_tasks=25,#config.cl_num_tasks,         # NOTE: We have to keep the num_tasks the same between the LLA and EA otherwise we have an issue with the evaluation agent using random policy actions. TODO: Figure out why this is. Could be due to some mismatch in the mask idx when mask is transfered from LLA to EA and distilled to the network.
         new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
     
@@ -274,10 +275,49 @@ def mctgraph_ppo(name, args, shell_config):
 
     # Select what agent to use here. Default is DetectShell which is an L2D2-C agent that uses the
     # detect module for online task identity inference.
-    if args.eval:
-        detect_finalise_and_run(config, PPOShellAgent)
-    else:
-        detect_finalise_and_run(config, PPODetectShell)
+    detect_finalise_and_run(config, PPODetectShell)
+
+# main experiment methods. currently implemented: meta-ctgraph with ppo. TODO: Implement evaluation agents with task labels instead of embeddings
+def mctgraph_ppo_eval(name, args, shell_config):
+    # Initialise config object
+    config = Config()
+    config, env_config_path = setup_configs_and_logs(config, args, shell_config, global_config)
+
+
+    ###############################################################################
+    # ENVIRONMENT SPECIFIC SETUP. SETUP TRAINING AND EVALUATION TASK FUNCTIONS
+    # AND THE NETWORK FUNCTION.
+
+    # Training task lambda function
+    task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
+
+    # Evaluation task labmda function. TODO: Is the evaluation task function necessary for a traditional learner?
+    eval_task_fn = lambda log_dir: MetaCTgraphFlatObs(name, env_config_path, log_dir)
+    config.eval_task_fn = eval_task_fn
+
+    # Network lambda function
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS_Comp(\
+        state_dim, action_dim, label_dim,
+        phi_body=FCBody_SS_Comp(
+            state_dim, 
+            task_label_dim=label_dim, 
+            hidden_units=(200, 200, 200), 
+            num_tasks=25,#config.cl_num_tasks,
+            new_task_mask='random'
+            ),
+        actor_body=DummyBody_CL(200),
+        critic_body=DummyBody_CL(200),
+        num_tasks=25,#config.cl_num_tasks,
+        new_task_mask='random')
+    
+    # Environment sepcific setup ends.
+    ###############################################################################
+    
+
+    # Select what agent to use here. Default is DetectShell which is an L2D2-C agent that uses the
+    # detect module for online task identity inference.
+    detect_finalise_and_run(config, PPOShellAgent)
 
 
 if __name__ == '__main__':
@@ -344,7 +384,7 @@ if __name__ == '__main__':
     if shell_config['env']['env_name'] == 'ctgraph':
         name = Config.ENV_METACTGRAPH
         if args.eval:
-            mctgraph_ppo(name, args, shell_config)
+            mctgraph_ppo_eval(name, args, shell_config)
 
         else:
             mctgraph_ppo(name, args, shell_config)

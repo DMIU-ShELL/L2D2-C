@@ -1,0 +1,18 @@
+{
+    "config_paths": [
+        "ctgraph_d2_imgseed2_pomdp_wait.json", 
+        "ctgraph_d3_imgseed2_pomdp_wait.json", 
+        "ctgraph_d4_imgseed2_pomdp_wait.json", 
+        "ctgraph_d5_imgseed2_pomdp_wait.json",
+        "ctgraph_d6_imgseed2_pomdp_wait.json",
+        "ctgraph_d7_imgseed2_pomdp_wait.json",
+        "ctgraph_d8_imgseed2_pomdp_wait.json",
+        "ctgraph_d9_imgseed2_pomdp_wait.json",
+        "ctgraph_d10_imgseed2_pomdp_wait.json",
+        "ctgraph_d11_imgseed2_pomdp_wait.json"
+    ],
+    "task_order": "default",
+    "one_hot": true,
+    "label_dim": 32764,
+    "num_tasks": 32764
+}

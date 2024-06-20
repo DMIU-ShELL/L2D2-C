@@ -676,8 +676,10 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                         ip = mask_response_dict['ip']
                         port = mask_response_dict['port']
 
+                        print(type(label), len(label), label)
+
                         #_masks.append(mask)
-                        _masks.append(agent.vec_to_mask(mask)) # Use this one if using unified LC
+                        _masks.append(agent.vec_to_mask(mask.to(agent.config.DEVICE))) # Use this one if using unified LC
                         _avg_embeddings.append(embedding)
                         _avg_rewards.append(reward)
                         _mask_labels.append(label)
@@ -796,10 +798,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         ###############################################################################
         ### Registry logging output.
         logger.info(Fore.RED + 'GLOBAL REGISTRY (seen_tasks dict)')
-        for key, val in agent.seen_tasks.items():
-            logger.info(f"{key} --> embedding: {val['task_emb']}, reward: {val['reward']}, ground truth task id: {np.argmax(val['ground_truth'], axis=0)}")
-        
-            
+        for key, val in agent.seen_tasks.items(): logger.info(f"{key} --> embedding: {val['task_emb']}, reward: {val['reward']}, ground truth task id: {np.argmax(val['ground_truth'], axis=0)}, label length: {len(val['ground_truth'])}")
 
         ###############################################################################
         ### Query for knowledge using communication process. Send label/embedding to the communication module to query for relevant knowledge from other peers.
@@ -808,6 +807,17 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                 # Approach 2: At this point consolidate masks and then we can reset beta parameters. Then we can get new masks from network and combine.
                 dict_to_query['shell_iteration'] = shell_iterations
                 queue_label.put(dict_to_query)
+
+        # Report performance to evaluation agent if present. Otherwise skip.
+        print(agent.config.evaluator_present.value)
+        if agent.config.evaluator_present.value == True:
+            logger.info('Reporting performance to evaluation agent')
+            dict_to_report = agent.seen_tasks[agent.current_task_key]
+            dict_to_report['shell_iteration'] = shell_iterations
+            dict_to_report['mask'] = agent.idx_to_mask(agent.current_task_key)
+            dict_to_report['eval'] = True
+            dict_to_report['parameters'] = None
+            queue_label.put(dict_to_report)
 
 
         
@@ -1041,7 +1051,7 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
     logger = agent.config.logger
     logger.info(Fore.BLUE + '*****start shell training')
 
-    #Create a SmumaryWriter object for the Evaluation Agent
+    #Create a SummaryWriter object for the Evaluation Agent
     tb_writer = SummaryWriter(logger.log_dir + '/DMIU-ShELL_metrics')
 
     shell_done = False
@@ -1059,9 +1069,12 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
     agent.seen_tasks = {}
     for idx, eval_task_info in enumerate(_tasks):
         agent.seen_tasks[idx] = eval_task_info['task_label']
-        knowledge_base[tuple(eval_task_info['task_label'])] = 0.0
+        knowledge_base[np.argmax(eval_task_info['task_label'], axis=0)] = 0.0
     _names = [eval_task_info['name'] for eval_task_info in _tasks]
     eval_task_info = zip(_task_ids, _tasks)
+
+    for x, y in eval_task_info:
+        print(x, y)
 
     shell_eval_tracker = False
     shell_eval_data = []
@@ -1087,6 +1100,8 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
     detect_module_activations = [] #Chris
     task_times.append([0, shell_iterations, np.argmax(shell_tasks[0]['task_label'], axis=0), time.time()])
 
+    masks_log_path = logger.log_dir + '/exchanges.csv'
+
 
     # Communication module interaction handlers
     def mask_handler():
@@ -1101,41 +1116,57 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
             ip = ret['ip']
             port = ret['port']
 
-            logger.info(Fore.WHITE + f'\nReceived mask: \nMask:{mask}\nReward:{reward}\nSrc:{ip, port}\nEmbedding:{label}')
-                
+            logger.info(Fore.WHITE + f'\nReceived mask: \nMask:{mask}\nReward:{reward}\nSrc:{ip, port}\nLabel:{label}')
             try:
                 if mask is not None:
+                    # Check if the mask reported reward is higher than that of the current mask. If true then distil knowledge
                     # Update the knowledge base with the expected reward
-                    knowledge_base.update({tuple(label): reward})
+                    knowledge_base.update({np.argmax(label, axis=0): reward})
                     # Update the network with the mask
-                    agent.distil_task_knowledge_single(mask, label)
-
-                    logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
-
-                    # Mask transfer logging.
-                    exchanges.append([shell_iterations, ip, port, np.argmax(label, axis=0), reward, len(mask), mask])
-                    np.savetxt(logger.log_dir + '/exchanges_{0}.csv'.format(agent_id), exchanges, delimiter=',', fmt='%s')
+                    if agent.distil_task_knowledge_single(mask, label): logger.info(Fore.WHITE + 'KNOWLEDGE DISTILLED TO NETWORK!')
+                    
+                    data = [
+                        {
+                            'iteration': shell_iterations,
+                            'ip': ip,
+                            'port': port,
+                            'task_id': np.argmax(label,axis=0),
+                            'reward': reward,
+                            'mask_dim': len(mask),
+                            'mask_tensor': mask
+                        }
+                    ]
+                    df = pd.DataFrame(data)
+                    df.to_csv(masks_log_path, mode='a', header=not pd.io.common.file_exists(masks_log_path), index=False)
+            
             except Exception as e:
                 traceback.print_exc()
 
     t_mask = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
 
+    for key, val in agent.seen_tasks.items(): print(f"{key, val}")
+    for key, val in knowledge_base.items(): print(f"{key, val}")
+    for idx, info in zip(_task_ids, _tasks): print(f"{idx, info}")
 
+    #agent.network.eval()
     while True:
+        #time.sleep(1)
         print()
         print(shell_iterations, shell_task_counter, agent.total_steps, agent.config.max_steps, task_steps_limit)
         agent.total_steps += agent.config.rollout_length * agent.config.num_workers
-        
-        # Send the msg of this iteration. It will be either a task label or NoneType. Eitherway
-        # the communication module will do its thing.
-        msg = _tasks[shell_task_counter]['task_label']
-        reward = knowledge_base[tuple(msg)]
-        dict_to_query = {'task_emb':None, 'reward': reward, 'ground_truth': msg}
-        queue_label.put(dict_to_query)
 
         # Increment iterations
         shell_iterations += 1
+        logger.info(Fore.RED + 'GLOBAL REGISTRY (seen_tasks dict)')
+        for key, val in agent.seen_tasks.items(): logger.info(f"{key, val}")
+
+        logger.info(Fore.RED + 'GLOBAL KNOWLEDGE BASE (knowledge base)')
+        for key, val in knowledge_base.items(): logger.info(f"{key, val}")
+
+        logger.info(Fore.RED + 'TASKS')
+        for key, val in zip(_task_ids, _tasks): logger.info(f"{key, val}")
+
 
         ###############################################################################
         ### EVALUATION BLOCK
@@ -1145,12 +1176,34 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
             _tasks = shell_tasks
             _names = [eval_task_info['name'] for eval_task_info in _tasks]
             logger.info(Fore.BLUE + 'eval tasks: {0}'.format(', '.join(_names)))
+
             for eval_task_idx, eval_task_info in zip(_task_ids, _tasks):
-                print('EVALUATION BLOCK')
-                print(eval_task_info)
-                print(eval_task_info['task_label'], len(eval_task_info['task_label']))
-                print(np.argmax(eval_task_info['task_label'],axis=0))
-                agent.task_eval_start(np.array(eval_task_info['task_label']))
+                agent.task_eval_start(eval_task_info['task_label'])     # agent.task_eval_start(np.array(eval_task_info['task_label']))
+                eval_states = agent.evaluation_env.reset_task(eval_task_info)
+                agent.evaluation_state = eval_states
+                # performance (perf) can be success rate in (meta-)continualworld or
+                # rewards in other environments
+                perf, eps = agent.evaluate_cl(num_iterations=agent.config.evaluation_episodes)
+                agent.task_eval_end()
+                shell_eval_data[-1][eval_task_idx] = np.mean(perf)
+                print(f'performance: {np.mean(perf)}')
+
+            shell_eval_tracker = True
+            shell_eval_end_time = time.time()
+        
+        ### EVALUATION BLOCK
+        '''
+        Performs the evaluation block.
+        '''
+        # If we want to stop evaluating then set agent.config.eval_interval to None
+        '''if (agent.config.eval_interval is not None and shell_iterations % agent.config.eval_interval == 0):
+            logger.info(Fore.BLUE + '*****agent {0} / evaluation block'.format(agent_id))
+            _task_ids = shell_task_ids
+            _tasks = shell_tasks
+            _names = [eval_task_info['name'] for eval_task_info in _tasks]
+            logger.info(Fore.BLUE + 'eval tasks: {0}'.format(', '.join(_names)))
+            for eval_task_idx, eval_task_info in zip(_task_ids, _tasks):
+                agent.task_eval_start(eval_task_info['task_label'])
                 eval_states = agent.evaluation_env.reset_task(eval_task_info)
                 agent.evaluation_states = eval_states
                 # performance (perf) can be success rate in (meta-)continualworld or
@@ -1159,22 +1212,13 @@ def trainer_evaluator(agent, comm, agent_id, manager, knowledge_base):
                 agent.task_eval_end()
                 shell_eval_data[-1][eval_task_idx] = np.mean(perf)
             shell_eval_tracker = True
-            shell_eval_end_time = time.time()
-
-
-        task_counter_ = shell_task_counter
-        task_counter_ += 1
-        if task_counter_ > len(shell_tasks)-1:
-            task_counter_ = 0
-
-        shell_task_counter = task_counter_
-
-
+            shell_eval_end_time = time.time()'''
+        
         ###############################################################################
         # LOGGING
         if shell_eval_tracker:
             # log the last eval metrics to file
-            _record = np.concatenate([shell_eval_data[-1],np.array(shell_eval_end_time).reshape(1,)])
+            _record = np.concatenate([shell_eval_data[-1], np.array(shell_eval_end_time).reshape(1,)])
             np.savetxt(eval_data_fh, _record.reshape(1, -1), delimiter=',', fmt='%.4f')
             del _record
 
@@ -1529,6 +1573,7 @@ def detect_module_activation_check(shell_training_iterations, detect_module_acti
     else:
         return False
         
+
 def run_detect_module(agent):
     '''Uitility function for running all the necassery methods and function for the detect module
     so the approprate embeddings are generated for each batch of SAR data'''
@@ -1540,8 +1585,19 @@ def run_detect_module(agent):
     # Extract SAR data from agent's replay buffer
     sar_data = agent.extract_sar()
 
+    #if len(agent.embedding_history) == 0:
+    #    agent.embedding_history.append(agent.current_task_emb)
+
     # Produce task embedding from sar data using 
     new_embedding = agent.compute_task_embedding(sar_data, agent.get_task_action_space_size())
+    #new_embedding = torch.from_numpy(agent.detect.online_pca(new_embedding))
+    #new_embedding = agent.detect.random_projections(new_embedding, 512)
+    #new_embedding = agent.detect.encode_embedding(new_embedding, 128)
+    #print(new_embedding)
+    #EAVG = sum(agent.embedding_history) / len(agent.embedding_history)
+    #emb_dist = agent.detect.emb_distance(EAVG, new_embedding)
+    #agent.embedding_history.append(new_embedding)
+
     
     # Add up history of embeddings to rewards over time.
     #agent.detect.add_embedding(new_embedding, np.mean(agent.iteration_rewards))
@@ -1582,6 +1638,8 @@ def run_detect_module(agent):
     #task_change_detected = agent.assign_task_weighted_avg(new_embedding)       # Task change detection using a normalized reward weighted distance history
     #task_change_detected = agent.assign_task_emb_cusum(new_embedding, emb_dist) # Task change detection using CUSUM algorithm with a last 10 timestep distance history
 
+    #if task_change_detected:
+    #    agent.embedding_history = [torch.zeros(agent.get_task_emb_size()), agent.embedding_history[-1]]
 
     # Get the updated task embedding from agent
     agent_seen_tasks = agent.get_seen_tasks()

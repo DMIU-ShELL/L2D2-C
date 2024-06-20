@@ -64,6 +64,7 @@ class Monitor(Wrapper):
         step_tuple = self.env.step(action)
         if len(step_tuple) == 4: ob, rew, done, info = step_tuple
         elif len(step_tuple) == 5: ob, rew, done, truncated, info = step_tuple
+        else: assert ValueError('Did not get expected number of values from step function (4~5).')
 
         self.rewards.append(rew)
 
@@ -87,10 +88,8 @@ class Monitor(Wrapper):
             info['episode'] = epinfo
         self.total_steps += 1
 
-        if truncated is None:
-            output = ob, rew, done, info
-        else:
-            output = ob, rew, done, truncated, info
+        if truncated is None: output = ob, rew, done, info
+        else: output = ob, rew, done, truncated, info
         
         return output
 

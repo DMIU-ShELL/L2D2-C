@@ -16,7 +16,7 @@ from .BaseAgent import BaseAgent, BaseContinualLearnerAgent
 from ..utils.torch_utils import random_seed, tensor
 from ..utils.misc import Batcher
 from ..component.replay import Replay
-from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask, GetSubnetDiscrete, GetSubnetContinuous, GetSubnetContinuousV2, mask_init, signed_constant, consolidate_comm_mask, update_comm_masks
+from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask, GetSubnetDiscrete, GetSubnetContinuous, GetSubnetContinuousV2, mask_init, signed_constant, consolidate_comm_mask, update_comm_masks, erase_masks
 
 import torch
 import torch.nn as nn
@@ -190,7 +190,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.iteration_rewards = np.zeros(config.num_workers)
 
         self.states = self.task.reset()
+        print(self.states.shape)
         self.states = config.state_normalizer(self.states)
+        print(self.states.shape)
         
         self.layers_output = None
         self.data_buffer = Replay(memory_size=int(1.5*1e2), batch_size=130)
@@ -310,7 +312,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         Buffer'''
         # Clear running performance buffers
         self.running_episodes_rewards = [[] for _ in range(self.config.num_workers)]
-
+        
         config = self.config
         rollout = []
         for _ in range(config.rollout_length):
@@ -622,6 +624,10 @@ class PPOLLAgent(PPOContinualLearnerAgent):
                 break
         return found_task_idx
 
+    def erase_memory(self, current_task_label):
+        self.seen_tasks = {0: current_task_label}
+        erase_masks(self.network, self.config.DEVICE)
+
     def task_train_start(self, task_label):
         '''Method for starting the new <<Detected>> task. It takes as an argument the tasklabel given by the 
         the "trainer_shell" from the "shell_tasks" list of dictionaries.'''
@@ -654,6 +660,7 @@ class PPOLLAgent(PPOContinualLearnerAgent):
     def task_eval_start(self, task_label):
         self.network.eval()
         task_idx = self._label_to_idx(task_label)
+        print(f'Evaluating for task ID {task_idx} {np.argmax(task_label, axis=0)}')
         if task_idx is None:
             # agent has not been trained on current task
             # being evaluated. therefore use a random mask
@@ -665,6 +672,7 @@ class PPOLLAgent(PPOContinualLearnerAgent):
             task_idx = 0
         set_model_task(self.network, task_idx)
         self.curr_eval_task_label = task_label
+        print(f'Current task label: {self.curr_eval_task_label}')
         return
 
     def task_eval_end(self):
@@ -742,7 +750,7 @@ class PPOShellAgent(PPOLLAgent):
 
         #task_label = self.curr_train_task_label
         task_idx = self._label_to_idx(task_label)
-
+        print(f'DISTILLING KNOWLEDGE TO TASK IDX: {task_idx}')
         # Process the single mask as opposed to multiple
         mask = self.vec_to_mask(mask.to(self.config.DEVICE))
 
@@ -811,17 +819,12 @@ class PPODetectShell(PPOShellAgent):
         #self.birch = Birch(threshold=self.threshold, branching_factor=self.branching_factor, n_clusters=None)
         #self.current_cluster_label = 0
 
+        self.embedding_history = []
 
         #self.distance_history = deque([])   # List of computed embedding distances for the last 10 timesteps
 
         ###############################################################################
         # Detect Module Attributes
-
-        '''
-        # Create a reference for the Wasserstein Embeddings
-        torch.manual_seed(98)
-        reference = torch.rand(500, self.task.state_dim)
-        '''
 
         # Variable for storing the action space size of the task for using it to 
         # convert the actions to one-hot vectors.
@@ -1199,9 +1202,11 @@ class PPODetectShell(PPOShellAgent):
         # Debugging CLI outputs. We track the registry for embedding updates across all tasks.
 
         task_change_bool = None
+            
 
         # Saptarshi: Modified algorithm to use the SyncManager() internal server dictionary (self.seen_tasks) instead of the registry inside the task_fn().
         # IF SAME TASK
+        #if not(self.total_steps == 512 * 200):
         if emb_distance < self.emb_dist_threshold:
             old_emb = self.seen_tasks[self.current_task_key]['task_emb']
             self.current_task_emb = (old_emb + new_emb) / 2   # Compute moving average.
@@ -1219,6 +1224,7 @@ class PPODetectShell(PPOShellAgent):
         else:
             self.task_train_end_emb()                       # End training on previous task mask.
             self.task_train_start_emb(new_emb)              # Start training on new mask for the newly detected task
+            self.current_task_emb = new_emb                 # Set the current task embedding to the first one produced for the new task
             task_change_bool = True
 
         return task_change_bool
@@ -1238,7 +1244,6 @@ class PPODetectShell(PPOShellAgent):
             tf.summary.tensor("Embedding", new_emb, step=self.iteration)
             tf.summary.scalar("Cluster Label:", label, step=self.iteration)'''
         print(label, label[0], self.current_cluster_label)
-
 
         if label[0] == self.current_cluster_label:
             print('TASK IS THE SAME')
@@ -1331,7 +1336,7 @@ class PPODetectShell(PPOShellAgent):
             task_change_bool = False
 
         else:
-            self.distance_history = []      # If we detect a new task then reset the buffer
+            self.distance_history = [self.starter_emb]      # If we detect a new task then reset the buffer
             self.task_train_end_emb()
             self.task_train_start_emb(new_emb)
             task_change_bool = True
@@ -1462,7 +1467,6 @@ class PPODetectShell(PPOShellAgent):
     def set_new_task_emb(self, new_emb):
         ''''''
         self.new_task_emb = new_emb
-
 
 # I don't think we need this anymore. Was a placeholder barebones implementation of what the DetectShell could have looked like prior to detect module implementation.
 class LLAgent_NoOracle(PPOContinualLearnerAgent):

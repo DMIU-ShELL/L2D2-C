@@ -97,7 +97,7 @@ class CurriculumMultiRoomEnv(MiniGridEnv):
             mission_space=mission_space,
             width=self.size,
             height=self.size,
-            max_steps=self.maxNumRooms * 20,
+            max_steps=self.targetNumRooms * 20,
             **kwargs
         )
 

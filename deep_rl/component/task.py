@@ -427,9 +427,11 @@ class MetaCTgraph(BaseTask):
         return self.reset()
 
     def set_task(self, taskinfo):
+        print(f"Setting environment {taskinfo['env_idx'], taskinfo['task']}")
         self.env = self.envs[taskinfo['env_idx']]
         self.env.unwrapped.set_high_reward_path(taskinfo['task'])
         self.current_task = taskinfo
+        print(self.env.high_reward_path)
 
     def get_task(self):
         #print("HEEEEEEEEEEEEEEEYYYYYYYYYYYYY form the META_CT-Graph GET TASK:", self.current_task)
@@ -453,11 +455,13 @@ class MetaCTgraphFlatObs(MetaCTgraph):
 
     def step(self, action):
         state, reward, done, truncated, info = self.env.step(action)
-        if done: state = self.reset()
+        if done or truncated:
+            state = self.reset()
+            done = done or truncated
         return state.ravel(), reward, done, info
 
     def reset(self):
-        state, done= self.env.reset()
+        state, info = self.env.reset()
         return state.ravel()
 
 class MiniGrid(BaseTask):
@@ -533,8 +537,9 @@ class MiniGrid(BaseTask):
 
     def step(self, action):
         state, reward, done, truncated, info = self.env.step(action)
-        if done: state = self.reset()
-        if truncated: state = self.reset()
+        if done or truncated:
+            state = self.reset()
+            done = done or truncated
         return state, reward, done, info
 
     def reset(self):
@@ -591,18 +596,18 @@ class MiniGridFlatObs(MiniGrid):
         #action = self.action_map[action]
 
         state, reward, done, truncated, info = self.env.step(action)
-        if done: state = self.reset()
-        if truncated: state = self.reset()
+        if done or truncated:
+            state = self.reset()
+            done = done or truncated
 
         # Adding noise to reward for synchronised learning
         #noise = float(np.random.uniform(0, 0.001, 1))
         #reward = reward + noise
 
-
         return state.ravel(), reward, done, info
 
     def reset(self):
-        state, done = self.env.reset()
+        state, info = self.env.reset()
         return state.ravel()
 
 class Procgen(BaseTask):
@@ -668,11 +673,13 @@ class Procgen(BaseTask):
 
     def step(self, action):
         state, reward, done, info = self.env.step(action)
+        state = np.transpose(state, (2, 0, 1))
         if done: state = self.reset()
         return state, reward, done, info
     
     def reset(self):
         state = self.env.reset()
+        state = np.transpose(state, (2, 0, 1))
         return state
     
     def reset_task(self, taskinfo):

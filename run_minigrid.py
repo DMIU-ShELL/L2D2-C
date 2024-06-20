@@ -25,8 +25,8 @@ from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
 from deep_rl.component.policy import SamplePolicy
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, MiniGrid, MetaCTgraph
-from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
-from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL
+from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, CategoricalActorCriticNet_SS_Comp
+from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL, FCBody_SS_Comp
 from deep_rl.agent.PPO_agent import PPODetectShell, PPOShellAgent
 from deep_rl.agent.SAC_agent import SACDetectShell, SACShellAgent
 
@@ -64,7 +64,7 @@ def global_config(config, name):
     config.iteration_log_interval = 1
     config.gradient_clip = 5
     config.max_steps = 25600
-    config.evaluation_episodes = 5#50
+    config.evaluation_episodes = 1#50
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
@@ -151,6 +151,7 @@ def detect_finalise_and_run(config, Agent):
     config.manager = mp.Manager()
     config.seen_tasks = config.manager.dict()
     config.mode = config.manager.Value('b', args.omni)
+    config.evaluator_present = config.manager.Value('b', False)
 
 
     ###############################################################################
@@ -199,14 +200,14 @@ def detect_finalise_and_run(config, Agent):
             logger=config.logger, 
             init_port=config.init_port, 
             reference=zip(addresses, ports), 
-            seen_tasks=config.seen_tasks, 
+            knowledge_base=config.seen_tasks, 
             manager=config.manager, 
             localhost=args.localhost, 
             mode=config.mode, 
             dropout=args.dropout, 
             threshold=config.emb_dist_threshold
         )
-        # Start training
+        # Start evaluating
         trainer_evaluator(agent, comm, args.curriculum_id, config.manager, config.seen_tasks)
 
     else:
@@ -217,7 +218,7 @@ def detect_finalise_and_run(config, Agent):
             args = args,
             config = config
         )
-        # Start evaluating
+        # Start training
         trainer_learner(agent, comm, args.curriculum_id, config.manager, config.querying_frequency, config.mode)
         
 
@@ -253,19 +254,19 @@ def minigrid_ppo(name, args, shell_config):
     config.eval_task_fn = eval_task_fn
 
     # Network lambda function
-    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS_Comp(\
         state_dim, action_dim, label_dim,
-        phi_body=FCBody_SS(
+        phi_body=FCBody_SS_Comp(
             state_dim, 
             task_label_dim=label_dim, 
             hidden_units=(200, 200, 200), 
-            num_tasks=config.cl_num_tasks, 
+            num_tasks=25,#config.cl_num_tasks, 
             new_task_mask=args.new_task_mask,
             seed=config.seed
             ),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
-        num_tasks=config.cl_num_tasks,
+        num_tasks=25,#config.cl_num_tasks,
         new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
     
@@ -275,11 +276,48 @@ def minigrid_ppo(name, args, shell_config):
 
     # Select what agent to use here. Default is *DetectShell which is an Modulating Masks PPO agent that uses the
     # Wasserstein detect module for online task identity inference.
-    if args.eval:
-        detect_finalise_and_run(config, PPOShellAgent)
-    else:
-        detect_finalise_and_run(config, PPODetectShell)
+    detect_finalise_and_run(config, PPODetectShell)
 
+def minigrid_ppo_eval(name, args, shell_config):
+    # Initialise config object
+    config = Config()
+    config, env_config_path = setup_configs_and_logs(config, args, shell_config, global_config)
+
+
+    ###############################################################################
+    # ENVIRONMENT SPECIFIC SETUP. SETUP TRAINING AND EVALUATION TASK FUNCTIONS
+    # AND THE NETWORK FUNCTION.
+    # Training task lambda function
+    #task_fn = lambda log_dir: MiniGridFlatObs(name=name, env_config_path=env_config_path, log_dir=log_dir, eval_mode=False)
+    #config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
+
+    # Evaluation task mabda function. TODO: Is the evaluation task function necessary for a traditional learner?
+    eval_task_fn= lambda log_dir: MiniGridFlatObs(name=name, env_config_path=env_config_path, log_dir=log_dir, eval_mode=True)
+    config.eval_task_fn = eval_task_fn
+
+    # Network lambda function
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
+        state_dim, action_dim, label_dim,
+        phi_body=FCBody_SS(
+            state_dim, 
+            task_label_dim=label_dim, 
+            hidden_units=(200, 200, 200), 
+            num_tasks=25,#config.cl_num_tasks, 
+            new_task_mask=args.new_task_mask
+            ),
+        actor_body=DummyBody_CL(200),
+        critic_body=DummyBody_CL(200),
+        num_tasks=25,#config.cl_num_tasks,
+        new_task_mask=args.new_task_mask
+        )    # 'random' for mask RI. 'linear_comb' for mask LC.
+    
+    # Environment sepcific setup ends.
+    ###############################################################################
+    
+
+    # Select what agent to use here. Default is *DetectShell which is an Modulating Masks PPO agent that uses the
+    # Wasserstein detect module for online task identity inference.
+    detect_finalise_and_run(config, PPOShellAgent)
 
 
 if __name__ == '__main__':
@@ -294,7 +332,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('curriculum_id', help='index of the curriculum to use from the shell config json', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/mgc.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/mg_mt.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
@@ -346,7 +384,7 @@ if __name__ == '__main__':
     if shell_config['env']['env_name'] == 'minigrid':
         name = Config.ENV_MINIGRID
         if args.eval:
-            minigrid_ppo(name, args, shell_config)
+            minigrid_ppo_eval(name, args, shell_config)
 
         else:
             minigrid_ppo(name, args, shell_config)

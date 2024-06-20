@@ -86,7 +86,10 @@ class BaseContinualLearnerAgent(BaseAgent):
         self.config.state_normalizer.set_read_only()
         state = self.config.state_normalizer(np.stack([state]))
         task_label = np.stack([task_label])
-        out = self.network.predict(state, task_label=task_label)
+
+        #out = self.network.predict(state, task_label=task_label)
+        out = self.network.predict(state)
+        
         self.config.state_normalizer.unset_read_only()
         if isinstance(out, dict) or isinstance(out, list) or isinstance(out, tuple):
             # for actor-critic and policy gradient approaches
@@ -115,27 +118,40 @@ class BaseContinualLearnerAgent(BaseAgent):
             q = out.detach().cpu().numpy().ravel()
             return np.argmax(q), {'logits': q}
 
-    def run_episode(self, deterministic=False):
+    def run_episode(self, deterministic=True):
         epi_info = {'policy_output': [], 'sampled_action': [], 'log_prob': [], 'entropy': [],
             'value': [], 'agent_action': [], 'reward': [], 'terminal': []}
 
         #env = self.config.evaluation_env
         env = self.evaluation_env
         state = env.reset()
+
         if self.curr_eval_task_label is not None:
             task_label = self.curr_eval_task_label
         else:
             task_label = env.get_task()['task_label']
             assert False, 'manually set (temporary) breakpoint. code should not get here.'
         total_rewards = 0
+
+        #actions_sequence = [0, 0, 1, 0, 2, 0, 0]
+        #action_idx = 0
+        #allactions = []
+        #total_steps = 0
         while True:
             action, output_info = self.evaluation_action(state, task_label, deterministic)
+            #action = actions_sequence[action_idx]
+            #allactions.append(action[0])
             state, reward, done, info = env.step(action)
+
+            #action_idx += 1
+            #total_steps += 1
+
             total_rewards += reward
             for k, v in output_info.items(): epi_info[k].append(v)
             epi_info['reward'].append(reward)
             epi_info['terminal'].append(done)
             if done: break
+        
         return total_rewards, epi_info
 
     def run_episode_metaworld(self, deterministic=False):
@@ -175,9 +191,18 @@ class BaseContinualLearnerAgent(BaseAgent):
         # evaluation method for continual learning agents
         rewards = []
         episodes = []
+        #actionslist = []
+
         with torch.no_grad():
             for ep in range(num_iterations):
-                total_episode_reward, episode_info = fn_episode()
+                total_episode_reward, episode_info = fn_episode() # total_episode_reward, episode_info, allactions, total_steps = fn_episode()
+                #actionslist.append(allactions)
                 rewards.append(total_episode_reward)
                 episodes.append(episode_info)
+
+        #print('IN BASE AGENT')
+        #print(f'average perf: {np.mean(rewards)}')
+        #print(f'actions: {actionslist}')
+        #print(f'total steps: {total_steps}')
+        #print(f'agent iterations: {num_iterations}')
         return rewards, episodes

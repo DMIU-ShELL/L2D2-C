@@ -60,8 +60,10 @@ commands_ctgraph = [
 commands_ctgraph_full = [
     # IMG SEED 1 AGENTS
     # MIG 1 (0-7)
-    ['MIG-c8cbc779-6499-5d1f-86e7-ad789e047331', "python run_mctgraph.py 0 29500 -l -d 0.0 --exp_id='ct28_agent0_left'"],
-    ['MIG-c8cbc779-6499-5d1f-86e7-ad789e047331', "python run_mctgraph.py 1 29501 -l -d 0.0 --exp_id='ct28_agent1_left'"],
+    #['MIG-c8cbc779-6499-5d1f-86e7-ad789e047331', "python run_mctgraph.py 0 29500 -l -d 0.0 --exp_id='ct28_agent0_left'"],
+    #['MIG-c8cbc779-6499-5d1f-86e7-ad789e047331', "python run_mctgraph.py 1 29501 -l -d 0.0 --exp_id='ct28_agent1_left'"],
+    ['MIG-f86cf155-b80e-56da-92ed-03c78bf647c7', "python run_mctgraph.py 0 29500 -l -d 0.0 --exp_id='ct28_agent0_left'"],
+    ['MIG-f86cf155-b80e-56da-92ed-03c78bf647c7', "python run_mctgraph.py 1 29501 -l -d 0.0 --exp_id='ct28_agent1_left'"],
 
     # MIG 2 (0-8)
     ['MIG-f6c4eed6-1edf-5515-8e0b-0a5521e81cbb', "python run_mctgraph.py 2 29502 -l -d 0.0 --exp_id='ct28_agent2_left'"],
@@ -112,6 +114,9 @@ commands_ctgraph_full = [
 
     # MIG 14 (1-13)
     #['MIG-f4aecf22-d8a0-50a9-b804-c65cb2d2ff7e', "python run_mctgraph.py 16 29513 -l -d 0.0 --exp_id='ct28_agent16_right'"]
+    
+    ['MIG-f4aecf22-d8a0-50a9-b804-c65cb2d2ff7e', "python run_mctgraph.py 20 29520 -l -e -d 0.0 --exp_id='ct28_evaluation'"]
+    
 ]
 
 
@@ -149,7 +154,57 @@ commands_minigrid = [
     ['MIG-13d6b3aa-c302-5ac2-9183-5494d22547e6', "python run_minigrid.py 9 29509 -l -d 0.0 --exp_id='mg_agent10'"],
 
     # MIG 11 (1-10)
-    #['MIG-f2d8b14c-d00c-5b5f-be98-bd1bff3bf371', "python run_minigrid.py 10 29510 -l -d 0.0 --exp_id='mg_agent11'"],
+    ['MIG-f2d8b14c-d00c-5b5f-be98-bd1bff3bf371', "python run_minigrid.py 10 29510 -l -d 0.0 --exp_id='mg_agent11'"],
+
+    # MIG 12 (1-11)
+    ['MIG-62fabbf0-b8de-5040-b4db-93f62c477543', "python run_minigrid.py 11 29511 -l -d 0.0 --exp_id='mg_agent12'"],
+
+    # MIG 13 (1-12)
+    ['MIG-fcda8ac4-e82d-5259-8495-c777d8c95d74', "python run_minigrid.py 12 29512 -l -d 0.0 --exp_id='mg_agent13'"],
+
+    # MIG 14 (1-13)
+    ['MIG-f4aecf22-d8a0-50a9-b804-c65cb2d2ff7e', "python run_minigrid.py 13 29513 -l -d 0.0 --exp_id='mg_agent14'"]
+]
+
+commands_minigrid_overlapped = [
+    # MIG 1 (0-7)
+    ['MIG-c8cbc779-6499-5d1f-86e7-ad789e047331', "python run_minigrid.py 0 29500 -l -d 0.0 --exp_id='mg_agent1'"],
+    ['MIG-c8cbc779-6499-5d1f-86e7-ad789e047331', "python run_minigrid.py 1 29501 -l -d 0.0 --exp_id='mg_agent2'"],
+
+    # MIG 2 (0-8)
+    ['MIG-f6c4eed6-1edf-5515-8e0b-0a5521e81cbb', "python run_minigrid.py 2 29502 -l -d 0.0 --exp_id='mg_agent3'"],
+    ['MIG-f6c4eed6-1edf-5515-8e0b-0a5521e81cbb', "python run_minigrid.py 3 29503 -l -d 0.0 --exp_id='mg_agent4'"],
+
+    # MIG 3 (0-9)
+    ['MIG-ae777ac5-da68-5606-8581-1878288224dc', "python run_minigrid.py 4 29504 -l -d 0.0 --exp_id='mg_agent5'"],
+    ['MIG-ae777ac5-da68-5606-8581-1878288224dc', "python run_minigrid.py 5 29505 -l -d 0.0 --exp_id='mg_agent6'"],
+
+    # MIG 4 (0-10)
+    ['MIG-b2a723b5-db7a-50d8-a267-70569dafe609', "python run_minigrid.py 6 29506 -l -d 0.0 --exp_id='mg_agent7'"],
+
+    # MIG 5 (0-11)
+    #['MIG-73000f9d-03d4-5dab-ad23-34b546569bdd', "python run_minigrid.py 4 29504 -l -d 0.0 --exp_id='mg_agent5'"],
+
+    # MIG 6 (0-12)
+    #['MIG-f86cf155-b80e-56da-92ed-03c78bf647c7', "python run_minigrid.py 5 29505 -l -d 0.0 --exp_id='mg_agent6'"],
+
+    # MIG 7 (0-13)
+    #['MIG-bfb3fc5a-8b5e-59c1-87e8-3468c995103d', "python run_minigrid.py 6 29506 -l -d 0.0 --exp_id='mg_agent7'"],
+
+    # MIG 8 (1-7)
+    ['MIG-f61216a8-2a31-500e-acf7-f0158fbf7ce3', "python run_minigrid.py 7 29507 -l -d 0.0 --exp_id='mg_agent8'"],
+    ['MIG-f61216a8-2a31-500e-acf7-f0158fbf7ce3', "python run_minigrid.py 8 29508 -l -d 0.0 --exp_id='mg_agent9'"],
+
+    # MIG 9 (1-8)
+    ['MIG-bc91396f-1c2b-5319-8862-6f16d089ce5e', "python run_minigrid.py 9 29509 -l -d 0.0 --exp_id='mg_agent10'"],
+    ['MIG-bc91396f-1c2b-5319-8862-6f16d089ce5e', "python run_minigrid.py 10 29510 -l -d 0.0 --exp_id='mg_agent11'"],
+
+    # MIG 10 (1-9)
+    ['MIG-13d6b3aa-c302-5ac2-9183-5494d22547e6', "python run_minigrid.py 11 29511 -l -d 0.0 --exp_id='mg_agent12'"],
+    ['MIG-13d6b3aa-c302-5ac2-9183-5494d22547e6', "python run_minigrid.py 12 29512 -l -d 0.0 --exp_id='mg_agent13'"],
+
+    # MIG 11 (1-10)
+    ['MIG-f2d8b14c-d00c-5b5f-be98-bd1bff3bf371', "python run_minigrid.py 13 29513 -l -d 0.0 --exp_id='mg_agent14'"],
 
     # MIG 12 (1-11)
     #['MIG-62fabbf0-b8de-5040-b4db-93f62c477543', "python run_minigrid.py 11 29511 -l -d 0.0 --exp_id='mg_agent12'"],
@@ -158,7 +213,7 @@ commands_minigrid = [
     #['MIG-fcda8ac4-e82d-5259-8495-c777d8c95d74', "python run_minigrid.py 12 29512 -l -d 0.0 --exp_id='mg_agent13'"],
 
     # MIG 14 (1-13)
-    #['MIG-f4aecf22-d8a0-50a9-b804-c65cb2d2ff7e', "python run_minigrid.py 0 29513 -l -e --exp_id='mg_eval'"]
+    #['MIG-f4aecf22-d8a0-50a9-b804-c65cb2d2ff7e', "python run_minigrid.py 13 29514 -l -e -d 0.0 --exp_id='mg_evaluation'"]
 ]
 
 
@@ -183,16 +238,16 @@ commands_procgen = [
     ['MIG-f86cf155-b80e-56da-92ed-03c78bf647c7', "python run_procgen.py 5 29505 -l -d 0.0 --exp_id='prc_agent6'"],
 
     # MIG 7 (0-13)
-    ['MIG-bfb3fc5a-8b5e-59c1-87e8-3468c995103d', "python run_minigrid.py 6 29506 -l -d 0.0 --exp_id='mg_agent7'"],
+    #['MIG-bfb3fc5a-8b5e-59c1-87e8-3468c995103d', "python run_minigrid.py 6 29506 -l -d 0.0 --exp_id='mg_agent7'"],
 
     # MIG 8 (1-7)
-     ['MIG-f61216a8-2a31-500e-acf7-f0158fbf7ce3', "python run_minigrid.py 7 29507 -l -d 0.0 --exp_id='mg_agent8'"],
+    #[]'MIG-f61216a8-2a31-500e-acf7-f0158fbf7ce3', "python run_minigrid.py 7 29507 -l -d 0.0 --exp_id='mg_agent8'"],
 
     # MIG 9 (1-8)
-    ['MIG-bc91396f-1c2b-5319-8862-6f16d089ce5e', "python run_minigrid.py 8 29508 -l -d 0.0 --exp_id='mg_agent9'"],
+    #['MIG-bc91396f-1c2b-5319-8862-6f16d089ce5e', "python run_minigrid.py 8 29508 -l -d 0.0 --exp_id='mg_agent9'"],
 
     # MIG 10 (1-9)
-    ['MIG-13d6b3aa-c302-5ac2-9183-5494d22547e6', "python run_minigrid.py 9 29509 -l -d 0.0 --exp_id='mg_agent10'"],
+    #['MIG-13d6b3aa-c302-5ac2-9183-5494d22547e6', "python run_minigrid.py 9 29509 -l -d 0.0 --exp_id='mg_agent10'"],
 
     # MIG 11 (1-10)
     #['MIG-f2d8b14c-d00c-5b5f-be98-bd1bff3bf371', "python run_minigrid.py 10 29510 -l -d 0.0 --exp_id='mg_agent11'"],
@@ -222,6 +277,8 @@ elif args.env == 'ctfull':
     commands = commands_ctgraph_full
 elif args.env == 'procgen':
     commands = commands_procgen
+elif args.env =='mgo':
+    commands = commands_minigrid_overlapped
 else:
     raise ValueError(f'no commands have been setup for --exp {args.exp}')
 

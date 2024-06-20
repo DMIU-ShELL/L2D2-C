@@ -25,7 +25,7 @@ from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
 from deep_rl.component.policy import SamplePolicy
 from deep_rl.component.task import ParallelizedTask, Procgen
-from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS
+from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, CategoricalActorCriticNet_SS_Comp
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL, ConvBody_SS
 from deep_rl.agent.PPO_agent import PPODetectShell, PPOShellAgent
 from deep_rl.agent.SAC_agent import SACDetectShell, SACShellAgent
@@ -42,7 +42,7 @@ import random
 def global_config(config, name):
     config.env_name = name
     config.env_config_path = None
-    config.lr = 0.00005
+    config.lr = 0.00015
     config.cl_preservation = 'supermask'
     config.seed = None
     config.backbone_seed = 9157
@@ -53,16 +53,16 @@ def global_config(config, name):
 
     config.policy_fn = SamplePolicy
     config.state_normalizer = ImageNormalizer()
-    config.discount = 0.999
+    config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.95
     config.entropy_weight = 0.01 #0.75
     config.rollout_length = 2048
-    config.optimization_epochs = 3
-    config.num_mini_batches = 8
+    config.optimization_epochs = 8
+    config.num_mini_batches = 32
     config.ppo_ratio_clip = 0.2
     config.iteration_log_interval = 1
-    config.gradient_clip = 5
+    config.gradient_clip = 40
     config.max_steps = 25600
     config.evaluation_episodes = 5#50
     config.cl_requires_task_label = True
@@ -151,6 +151,7 @@ def detect_finalise_and_run(config, Agent):
     config.manager = mp.Manager()
     config.seen_tasks = config.manager.dict()
     config.mode = config.manager.Value('b', args.omni)
+    config.evaluator_present = config.manager.Value('b', False)
 
 
     ###############################################################################
@@ -161,7 +162,7 @@ def detect_finalise_and_run(config, Agent):
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.curriculum_id)
 
     # Communication frequency. TODO: This will need a rework if we don't know the length of task encounters.
-    config.querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
+    config.querying_frequency = 10#(config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
 
     ###############################################################################
@@ -199,7 +200,7 @@ def detect_finalise_and_run(config, Agent):
             logger=config.logger, 
             init_port=config.init_port, 
             reference=zip(addresses, ports), 
-            seen_tasks=config.seen_tasks, 
+            knowledge_base=config.seen_tasks, 
             manager=config.manager, 
             localhost=args.localhost, 
             mode=config.mode, 
@@ -219,10 +220,7 @@ def detect_finalise_and_run(config, Agent):
         )
         # Start evaluating
         trainer_learner(agent, comm, args.curriculum_id, config.manager, config.querying_frequency, config.mode)
-        
-
-
-
+         
 
 '''
 Lifelong Learning Distributed and Decentralised (L2D2-C) experiments
@@ -251,22 +249,22 @@ def procgen_ppo(name, args, shell_config):
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
 
     # Evaluation task mabda function. TODO: Is the evaluation task function necessary for a traditional learner?
-    eval_task_fn= lambda log_dir: Procgen(name=name, env_config_path=env_config_path, log_dir=log_dir)
+    eval_task_fn = lambda log_dir: Procgen(name=name, env_config_path=env_config_path, log_dir=log_dir)
     config.eval_task_fn = eval_task_fn
 
     # Network lambda function
-    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS(\
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS_Comp(\
         state_dim, action_dim, label_dim,
         phi_body=ConvBody_SS(
             state_dim, 
-            feature_dim=256,
+            feature_dim=512,
             task_label_dim=label_dim,
             num_tasks=config.cl_num_tasks, 
             new_task_mask=args.new_task_mask,
             seed=config.seed
             ),
-        actor_body=DummyBody_CL(256),
-        critic_body=DummyBody_CL(256),
+        actor_body=DummyBody_CL(512),
+        critic_body=DummyBody_CL(512),
         num_tasks=config.cl_num_tasks,
         new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
@@ -277,10 +275,51 @@ def procgen_ppo(name, args, shell_config):
 
     # Select what agent to use here. Default is *DetectShell which is an Modulating Masks PPO agent that uses the
     # Wasserstein detect module for online task identity inference.
-    if args.eval:
-        detect_finalise_and_run(config, PPOShellAgent)
-    else:
-        detect_finalise_and_run(config, PPODetectShell)
+    detect_finalise_and_run(config, PPODetectShell)
+
+
+# main experiment methods. currently implemented: meta-ctgraph with ppo. TODO: Implement evaluation agents with task labels instead of embeddings
+def procgen_ppo_eval(name, args, shell_config):
+    # Initialise config object
+    config = Config()
+    config, env_config_path = setup_configs_and_logs(config, args, shell_config, global_config)
+
+
+    ###############################################################################
+    # ENVIRONMENT SPECIFIC SETUP. SETUP TRAINING AND EVALUATION TASK FUNCTIONS
+    # AND THE NETWORK FUNCTION.
+    # Training task lambda function
+    task_fn = lambda log_dir: Procgen(name=name, env_config_path=env_config_path, log_dir=log_dir)
+    config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
+
+    # Evaluation task mabda function. TODO: Is the evaluation task function necessary for a traditional learner?
+    eval_task_fn= lambda log_dir: Procgen(name=name, env_config_path=env_config_path, log_dir=log_dir)
+    config.eval_task_fn = eval_task_fn
+
+    # Network lambda function
+    config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS_Comp(\
+        state_dim, action_dim, label_dim,
+        phi_body=ConvBody_SS(
+            state_dim, 
+            feature_dim=512,
+            task_label_dim=label_dim,
+            num_tasks=config.cl_num_tasks, 
+            new_task_mask=args.new_task_mask,
+            seed=config.seed
+            ),
+        actor_body=DummyBody_CL(512),
+        critic_body=DummyBody_CL(512),
+        num_tasks=config.cl_num_tasks,
+        new_task_mask=args.new_task_mask,
+        seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
+    
+    # Environment sepcific setup ends.
+    ###############################################################################
+    
+
+    # Select what agent to use here. Default is *DetectShell which is an Modulating Masks PPO agent that uses the
+    # Wasserstein detect module for online task identity inference.
+    detect_finalise_and_run(config, PPOShellAgent)
 
 
 

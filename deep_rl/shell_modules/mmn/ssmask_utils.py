@@ -143,14 +143,13 @@ class MultitaskMaskLinear(nn.Linear):
         _betas = torch.softmax(_betas, dim=-1)
         _subnets.append(_subnet)
         assert len(_betas) == len(_subnets), 'an error ocurred'
-        _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
+        _subnets = [_b * _s for _b, _s in zip(_betas, _subnets)]
         # element wise sum of various masks (weighted sum)
         _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
         return self._subnet_class.apply(_subnet_linear_comb)
 
     @torch.no_grad()
     def consolidate_mask(self):
-        print('USING THE WRONG CONSOLIDATION METHOD!!!!!!!!!!!!!!!!!!!', flush=True)
         if self.new_mask_type == NEW_MASK_RANDOM: return
         if self.task <= 0: return
         if self.task < self.num_tasks_learned:
@@ -166,7 +165,7 @@ class MultitaskMaskLinear(nn.Linear):
         _betas = torch.softmax(_betas, dim=-1)
         _subnets.append(_subnet)
         assert len(_betas) == len(_subnets), 'an error ocurred'
-        _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
+        _subnets = [_b * _s for _b, _s in zip(_betas, _subnets)]
         # element wise sum of various masks (weighted sum)
         _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
         self.scores[self.task].data = _subnet_linear_comb.data
@@ -188,6 +187,7 @@ class MultitaskMaskLinear(nn.Linear):
 
     @torch.no_grad()
     def set_mask(self, mask, task):
+        print(f'set mask with task: {task}')
         self.scores[task].data = mask
         # NOTE, this operation might not be required and could be remove to save compute time
         self.cache_masks() 
@@ -195,6 +195,7 @@ class MultitaskMaskLinear(nn.Linear):
 
     @torch.no_grad()
     def set_task(self, task, new_task=False):
+        print(f'set task with task {task}')
         self.task = task
         if self.new_mask_type == NEW_MASK_LINEAR_COMB and new_task:
             if task > 0:
@@ -490,6 +491,23 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
         return self._subnet_class.apply(self.scores[self.task])
 
     def _forward_mask_linear_comb(self):
+        _subnet = self.scores[self.task]
+
+        if len(self.comm_masks) == 0:
+            return self._subnet_class.apply(_subnet)
+        
+        _subnets = [self.scores[idx].detach() for idx in range(self.task)] if not(self.task == 0 or self.task < self.num_tasks_learned) else []
+        _subnets.append(_subnet)
+        _subnets.extend([c.detach() for c in self.comm_masks])
+
+        _betas = self.betas[self.task, 0:self.task+1+self.num_comm_masks]
+        _betas = torch.softmax(_betas, dim=-1)
+
+        _subnets = [_b * _s for _b, _s in zip(_betas, _subnets)]
+        _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
+        return self._subnet_class.apply(_subnet_linear_comb)
+
+    '''def _forward_mask_linear_comb(self):
         _subnet = self.scores[self.task]    # Get our current task training subnet
 
         if self.task == 0 or self.task < self.num_tasks_learned:
@@ -523,7 +541,7 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
             # Perform linear combinantions
             _subnets = [_b * _s for _b, _s in zip(_betas, _subnets)]    
             _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
-            return self._subnet_class.apply(_subnet_linear_comb)
+            return self._subnet_class.apply(_subnet_linear_comb)'''
     
     @torch.no_grad()
     def consolidate_mask(self):
@@ -553,20 +571,10 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
 
     @torch.no_grad()
     def consolidate_comm_mask(self):
-        if self.new_mask_type == NEW_MASK_RANDOM: 
-            print(0)
-            return
-        if self.task < self.num_tasks_learned: 
-            print(1)
-            return
-        if len(self.comm_masks) == 0: 
-            print(2)
-            return # If there are no community masks, then there is no need for consolidation.
-        if self.betas is None: 
-            print(3)
-            return
-        
-        print(4)
+        if self.new_mask_type == NEW_MASK_RANDOM: return
+        if self.task < self.num_tasks_learned: return
+        if len(self.comm_masks) == 0: return # If there are no community masks, then there is no need for consolidation.
+        if self.betas is None:return
 
         _subnet = self.scores[self.task]
         _subnets = [_subnet]
@@ -596,22 +604,23 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
         
         print(self.betas)
         # Reset the betas for the community masks
+        
         if self.new_mask_type == NEW_MASK_LINEAR_COMB:
-            # Undo log operation
-            self.betas.data[self.task, 0:self.task+1+self.num_comm_masks] = torch.exp(self.betas.data[self.task, 0:self.task+1+self.num_comm_masks])
-            
-            # Reset the community betas using (BLC) technique based off of the current value of the beta for the current subnet
-            # NOTE: This method will ensure that the total weighting adds up to 1 every time. It should also adjust the weightings
-            #       given to community masks, as the agents local policy gets better and better, putting more weight on the local subnet.
-            threshold = self.betas.data[self.task, self.task:self.task+1] # Get the value of the beta parameter for the current subnet
-            remainder = 1. - threshold  # Calculate remaining weighting
-            self.betas.data[self.task, self.task+1:self.task+1+self.num_comm_masks] = remainder / self.num_comm_masks
-
-            # Reset the beta parameter initialization for the number of community masks
-            #self.betas.data[self.task, self.task+1:self.task+1+self.num_comm_masks] = 1/(2*self.num_comm_masks)
-            
-            # Redo the log operation
-            self.betas.data[self.task, 0:self.task+1+self.num_comm_masks] = torch.log(self.betas.data[self.task, 0:self.task+1+self.num_comm_masks])
+            if self.task == 0:
+                # Undo log operation
+                self.betas.data[self.task, 0:self.task+1+self.num_comm_masks] = torch.exp(self.betas.data[self.task, 0:self.task+1+self.num_comm_masks])
+                
+                # Reset the community betas using (BLC) technique based off of the current value of the beta for the current subnet
+                # NOTE: This method will ensure that the total weighting adds up to 1 every time. It should also adjust the weightings
+                #       given to community masks, as the agents local policy gets better and better, putting more weight on the local subnet.
+                #threshold = self.betas.data[self.task, self.task:self.task+1] # Get the value of the beta parameter for the current subnet
+                threshold = torch.sum(self.betas.data[self.task, 0:self.task+1])    # for self.task > 0 this will take into account for the current subnet and the LL masks and thus following an adaptation of BLC using 1/3 split instead of 1/2
+                remainder = 1. - threshold  # Calculate remaining weighting
+                self.betas.data[self.task, self.task+1:self.task+1+self.num_comm_masks] = remainder / self.num_comm_masks
+                
+                # Redo the log operation
+                self.betas.data[self.task, 0:self.task+1+self.num_comm_masks] = torch.log(self.betas.data[self.task, 0:self.task+1+self.num_comm_masks])
+        
         
         print(f'Betas: {self.betas}')
 
@@ -638,15 +647,22 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
 
     @torch.no_grad()
     def set_task(self, task, new_task=False):
-        print('IN SET_TASK()')
         self.task = task
         if self.new_mask_type == NEW_MASK_LINEAR_COMB and new_task:
+            print('IN SET_TASK()')
             k = task + 1
-            self.betas.data[task, 0:k] = 1 / (2*k)
-            self.betas.data[task, k:k+self.k] = 1 / (2*self.k)
+            if self.task > 0:   # If not first task then use BLC (1/3)
+                self.betas.data[task, 0:task] = 1/(3*task)
+                self.betas.data[task, task:k] = 1/3
+                self.betas.data[task, k:k+self.k] = 1 / (3*self.k)
+
+            else: # otherwise use BLC (1/2)
+                self.betas.data[task, 0:k] = 1 / (2*k)
+                self.betas.data[task, k:k+self.k] = 1 / (2*self.k)
+                
             self.betas.data[task, 0:k+self.k] = torch.log(self.betas.data[task, 0:k+self.k])
 
-        print(self.betas)              
+            print(self.betas)              
       
 
 # Subnetwork forward from hidden networks
@@ -1347,8 +1363,13 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
         self.task = -1
         self.num_tasks_learned = 0
         self.new_mask_type = new_mask_type
+
+        self.comm_masks = []
+        self.num_comm_masks = len(self.comm_masks)
+        self.k = max_community_masks
+
         if self.new_mask_type == NEW_MASK_LINEAR_COMB:
-            self.betas = nn.Parameter(torch.zeros(num_tasks, num_tasks).type(torch.float32))
+            self.betas = nn.Parameter(torch.zeros(num_tasks, self.k + num_tasks).type(torch.float32))
             self._forward_mask = self._forward_mask_linear_comb
         else:
             self.betas = None
@@ -1399,62 +1420,130 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
         return self._subnet_class.apply(self.scores[self.task])
 
     def _forward_mask_linear_comb(self):
-        _subnet = self.scores[self.task]
-        # NOTE comment/uncomment the code block below to disble/enable the use of consolidated masks
-        # in PPO_agent (in trask_train_end(...)) also comment/uncomment `consolidate_mask` function.
-        if self.task < self.num_tasks_learned:
-            # this is a task that has been seen before (with established/trained mask).
-            # fetch mask and use (either for eval or to continue training).
-            return self._subnet_class.apply(_subnet)
+        _subnet = self.scores[self.task]    # Get our current task training subnet
 
-        # otherwise, this is a new task. check if the first task
-        if self.task == 0:
-            # this is the first task to train. no previous task mask to linearly combine.
-            return self._subnet_class.apply(_subnet)
+        if self.task == 0 or self.task < self.num_tasks_learned:
+            if len(self.comm_masks) == 0:
+                return self._subnet_class.apply(_subnet)
+            
+            _subnets = [_subnet]
+            _subnets.extend([c.detach() for c in self.comm_masks])
 
-        # otherwise, a new task and it is not the first task. combine task mask with
-        # masks from previous tasks.
-        # note: should not update scores/masks from previous tasks. only update their coeffs/betas
-        _subnets = [self.scores[idx].detach() for idx in range(self.task)]
-        assert len(_subnets) > 0, 'an error occured'
-        _betas = self.betas[self.task, 0:self.task+1]
-        _betas = torch.softmax(_betas, dim=-1)
-        _subnets.append(_subnet)
-        assert len(_betas) == len(_subnets), 'an error ocurred'
-        _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
-        # element wise sum of various masks (weighted sum)
-        _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
-        return self._subnet_class.apply(_subnet_linear_comb)
+            _betas = self.betas[self.task, 0:self.task+1+self.num_comm_masks]    # Get betas for community masks and subnet
+            _betas = torch.softmax(_betas, dim=-1)  # Apply softmax to the betas
+
+            # Perform linear combinantions
+            _subnets = [_b * _s for _b, _s in zip(_betas, _subnets)]    
+            _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
+            return self._subnet_class.apply(_subnet_linear_comb)
+        
+        else:
+            _subnets = [self.scores[idx].detach() for idx in range(self.task)]
+            assert len(_subnets) > 0, 'an error occured'
+            _subnets.append(_subnet)
+
+            if len(self.comm_masks) > 0: _subnets.extend([c.detach() for c in self.comm_masks])
+            # This gives us _subnets = [ LLmasks..., current subnet..., community masks... ]
+
+
+            _betas = self.betas[self.task, 0:self.task+1+self.num_comm_masks]    # Get the row from 2D betas for this task up to the number of community masks (k)
+            _betas = torch.softmax(_betas, dim=1)
+            assert len(_betas) == len(_subnets), 'an error occured'
+
+            # Perform linear combinantions
+            _subnets = [_b * _s for _b, _s in zip(_betas, _subnets)]    
+            _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
+            return self._subnet_class.apply(_subnet_linear_comb)
 
     @torch.no_grad()
     def consolidate_mask(self):
-        self.scores[self.task].data = self._consolidate_mask()
-        return
-
-    @torch.no_grad()
-    def _consolidate_mask(self):
-        # catch scenarios where consolidation of mask is NOT needed.
+        """
+        Consolidate all the masks (LL, community and current training subnet) at end of training on task
+        """
         if self.new_mask_type == NEW_MASK_RANDOM: return
-        if self.task <= 0: return
-        if self.task < self.num_tasks_learned:
-            # re-visiting a task that has been previously learnt (no need to consolidate)
-            # which should not get here though, because this secanrio should have been caught
-            # task_train_end(...) method in supermask_policy.py class.
-            # assert False, 'sanity check'
+        if self.task < self.num_tasks_learned: return
+        if self.task <= 0 and len(self.comm_masks) == 0: return # If there are no LL masks (because we are on the first task) and there are no community masks, then there is no need for consolidation.
+        if self.task > 0:  # Not on the first task so we can expect LL masks
+            _subnets = [self.scores[idx].detach() for idx in range(self.task)]
+        
+        _subnet = self.scores[self.task]
+        _subnets.append(_subnet)
+        _subnets.extend([c.detach() for c in self.comm_masks])
+        assert len(_subnets) > 0, 'an error occured'
+        
+        _betas = self.betas[self.task, 0:self.task+1+self.num_comm_masks]
+        _betas = torch.softmax(_betas, dim=-1)
+        assert len(_betas) == len(_subnets), 'an error ocurred'
+
+        
+        _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
+        _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
+        self.scores[self.task].data = _subnet_linear_comb.data
+        return
+        
+    @torch.no_grad()
+    def consolidate_comm_mask(self):
+        if self.new_mask_type == NEW_MASK_RANDOM: 
+            print(0)
             return
+        if self.task < self.num_tasks_learned: 
+            print(1)
+            return
+        if len(self.comm_masks) == 0: 
+            print(2)
+            return # If there are no community masks, then there is no need for consolidation.
+        if self.betas is None: 
+            print(3)
+            return
+        
+        print(4)
 
         _subnet = self.scores[self.task]
-        _subnets = [self.scores[idx].detach() for idx in range(self.task)]
+        _subnets = [_subnet]
+        _subnets.extend([c.detach() for c in self.comm_masks])
         assert len(_subnets) > 0, 'an error occured'
-        _betas = self.betas[self.task, 0:self.task+1]
-        _betas = torch.softmax(_betas, dim=-1)
-        _subnets.append(_subnet)
-        assert len(_betas) == len(_subnets), 'an error ocurred'
-        _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
-        # element wise sum of various masks (weighted sum)
-        _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
-        return _subnet_linear_comb.data
         
+        _betas = self.betas[self.task, self.task:self.task+1+self.num_comm_masks]
+        print(f'Betas before softmax: {_betas}')
+        _betas = torch.softmax(_betas, dim=-1)
+        assert len(_betas) == len(_subnets), 'an error ocurred'
+        print(f'Betas after softmax: {_betas}')
+
+        _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
+        _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
+        self.scores[self.task].data = _subnet_linear_comb.data
+        return
+    
+    @torch.no_grad()
+    def update_comm_masks(self, masks):
+        print('Consolidating existing comm masks')
+        self.consolidate_comm_mask() # Consolidate the current community masks only NOTE: Replace this with consolidate_mask() if we want to consolidate all knowledge
+        self.cache_masks()  # NOTE: I'm not sure if we need to do this, but following the original examples I've put it in.
+        
+        print('Replacing with new comm masks')
+        self.comm_masks = [mask.to(Config.DEVICE) for mask in masks] # Update to the new community masks
+        self.num_comm_masks = len(self.comm_masks)  # Update number of comm masks
+        
+        print(self.betas)
+        # Reset the betas for the community masks
+        if self.new_mask_type == NEW_MASK_LINEAR_COMB:
+            # Undo log operation
+            self.betas.data[self.task, 0:self.task+1+self.num_comm_masks] = torch.exp(self.betas.data[self.task, 0:self.task+1+self.num_comm_masks])
+            
+            # Reset the community betas using (BLC) technique based off of the current value of the beta for the current subnet
+            # NOTE: This method will ensure that the total weighting adds up to 1 every time. It should also adjust the weightings
+            #       given to community masks, as the agents local policy gets better and better, putting more weight on the local subnet.
+            threshold = self.betas.data[self.task, self.task:self.task+1] # Get the value of the beta parameter for the current subnet
+            remainder = 1. - threshold  # Calculate remaining weighting
+            self.betas.data[self.task, self.task+1:self.task+1+self.num_comm_masks] = remainder / self.num_comm_masks
+
+            # Reset the beta parameter initialization for the number of community masks
+            #self.betas.data[self.task, self.task+1:self.task+1+self.num_comm_masks] = 1/(2*self.num_comm_masks)
+            
+            # Redo the log operation
+            self.betas.data[self.task, 0:self.task+1+self.num_comm_masks] = torch.log(self.betas.data[self.task, 0:self.task+1+self.num_comm_masks])
+        
+        print(f'Betas: {self.betas}')
 
     def __repr__(self):
         return f"MultitaskMaskConv2d({self.in_channels}, {self.out_channels})"
@@ -1507,8 +1596,12 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
 
     @torch.no_grad()
     def set_task(self, task, new_task=False):
+        print('IN SET_TASK()')
         self.task = task
         if self.new_mask_type == NEW_MASK_LINEAR_COMB and new_task:
-            if task > 0:
-                k = task + 1
-                self.betas.data[task, 0:k] = 1. / k
+            k = task + 1
+            self.betas.data[task, 0:k] = 1 / (2*k)
+            self.betas.data[task, k:k+self.k] = 1 / (2*self.k)
+            self.betas.data[task, 0:k+self.k] = torch.log(self.betas.data[task, 0:k+self.k])
+
+        print(self.betas)  

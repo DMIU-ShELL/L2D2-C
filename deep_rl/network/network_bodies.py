@@ -123,8 +123,40 @@ from ..shell_modules.mmn.ssmask_utils import MultitaskMaskLinear, MultitaskMaskC
 from ..shell_modules.mmn.ssmask_utils import NEW_MASK_RANDOM
 from ..shell_modules.mmn.ssmask_utils import NEW_MASK_LINEAR_COMB
 class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learning algorithm
-    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu, discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM, seed=1):
+    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu, discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM):
         super(FCBody_SS, self).__init__()
+        if task_label_dim is None:
+            dims = (state_dim, ) + hidden_units
+        else:
+            dims = (state_dim + task_label_dim, ) + hidden_units
+        self.layers = nn.ModuleList([MultitaskMaskLinear(dim_in, dim_out, discrete=discrete_mask, \
+            num_tasks=num_tasks, new_mask_type=new_task_mask) \
+            for dim_in, dim_out in zip(dims[:-1], dims[1:])
+        ])
+        self.gate = gate
+        self.feature_dim = dims[-1]
+        self.task_label_dim = task_label_dim
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+            x = torch.cat([x, task_label], dim=1)
+        #if task_label is not None: x = torch.cat([x, task_label], dim=1)
+       
+        ret_act = []
+        if return_layer_output:
+            for i, layer in enumerate(self.layers):
+                x = self.gate(layer(x))
+                ret_act.append(('{0}.layers.{1}'.format(prefix, i), x))
+        else:
+            for i, layer in enumerate(self.layers):
+                x = self.gate(layer(x))
+
+        return x, ret_act
+
+class FCBody_SS_Comp(nn.Module): # fcbody for supermask superposition continual learning algorithm
+    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu, discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM, seed=1):
+        super(FCBody_SS_Comp, self).__init__()
         if task_label_dim is None:
             dims = (state_dim, ) + hidden_units
         else:
@@ -133,11 +165,6 @@ class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learn
             num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed) \
             for dim_in, dim_out in zip(dims[:-1], dims[1:])
         ])
-
-        '''self.layers = nn.ModuleList([MultitaskMaskLinear(dim_in, dim_out, discrete=discrete_mask, \
-            num_tasks=num_tasks, new_mask_type=new_task_mask) \
-            for dim_in, dim_out in zip(dims[:-1], dims[1:])
-        ])'''
         self.gate = gate
         self.feature_dim = dims[-1]
         self.task_label_dim = task_label_dim
@@ -160,15 +187,16 @@ class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learn
         return x, ret_act
 
 class ConvBody_SS(nn.Module): # conv body for supermask lifelong learning algorithm
-    def __init__(self, state_dim=[3, 64, 64], lstm_hidden_size=200, hidden_units = (64, 64), kernels=[(3,3), (3,3)], strides=[1,1], paddings=[1,1], feature_dim=512, task_label_dim=None, gate=F.relu, discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM, seed=1):
+    def __init__(self, state_dim, lstm_hidden_size=200, hidden_units = (64, 64), kernels=[(3,3), (3,3)], strides=[1,1], paddings=[1,1], feature_dim=512, task_label_dim=None, gate=F.relu, discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM, seed=1):
         super(ConvBody_SS, self).__init__()
 
-        #print(state_shape)
-        in_channels = state_dim[0] # assumes state_state with dim: num_channels x height x width
-        self.conv1 = ComposeMultitaskMaskConv2d(in_channels, 32, kernel_size=(3,3), stride=1, padding=1, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
-        self.conv2 = ComposeMultitaskMaskConv2d(32, 64, kernel_size=(3,3), stride=1, padding=1, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
-        self.conv3 = ComposeMultitaskMaskConv2d(64, 32, kernel_size=(3,3), stride=1, padding=1, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
+        print(state_dim)
+        in_channels = state_dim[2] # assumes state_state with dim: num_channels x height x width
+        self.conv1 = ComposeMultitaskMaskConv2d(in_channels, 32, kernel_size=8, stride=4, padding=1, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
+        self.conv2 = ComposeMultitaskMaskConv2d(32, 64, kernel_size=4, stride=2, padding=1, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
+        self.conv3 = ComposeMultitaskMaskConv2d(64, 64, kernel_size=3, stride=1, padding=1, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
 
+        
         '''if task_label_dim is None: dims = (state_dim[0], ) + hidden_units
         else: dims = (state_dim[0] + task_label_dim, ) + hidden_units
         self.layers = nn.ModuleList(
@@ -189,8 +217,9 @@ class ConvBody_SS(nn.Module): # conv body for supermask lifelong learning algori
         #self.maxp1 = nn.MaxPool2d(kernel_size=2, stride=2)
         
         # Fully connected layer for output
+        self.flatten = nn.Flatten()
         flattened_in = 32 * max(state_dim) * min(state_dim)
-        self.fc = CompBLC_MultitaskMaskLinear(flattened_in , feature_dim, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
+        self.fc = CompBLC_MultitaskMaskLinear(64 * 7 * 7, feature_dim, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
 
         self.gate = gate
         self.feature_dim = feature_dim
@@ -224,7 +253,8 @@ class ConvBody_SS(nn.Module): # conv body for supermask lifelong learning algori
             ret_act.append(('{0}.conv.3'.format(prefix), y.detach().cpu().reshape(-1,)))
 
         # flatten
-        y = y.view(y.shape[0], -1)
+        y = self.flatten(y)
+        #y = y.view(y.shape[0], -1)
         #print(y.shape)
         if self.task_label_dim is not None:
             y = torch.cat([y, task_label], dim=1)
