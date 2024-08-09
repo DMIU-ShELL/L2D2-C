@@ -16,7 +16,7 @@ from .BaseAgent import BaseAgent, BaseContinualLearnerAgent
 from ..utils.torch_utils import random_seed, tensor
 from ..utils.misc import Batcher
 from ..component.replay import Replay
-from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask, GetSubnetDiscrete, GetSubnetContinuous, GetSubnetContinuousV2, mask_init, signed_constant, consolidate_comm_mask, update_comm_masks, erase_masks
+from ..shell_modules.mmn.ssmask_utils import set_model_task, consolidate_mask, cache_masks, set_num_tasks_learned, get_mask, set_mask, GetSubnetDiscrete, GetSubnetContinuous, GetSubnetContinuousV2, mask_init, signed_constant, consolidate_comm_mask, update_comm_masks, erase_masks, get_current_betas
 
 import torch
 import torch.nn as nn
@@ -29,6 +29,7 @@ import traceback
 from sklearn.cluster import Birch
 import tensorboardX as tf
 from collections import deque
+import pandas as pd
 
 # Base PPO agent implementations
 class PPOAgent(BaseAgent):
@@ -147,7 +148,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             task_label = np.array(task['task_label'])
             task_label_integer = np.argmax(task_label, axis=0)
             
-            print(f"Task Name: {task['name']}, Task Label (One-Hot): {task['task_label']}, Task Label (Integer): {task_label_integer}")
+            print(f"Task Name: {task['name']}, Task Label (One-Hot): {task['task_label']}, Task Label (Integer): {task_label_integer}, Path: {task['task']}")
             #self.config.task_ids.append(task_label_integer)
 
         
@@ -878,6 +879,9 @@ class PPODetectShell(PPOShellAgent):
         self.discrete = True
         self._subnet_class = GetSubnetDiscrete if self.discrete else GetSubnetContinuous
 
+        
+        self.betas_log_path = self.config.logger.log_dir + '/betas.csv'
+
 
         # Debugging outputs.
         print(f'Observation size: {observation_size}, Task embedding size: {self.task_emb_size}')
@@ -935,7 +939,7 @@ class PPODetectShell(PPOShellAgent):
                 break
         return found_task_idx'''
         
-    def task_train_start_emb(self, task_embedding):
+    def task_train_start_emb(self, task_embedding, current_reward):
         '''Method for starting the training procedure upon a new Detected task form the Detect Module.
         It is based on the "task_train_start()" method.'''
 
@@ -956,12 +960,12 @@ class PPODetectShell(PPOShellAgent):
             )
 
             self.new_task = True                                                                # Set the new_task flag to True
-            set_model_task(self.network, self.current_task_key, new_task=True)                  # Set the new task mask inside the model
+            set_model_task(self.network, self.current_task_key, new_task=True, current_reward=current_reward)                  # Set the new task mask inside the model
             self.set_current_task_embedding(task_embedding)        # Set the self.current_task_emb for the newly detected task
 
         else:
             # Set model to use the existing task mask.
-            set_model_task(self.network, self.current_task_key)
+            set_model_task(self.network, self.current_task_key, current_reward=current_reward)
 
         return
     
@@ -1223,12 +1227,26 @@ class PPODetectShell(PPOShellAgent):
         # IF NEW TASK
         else:
             self.task_train_end_emb()                       # End training on previous task mask.
-            self.task_train_start_emb(new_emb)              # Start training on new mask for the newly detected task
+            self.task_train_start_emb(new_emb, np.mean(self.iteration_rewards))      # np.mean(self.iteration_rewards) was giving           # Start training on new mask for the newly detected task
             self.current_task_emb = new_emb                 # Set the current task embedding to the first one produced for the new task
             task_change_bool = True
 
         return task_change_bool
 
+    def log_betas(self, iteration):
+        betas_logs = get_current_betas(self.network)
+        data = [
+            {
+                'iteration' : iteration,
+                'betas' : betas_logs
+            }
+        ]
+        df = pd.DataFrame(data)
+        df.to_csv(self.betas_log_path, mode='a', header=not pd.io.common.file_exists(self.betas_log_path), index=False)
+    
+    
+    
+    
     # Experimental WTE + online BIRCH clustering for task detection
     def assign_task_emb_birch(self, new_emb):
         old_emb = self.seen_tasks[self.current_task_key]['task_emb']
@@ -1410,8 +1428,8 @@ class PPODetectShell(PPOShellAgent):
         else:
             return False
 
-    def update_community_masks(self, masks):
-        update_comm_masks(self.network, masks)
+    def update_community_masks(self, masks, current_reward):
+        update_comm_masks(self.network, masks, current_reward)
 
 
     ###############################################################################

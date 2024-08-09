@@ -184,11 +184,15 @@ def detect_finalise_and_run(config, Agent):
 
 
     # Comm hyperparameters
-    config.query_wait = 0.2 # ms
+    config.query_wait = 0.3 # ms
     config.mask_wait = 0.3  # ms
-    config.top_k = 5 # get top 5 masks for collective linear comb
-    config.reward_progression_factor = 0.6 # x * self.current_task_reward < sender_rw @send_mask_requests() # NOTE: NOT USED ANYMORE
-    config.reward_stability_threshold = 0.6 # Reward threshold at which point we don't want the agent to query anymore for stability
+    config.top_n = 14 # get top 5 masks for collective linear comb
+    #config.reward_progression_factor = 0.6 # x * self.current_task_reward < sender_rw @send_mask_requests() # NOTE: NOT USED ANYMORE
+    #config.reward_stability_threshold = 0.6 # Reward threshold at which point we don't want the agent to query anymore for stability
+
+    # Flags for ablation studies
+    config.no_similarity = False
+    config.no_reward = False
 
     # Log all system hyperparameters and settings to log directory
     config.log_hyperparameters(config.logger.log_dir + '/parameters.txt')
@@ -260,13 +264,13 @@ def minigrid_ppo(name, args, shell_config):
             state_dim, 
             task_label_dim=label_dim, 
             hidden_units=(200, 200, 200), 
-            num_tasks=25,#config.cl_num_tasks, 
+            num_tasks=config.cl_num_tasks, 
             new_task_mask=args.new_task_mask,
             seed=config.seed
             ),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
-        num_tasks=25,#config.cl_num_tasks,
+        num_tasks=config.cl_num_tasks,
         new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
     

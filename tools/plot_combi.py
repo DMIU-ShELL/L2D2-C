@@ -298,7 +298,7 @@ def main(args):
     fig = plot(data['tpot'], 'TPOT', yaxis_label='Total Performance Over Time (TPOT)', ylim=maximum_icr_ + 0.5)
     fig.savefig(save_path + 'metrics_tpot.pdf', dpi=256, format='pdf', bbox_inches='tight')
 
-    '''
+    
     if args.ll_paths is not None:
         for num_shell_agents in args.num_agents:
             eps = 1e-6 # to help with zero divide
@@ -368,7 +368,7 @@ def main(args):
             fig = plot_tra(x, y, NUM_AGENTS)
 
     fig.savefig(save_path + 'TRA.pdf', bbox_inches='tight', \
-        dpi=256, format='pdf')'''
+        dpi=256, format='pdf')
 
     return 0
 

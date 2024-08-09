@@ -184,11 +184,15 @@ def detect_finalise_and_run(config, Agent):
 
 
     # Comm hyperparameters
-    config.query_wait = 0.2 # ms
+    config.query_wait = 0.3 # ms
     config.mask_wait = 0.3  # ms
-    config.top_k = 5 # get top 5 masks for collective linear comb
-    config.reward_progression_factor = 0.6 # x * self.current_task_reward < sender_rw @send_mask_requests() # NOTE: NOT USED ANYMORE
-    config.reward_stability_threshold = 0.6 # Reward threshold at which point we don't want the agent to query anymore for stability
+    config.top_n = 1 # get top 5 masks for collective linear comb
+    #config.reward_progression_factor = 0.6 # x * self.current_task_reward < sender_rw @send_mask_requests() # NOTE: NOT USED ANYMORE
+    #config.reward_stability_threshold = 0.6 # Reward threshold at which point we don't want the agent to query anymore for stability
+
+    # Flags for ablation studies
+    config.no_similarity = False
+    config.no_reward = False
 
     # Log all system hyperparameters and settings to log directory
     config.log_hyperparameters(config.logger.log_dir + '/parameters.txt')
@@ -259,13 +263,13 @@ def mctgraph_ppo(name, args, shell_config):
             state_dim, 
             task_label_dim=label_dim,
             hidden_units=(200, 200, 200), 
-            num_tasks=25,#config.cl_num_tasks,
-            new_task_mask=args.new_task_mask,
+            num_tasks=config.cl_num_tasks,
+            new_task_mask=args.new_task_mask,           # NOTE: Set this to the max number of tasks to make the eval agent work
             seed=config.seed
             ),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
-        num_tasks=25,#config.cl_num_tasks,         # NOTE: We have to keep the num_tasks the same between the LLA and EA otherwise we have an issue with the evaluation agent using random policy actions. TODO: Figure out why this is. Could be due to some mismatch in the mask idx when mask is transfered from LLA to EA and distilled to the network.
+        num_tasks=config.cl_num_tasks,         # NOTE: We have to keep the num_tasks the same between the LLA and EA otherwise we have an issue with the evaluation agent using random policy actions. TODO: Figure out why this is. Could be due to some mismatch in the mask idx when mask is transfered from LLA to EA and distilled to the network.
         new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
     

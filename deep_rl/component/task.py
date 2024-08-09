@@ -375,6 +375,8 @@ class MetaCTgraph(BaseTask):
             all_tasks = all_tasks.tolist()
         del _all_tasks
 
+
+
         # set monitor
         envs = [self.set_monitor(env, log_dir) for env in envs]
         self.envs = envs
@@ -407,8 +409,8 @@ class MetaCTgraph(BaseTask):
         # set default task
         self.set_task(self.tasks[0])
 
-        # set default task
-        self.set_task(self.tasks[0])
+       ## set default task
+       # self.set_task(self.tasks[0])
 
     def step(self, action):
         state, reward, done, info = self.env.step(action)

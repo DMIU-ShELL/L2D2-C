@@ -111,15 +111,18 @@ class ParallelCommDetect(object):
         self.evaluator_present = config.evaluator_present
         self.evaluator_destinations = self.manager.list()
 
+        self.no_similarity = config.no_similarity
+        self.no_reward = config.no_reward
+
         
 
 
         # HYPERPARAMETERS
         self.query_wait = config.query_wait
         self.mask_wait = config.mask_wait
-        self.top_k = config.top_k
-        self.reward_progression_factor = config.reward_progression_factor # NOTE: Has been removed
-        self.reward_stability_threshold = config.reward_stability_threshold
+        self.top_n = config.top_n
+        #self.reward_progression_factor = config.reward_progression_factor # NOTE: Has been removed
+        #self.reward_stability_threshold = config.reward_stability_threshold
         
         
 
@@ -353,19 +356,16 @@ class ParallelCommDetect(object):
 
             # Get all embeddings/rewards from the knowledge base
             for key, value in self.seen_tasks.items():
-                if 'task_emb' in value and value['reward'] > 0:
-                #if 'task_emb' in value:
-                    known_embedding = value['task_emb']
-                    known_reward = value['reward']
-                    embeddings.append(known_embedding)
-                    rewards.append(known_reward)
-
+                #if ('task_emb' in value and value['reward'] > 0) or self.no_reward:
+                known_embedding = value['task_emb']
+                known_reward = value['reward']
+                embeddings.append(known_embedding)
+                rewards.append(known_reward)
 
             if not embeddings:
                 self.logger.info(Fore.GREEN + "No entries satisfying the condition found.")
                 return None
-                        
-            
+                              
             try:
                 # If any are found from previous condition, then we want to compute cosine similarities
                 # and get the entry with the most similarity above the threshold (default=0.4).
@@ -391,7 +391,7 @@ class ParallelCommDetect(object):
                 cosine_similarity_threshold = target_cosine_threshold
 
                 # Check if the closest similarity is above the threshold
-                if closest_similarity >= cosine_similarity_threshold:
+                if (closest_similarity >= cosine_similarity_threshold) or self.no_similarity:
                     # Get information from the registry for the closest key (internal task id)
                     query['response_reward'] = self.seen_tasks[closest_key]['reward']
                     query['response_similarity'] = closest_similarity  # Convert to a Python float
@@ -536,7 +536,7 @@ class ParallelCommDetect(object):
 
                         # We want to know that the information we select is actually useful so the reward needs to be relatively high
                         # We want the knowledge that we use to also improve as we improve so we scale it with our own reward
-                        if self.current_task_reward < sender_rw:# and sender_dist <= self.threshold:
+                        if (self.current_task_reward < sender_rw) or self.no_reward:# and sender_dist <= self.threshold:
                             # Create a new dictionary for each request
                             data = {
                                 'req_address': sender_address,
@@ -580,7 +580,7 @@ class ParallelCommDetect(object):
         for data in self.metadata:
             self.logger.info(f'{Fore.YELLOW}{data}')
 
-        mask_requests = proc_requests(n=self.top_k)
+        mask_requests = proc_requests(n=self.top_n)
         self.logger.info(Fore.CYAN + f'Processed mask requests: {mask_requests}')
 
         if len(mask_requests) > 0:
@@ -896,8 +896,8 @@ class ParallelCommDetect(object):
                 # Send out a query when shell iterations matches mask interval if the agent is working on a task
                 try:
                     if self.world_size.value > 1:
-                        if dict_to_query['reward'] < self.reward_stability_threshold:               # This value ensures that the agent doesn't query if the current reward is not already stable.
-                            self.send_query(dict_to_query, queue_mask)
+                        #if (dict_to_query['reward'] < self.reward_stability_threshold) or self.no_reward:               # This value ensures that the agent doesn't query if the current reward is not already stable.
+                        self.send_query(dict_to_query, queue_mask)
 
                         # Report current performance to evaluator
                         print(self.evaluator_present.value, dict_to_query)

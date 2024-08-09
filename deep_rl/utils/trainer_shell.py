@@ -621,7 +621,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
 
     # NOTE: ADDED detect.add_embedding() to accomodate the WEIGHTED AVG COSINE SIM
     agent.current_task_emb = torch.zeros(agent.get_task_emb_size())
-    agent.task_train_start_emb(task_embedding=agent.current_task_emb)   # TODO: There is an issue with this which is that the first task will be set as zero and then the detect module with do some learning, find that the task does not match the zero embedding and start another task change. This leaves the first entry to a task change as useless. Also issues if we try to moving average this
+    agent.task_train_start_emb(task_embedding=agent.current_task_emb, current_reward=agent.iteration_rewards)   # TODO: There is an issue with this which is that the first task will be set as zero and then the detect module with do some learning, find that the task does not match the zero embedding and start another task change. This leaves the first entry to a task change as useless. Also issues if we try to moving average this
     #agent.detect.add_embedding(agent.current_task_emb, np.mean(agent.iteration_rewards))
     del states_
 
@@ -718,7 +718,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                     # Update the network with the linearly combined mask
                     #agent.distil_task_knowledge_embedding(_masks[0])       # This will only take the first mask in the list
                     #agent.consolidate_incoming(_masks)                      # This will take all the masks in the list and linearly combine with the random/current mask
-                    agent.update_community_masks(_masks)
+                    agent.update_community_masks(_masks, np.mean(agent.iteration_rewards))
                     _masks = []
 
                     logger.info(Fore.WHITE + 'COMPOSED MASK ADDED TO NETWORK!')
@@ -840,7 +840,10 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         dict_logs = agent.iteration()
         shell_iterations += 1
 
+        # Log the beta parameters for the curren task
+        agent.log_betas(shell_iterations)
         
+
         
         ###############################################################################
         ### Run detect module. Generates embedding for SAR. Perform check to see if there has been a task change or not.
@@ -953,7 +956,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             
             # Update the dictionary containing the current task embedding to query for.
             dict_to_query = agent.seen_tasks[agent.current_task_key]
-            dict_to_query['parameters'] = 0.4 #€ Cosine similarity threshold
+            dict_to_query['parameters'] = 0.5 #€ Cosine similarity threshold
 
             # Logging embeddings and labels
             if new_emb is not None:
