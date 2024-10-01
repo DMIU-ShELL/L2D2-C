@@ -497,6 +497,9 @@ class MiniGrid(BaseTask):
             for name, seed in zip(env_names, seeds)}
         env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
         #self.envs = {name: TimeLimit(env, MiniGrid.TIME_LIMIT) for name, env in self.envs.items()}
+        
+        print("\nenv_names:", env_names)
+        print("\nself.envs:", self.envs.keys())
 
         # apply exploration bonus wrapper only to training envs
         if not eval_mode:
@@ -611,6 +614,194 @@ class MiniGridFlatObs(MiniGrid):
     def reset(self):
         state, info = self.env.reset()
         return state.ravel()
+
+class CompoSuite(BaseTask):
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000):
+        BaseTask.__init__(self)
+        self.name = name
+        import composuite
+        with open(env_config_path, 'r') as f:
+            env_config = json.load(f)
+        self.env_config = env_config
+        _env_names = env_config['tasks']
+        if 'seeds' in env_config.keys():
+            seeds = env_config['seeds']
+        else:
+            seeds = seed
+            del seed
+
+        # Select random task from seed using composuite.sample_tasks()
+
+        if isinstance(seeds, int): seeds = [seeds,] * len(_env_names)
+        elif isinstance(seeds, list):
+            assert len(seeds) == len(_env_names), 'number of seeds in config file should match the number of tasks.'
+        else: raise ValueError('invalid seed specification in config file')
+
+        self.envs = dict()
+        env_names = list()
+        for name, seed in zip(_env_names, seeds):
+            train, _ = composuite.sample_tasks(experiment_type='default', num_train=1, shuffling_seed=seed)
+            robot, obj, obstacle, objective = train[0]
+            self.envs['{0}_{1}Subtask'.format(robot, objective)] = composuite.make(robot, obj, obstacle, objective, use_task_id_obs=False)
+            env_names.append('{0}_{1}Subtask'.format(robot, objective))
+
+        #self.envs = {'{0}_seed{1}'.format(name, seed) : composuite.sample_tasks(experiment_type='default', num_train=1, shuffling_seed=seed) for name, seed in zip(env_names, seeds)}
+        #env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
+
+
+        print("\nenv_names:", env_names)
+        print("\nself.envs:", self.envs)
+        print("\n")
+        self.observation_space = self.envs[env_names[0]].observation_space
+        self.action_space = self.envs[env_names[0]].action_space
+        self.state_dim = self.observation_space.shape
+
+        if 'action_dim' in env_config.keys():
+            self.action_dim = env_config['action_dim']
+        else:
+            self.action_dim = self.envs[env_names[0]].action_space.n
+
+        for name in self.envs.keys():
+            self.envs[name] = self.set_monitor(self.envs[name], log_dir)
+
+        self.task_label_dim = env_config['label_dim']
+        self.one_hot_labels = True if env_config['one_hot'] else False
+
+        self.tasks = [{'name': name, 'task': name, 'task_label': None} \
+                   for name in self.envs.keys()]
+        
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+        else:
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32)
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+
+        self.current_task = self.tasks[0]
+        self.env = self.envs[self.current_task['task']]
+
+    def step(self, action):
+        state, reward, done, truncated, info = self.env.step(action)
+        if done or truncated:
+            state = self.reset()
+            done = done or truncated
+        return state, reward, done, info
+    
+    def reset(self):
+        state, done = self.env.reset()
+        return state
+    
+    def reset_task(self, taskinfo):
+        self.set_task(taskinfo)
+        return self.reset()
+    
+    def set_task(self, taskinfo):
+        self.current_task = taskinfo
+        self.env = self.envs[self.current_task['task']]
+    
+    def get_task(self):
+        return self.current_task
+    
+    def get_all_tasks(self, requires_task_label=True):
+        return self.tasks
+    
+    def random_tasks(self, num_tasks, requires_task_label=True):
+        return NotImplementedError
+
+class CompoSuiteFlatObs(CompoSuite):
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
+        super(CompoSuiteFlatObs, self).__init__(name, env_config_path, log_dir, eval_mode)
+        self.state_dim = int(np.prod(self.env.observation_space.shape))
+
+        self.action_map = {}
+
+    def step(self, action):
+        print(action)
+        state, reward, done, truncated, info = self.env.step(action)
+        if done or truncated:
+            state = self.reset()
+            done = done or truncated
+
+
+        return state.ravel(), reward, done, info
+    
+    def reset(self):
+        state, info = self.env.reset()
+        return state.ravel()
+
+class MiniHack(BaseTask):
+    def __init__(self, name, env_config_path, log_dir=None):
+        import minihack
+        import gym
+
+        with open(env_config_path, 'r') as f:
+            env_config = json.load(f)
+        self.env_config = env_config
+        env_names = env_config['tasks']
+
+        self.envs = {'{0}_seed{1}'.format(name, seed) : gym.make(name) for name, seed in zip(env_names, seeds)}
+        env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
+
+        self.observation_space = self.envs[env_names[0]].observation_space
+        self.action_space = self.envs[env_names[0]].action_space
+        self.state_dim = self.observation_space.shape
+
+        if 'action_dim' in env_config.keys():
+            self.action_dim = env_config['action_dim']
+        else:
+            self.action_dim = self.envs[env_names[0]].action_space.n
+
+        for name in self.envs.keys():
+            self.envs[name] = self.set_monitor(self.envs[name], log_dir)
+
+        self.task_label_dim = env_config['label_dim']
+        self.one_hot_labels = True if env_config['one_hot'] else False
+
+        self.tasks = [{'name': name, 'task': name, 'task_label': None} \
+                   for name in self.envs.keys()]
+        
+        if self.one_hot_labels:
+            for idx in range(len(self.tasks)):
+                label = np.zeros((self.task_label_dim,)).astype(np.float32)
+                label[idx] = 1.
+                self.tasks[idx]['task_label'] = label
+        else:
+            labels = np.random.uniform(low=-1.,high=1.,size=(len(self.tasks), self.task_label_dim))
+            labels = labels.astype(np.float32)
+            for idx in range(len(self.tasks)):
+                self.tasks[idx]['task_label'] = labels[idx]
+
+        self.current_task = self.tasks[0]
+        self.env = self.envs[self.current_task['task']]
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        return state, reward, done, info
+    
+    def reset(self):
+        state = self.env.reset()
+        return state
+    
+    def reset_task(self, taskinfo):
+        self.set_task(taskinfo)
+        return self.reset()
+    
+    def set_task(self, taskinfo):
+        self.current_task = taskinfo
+        self.env = self.envs[self.current_task['task']]
+    
+    def get_task(self):
+        return self.current_task
+    
+    def get_all_tasks(self):
+        return self.tasks
+    
+    def random_tasks(self, num_tasks, requires_task_label=True):
+        return NotImplementedError    
 
 class Procgen(BaseTask):
     def __init__(self, name, env_config_path, log_dir=None, num_threads=1):

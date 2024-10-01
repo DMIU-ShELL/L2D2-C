@@ -6,6 +6,8 @@ import os
 import glob
 import argparse
 from collections import OrderedDict
+from copy import deepcopy
+import seaborn as sns
 
 def cfi_delta(data, conf_int_param=0.95): # confidence interval
     mean = np.mean(data, axis=1)
@@ -106,6 +108,9 @@ def plot_sum(fig, ax, master, title='', xaxis_label='Iteration', yaxis_label='Su
     ax.legend(loc='lower right', prop={'size': 15})
 
     return fig, ax
+
+def plot_box(fig, ax, master, title='', xaxis_label='Iteration', yaxis_label='Summed Return'):
+    return
 
 def assess_policy_stability(rewards, window_size=10, threshold_ratio=0.95):
     """
@@ -1071,6 +1076,28 @@ mypaths10 = {
     },
 }
 
+# FOUR DIST CTGRAPH SEPERATED
+mypaths17 = {
+    'C3L' : {
+        'Level 2' : 'AAAI_EXPERIMENTS/ablations/four_dist/full_comm/T0/',
+        'Level 3' : 'AAAI_EXPERIMENTS/ablations/four_dist/full_comm/T1/',
+        'Level 4' : 'AAAI_EXPERIMENTS/ablations/four_dist/full_comm/T2/',
+        'Level 5' : 'AAAI_EXPERIMENTS/ablations/four_dist/full_comm/T3/',
+        'Level 6' : 'AAAI_EXPERIMENTS/ablations/four_dist/full_comm/T4/',
+        'Level 7' : 'AAAI_EXPERIMENTS/ablations/four_dist/full_comm/T5/',
+        'Level 8' : 'AAAI_EXPERIMENTS/ablations/four_dist/full_comm/T6/',
+    },
+    
+    'Isolated agents' : {
+        'Level 2' : 'AAAI_EXPERIMENTS/ablations/four_dist/no_comm/T0/',
+        'Level 3' : 'AAAI_EXPERIMENTS/ablations/four_dist/no_comm/T1/',
+        'Level 4' : 'AAAI_EXPERIMENTS/ablations/four_dist/no_comm/T2/',
+        'Level 5' : 'AAAI_EXPERIMENTS/ablations/four_dist/no_comm/T3/',
+        'Level 6' : 'AAAI_EXPERIMENTS/ablations/four_dist/no_comm/T4/',
+        'Level 7' : 'AAAI_EXPERIMENTS/ablations/four_dist/no_comm/T5/',
+        'Level 8' : 'AAAI_EXPERIMENTS/ablations/four_dist/no_comm/T6/',
+    },
+}
 
 
 
@@ -1478,7 +1505,7 @@ mypaths15 = {
 
 # MCTGRAPH top_n experiments
 mypaths16 = {
-    'C3L' : {
+    'C3L (no top-n selection)' : {
         'Dist 1 Level 2' : 'AAAI_EXPERIMENTS/new_weight_strat/no_top_c/T0/',
         'Dist 1 Level 3' : 'AAAI_EXPERIMENTS/new_weight_strat/no_top_c/T1/',
         'Dist 1 Level 4' : 'AAAI_EXPERIMENTS/new_weight_strat/no_top_c/T2/',
@@ -1659,7 +1686,7 @@ if __name__ == '__main__':
     parser.add_argument('--interval', help='interval', type=int, default=1)
     args = parser.parse_args()
 
-    MYPATHS = mypaths16
+    MYPATHS = mypaths10
 
 
     fig2 = plt.figure(figsize=(30, 6))
@@ -1690,14 +1717,29 @@ if __name__ == '__main__':
     ax2.axhline(y=0, color='k')
     ax2.axvline(x=0, color='k')
 
+    fig3 = deepcopy(fig2)
+    ax3 = deepcopy(ax2)
+
     master = {}
     master2 = {}
+
+    # Store data for box plot
+    boxplot_data = []
+    boxplot_labels = []
+    #interval_steps = [0, 25, 50, 75, 100, 125, 150, 175, 199]  # Example intervals for box plots
+    #interval_steps = [0, 50, 100, 150, 199]
+    interval_steps = list(range(0, 200, 1))
+
+
     for plot_name, paths in MYPATHS.items():
         print('NAMES:', plot_name, 'PATHS:', paths)
         master2[plot_name] = {}
 
         for name, path in paths.items():
             data = pd.DataFrame()
+
+            experiment_summed_rewards = []
+
             for i, filepath in enumerate(sorted(glob.glob(f'{path}*.csv'))):
                 # Load data into a pandas dataframe
                 df = pd.read_csv(filepath)
@@ -1716,13 +1758,61 @@ if __name__ == '__main__':
             master2[plot_name][name]['ydata_cfi'] = cfi_delta(data)
             master2[plot_name][name]['plot_colour'] = 'green'
 
+            print(data.columns)
+
+            # For each seed, calculate the sum of rewards at the specified interval steps
+            for seed in data.columns:
+                # Get the rewards for the specific seed
+                seed_data = data[seed]
+                print(seed_data)
+
+                # Sum the rewards at the specified interval steps for this seed
+                summed_seed_reward = np.sum([seed_data[step] for step in interval_steps if step < len(seed_data)])
+
+                # Append the summed reward for this seed and task to the overall experiment rewards
+                experiment_summed_rewards.append(summed_seed_reward)
+
+        # Once all tasks in the experiment are summed, append the data for boxplot
+        boxplot_data.extend(experiment_summed_rewards)  # Add all the summed rewards for this experiment
+        boxplot_labels.extend([plot_name] * len(experiment_summed_rewards))  # Label with the experiment name
+
+        """
+            for step in interval_steps:
+                if step < len(master[name]['ydata']):  # Ensure the step is within bounds
+                    boxplot_data.append(master[name]['ydata'][step])  # Summed reward at the step
+                    boxplot_labels.append(f'{name[0]}{name[-1]}_step_{step}')  # Label for the box plot"""
+
+
 
         if not os.path.exists('./log/plots/'): os.makedirs('./log/plots/')
         fig1 = plot(master, yaxis_label='Return')
         fig1.savefig(f'./log/plots/{plot_name}.pdf', dpi=256, format='pdf', bbox_inches='tight')
+
         
 
         fig2, ax2 = plot_sum(fig2, ax2, master, title=plot_name, yaxis_label='Instant Cumulative Return')
+
+        #fig3, ax3 = plot_box(fig3, ax3, master, title=plot_name, yaxis_label='Summed Return')
+
+    # Convert boxplot_data to the format required by seaborn
+    boxplot_data_df = pd.DataFrame({
+        "Summed Reward": boxplot_data,
+        "Experiment": boxplot_labels
+    })
+
+
+    # Create a new figure for box plots
+    fig_box, ax_box = plt.subplots(figsize=(8, 6))
+    #plt.boxplot(boxplot_data)
+    sns.boxplot(x="Experiment", y="Summed Reward", data=boxplot_data_df, ax=ax_box)
+    ax_box.set_xticklabels(boxplot_labels, rotation=45, ha='right')
+    ax_box.set_xlabel('Experiment')
+    ax_box.set_ylabel('Summed Reward (at specific intervals)')
+
+    # Save the box plot figure
+    fig_box.savefig('./log/plots/boxplot_comparison.pdf', dpi=256, bbox_inches='tight')  # Save the figure
+
+
     fig2.savefig(f'./log/plots/cumulative.pdf', dpi=256, format='pdf', bbox_inches='tight')
 
     plot_tra(master2)

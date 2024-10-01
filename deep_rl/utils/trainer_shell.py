@@ -648,7 +648,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     wdist_log = logger.log_dir + '/wdist_log.csv'
 
 
-    ###############################################################################
+    '''###############################################################################
     ### Comm module event handlers. These run in parallel to enable the interactions between the comm and agent.
     def mask_handler():
         """
@@ -761,7 +761,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     t_mask = mpd.Pool(processes=1)
     t_conv = mpd.Pool(processes=1)
     t_mask.apply_async(mask_handler)
-    t_conv.apply_async(conv_handler)
+    t_conv.apply_async(conv_handler)'''
     
 
     ###############################################################################

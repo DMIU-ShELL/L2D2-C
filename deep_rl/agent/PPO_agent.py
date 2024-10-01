@@ -318,6 +318,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         rollout = []
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states)
+            print(actions)
             next_states, rewards, terminals, _ = self.task.step(actions.cpu().detach().numpy())
             self.episode_rewards += rewards
             rewards = config.reward_normalizer(rewards)
@@ -1096,6 +1097,23 @@ class PPODetectShell(PPOShellAgent):
     ###############################################################################
     # Methods for detect module
     def extract_sar(self):
+        buffer_data = self.data_buffer.sample()
+        
+        sar_data = []
+        for tpl in buffer_data:
+            tmp0 = tpl[:3]                                              # Get the obs, action, reward
+            tmp1 = np.array(tmp0[1])                                    # Convert action tensor to np.array
+            tmp1 = tmp1.reshape(8,)                                     # Reshape data to one axis? Not sure what this is for.. maybe for multiple workers?
+            tmp2 = np.array(tmp0[2])                                    # Convert reward to np.array
+            tmp2 = tmp2.reshape(1,)                                     # Also reshape
+            tmp3 = np.concatenate([tmp0[0].ravel(), tmp1, tmp2])        # Concatenate together obs, action, reward as sar_data
+            sar_data.append(tmp3)
+
+        sar_data_arr = np.array(sar_data)
+
+        return sar_data_arr
+    
+    """def extract_sar(self):
         '''Function for extracting the SAR data from the Replay
         Buffer in order to feed the Detect Module'''
 
@@ -1135,7 +1153,7 @@ class PPODetectShell(PPOShellAgent):
         #   fmt='%f')
         #print("SAR_DATA_NP_TYPE:", type(sar_data_arr))
         #print("SAR_DATA_NP_ARR:", sar_data_arr)
-        return sar_data_arr
+        return sar_data_arr"""
 
     def compute_task_embedding(self, sar_data, action_space_size):
         '''Function for computing the task embedding based on the current

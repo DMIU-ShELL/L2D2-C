@@ -157,6 +157,7 @@ class FCBody_SS(nn.Module): # fcbody for supermask superposition continual learn
 class FCBody_SS_Comp(nn.Module): # fcbody for supermask superposition continual learning algorithm
     def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=F.relu, discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM, seed=1):
         super(FCBody_SS_Comp, self).__init__()
+        print("\n\n\n\nSTATE_DIM", state_dim)
         if task_label_dim is None:
             dims = (state_dim, ) + hidden_units
         else:

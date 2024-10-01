@@ -14,6 +14,8 @@ class Config:
     ENV_METAWORLD = 'MetaWorld'
     ENV_CONTINUALWORLD = 'ContinualWorld'
     ENV_PROCGEN = 'Procgen'
+    ENV_COMPOSUITE = 'Composuite'
+    ENV_MINIHACK = 'Minihack'
     def __init__(self):
         self.parser = argparse.ArgumentParser()
         self.task_fn = None

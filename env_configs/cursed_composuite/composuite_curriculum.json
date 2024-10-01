@@ -1,0 +1,29 @@
+{
+    "tasks": [
+        "compotask1", 
+        "compotask2", 
+        "compotask3", 
+        "compotask4", 
+        "compotask5",
+        "compotask6",
+        "compotask7",
+        "compotask8",
+        "compotask9",
+        "compotask10"
+    ],
+    "one_hot": true,
+    "label_dim": 10,
+    "action_dim": 8,
+    "seeds": [
+        840, 
+        841,
+        842,
+        843,
+        844,
+        845,
+        846,
+        847,
+        848,
+        849
+    ]
+}

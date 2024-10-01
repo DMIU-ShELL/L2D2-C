@@ -186,7 +186,7 @@ def detect_finalise_and_run(config, Agent):
     # Comm hyperparameters
     config.query_wait = 0.3 # ms
     config.mask_wait = 0.3  # ms
-    config.top_n = 1 # get top 5 masks for collective linear comb
+    config.top_n = 28 # get top 5 masks for collective linear comb
     #config.reward_progression_factor = 0.6 # x * self.current_task_reward < sender_rw @send_mask_requests() # NOTE: NOT USED ANYMORE
     #config.reward_stability_threshold = 0.6 # Reward threshold at which point we don't want the agent to query anymore for stability
 
