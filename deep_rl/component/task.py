@@ -492,9 +492,7 @@ class MiniGrid(BaseTask):
             assert len(seeds) == len(env_names), 'number of seeds in config file should match'\
                 ' the number of tasks.'
         else: raise ValueError('invalid seed specification in config file')
-        self.envs = {'{0}_seed{1}'.format(name, seed) : \
-            ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) \
-            for name, seed in zip(env_names, seeds)}
+        self.envs = {'{0}_seed{1}'.format(name, seed) : ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) for name, seed in zip(env_names, seeds)}
         env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
         #self.envs = {name: TimeLimit(env, MiniGrid.TIME_LIMIT) for name, env in self.envs.items()}
         
@@ -720,7 +718,6 @@ class CompoSuiteFlatObs(CompoSuite):
         self.action_map = {}
 
     def step(self, action):
-        print(action)
         state, reward, done, truncated, info = self.env.step(action)
         if done or truncated:
             state = self.reset()

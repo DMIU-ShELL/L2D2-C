@@ -202,7 +202,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.curr_eval_task_label = None
 
         # other performance metric (specifically for metaworld environment)
-        if self.task.name == config.ENV_METAWORLD or self.task.name == config.ENV_CONTINUALWORLD:
+        if self.task.name == config.ENV_METAWORLD or self.task.name == config.ENV_CONTINUALWORLD or self.task.name == config.ENV_COMPOSUITE:
             self._rollout_fn = self._rollout_metaworld
             self.episode_success_rate = np.zeros(config.num_workers)
             self.last_episode_success_rate = np.zeros(config.num_workers)
@@ -318,7 +318,6 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         rollout = []
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states)
-            print(actions)
             next_states, rewards, terminals, _ = self.task.step(actions.cpu().detach().numpy())
             self.episode_rewards += rewards
             rewards = config.reward_normalizer(rewards)
@@ -361,7 +360,13 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states)
             next_states, rewards, terminals, infos = self.task.step(actions.cpu().detach().numpy())
-            success_rates = [info['success'] for info in infos]
+
+            # if using composuite then dictionary is slightly different
+            if self.task.name == config.ENV_COMPOSUITE:
+                success_rates = [info['Success'] for info in infos]
+            else:
+                success_rates = [info['success'] for info in infos]
+                
             self.episode_rewards += rewards
             self.episode_success_rate += success_rates
             rewards = config.reward_normalizer(rewards)

@@ -385,13 +385,13 @@ if __name__ == '__main__':
         args.pathheader = shell_config['env']['env_name']
         
     # Parse arguments and launch the correct environment-agent configuration.
-    if shell_config['env']['env_name'] == 'minigrid':
-        name = Config.ENV_MINIGRID
+    if shell_config['env']['env_name'] == 'minihack':
+        name = Config.ENV_MINIHACK
         if args.eval:
-            composuite_ppo_eval(name, args, shell_config)
+            minihack_ppo_eval(name, args, shell_config)
 
         else:
-            composuite_ppo(name, args, shell_config)
+            minihack_ppo(name, args, shell_config)
 
     else:
         raise ValueError('--env_name {0} not implemented'.format(args.env_name))

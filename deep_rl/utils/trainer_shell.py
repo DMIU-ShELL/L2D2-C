@@ -600,7 +600,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
 
     ###############################################################################
     ### Select iteration logging function based on environment. Required for Meta World and Continual World
-    if agent.task.name == agent.config.ENV_METAWORLD or agent.task.name == agent.config.ENV_CONTINUALWORLD:
+    if agent.task.name == agent.config.ENV_METAWORLD or agent.task.name == agent.config.ENV_CONTINUALWORLD or agent.task.name == agent.config.ENV_COMPOSUITE:
         itr_log_fn = _shell_itr_log_mw
 
     else:
