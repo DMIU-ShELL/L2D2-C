@@ -104,6 +104,7 @@ Curriculums and environments can be modified from the shell.json file. This file
     }
 }
 ```
+In the example above, tasks that correspond to the task_ids would be located in ./env_configs/meta_ctgraph.json.
 
 Note: Minigrid (with 3 simple crossing tasks) is specified as the default environment/tasks in `shell.json`. To run CT-graph experiments, update `shell.json` as shown below, or alternatively use the shell2x2, shell4x4, shell8x8, shell16x16, and shell32x32 JSON files. Numbers indicate the maximum number of agents and the number of tasks the JSONs are configured for. You may wish to use a fewer number of agents with more tasks. Currently the maximum number of tasks configured for the CT-graph be default is 32 though this can be modified. Please get in touch with us if you would like to experiment with different CT-graph configurations.
 
