@@ -98,8 +98,8 @@ class Detect:
             img = (img.float()-mean)/std
         if self.oh:
             act_oh = torch.zeros(X.shape[0], some_task_action_space_size)
-            print("INITIAL ACT_OH:", act_oh, act_oh.shape)
-            print(act, act.shape)
+            #print("INITIAL ACT_OH:", act_oh, act_oh.shape)
+            #print(act, act.shape)
       
             for i in range(act.shape[0]):
                 #print("HI form i:", i)
@@ -196,7 +196,6 @@ class Detect:
         emd = wasserstein_distance(current_embeddings, new_embedding)
         
         return emd
-
 
     # NOTE: WEIGHTED AVG COSINE SIM
     def add_embedding(self, embedding, reward):

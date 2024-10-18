@@ -45,6 +45,23 @@ def save_minigrid_image(env_name, filename, seed):
     # Close environment
     env.close()
 
+    # Function to save MiniGrid environment as PNG image
+def save_minihack_image(env_name, filename, seed):
+    # Create MiniGrid environment
+    env = gym.make(env_name)
+    
+    # Reset environment to get initial observation
+    obs = env.reset()
+    
+    # Convert observation to RGB image
+    img = minigrid_to_image(obs)
+    
+    # Save image as PNG
+    img.save(filename)
+    
+    # Close environment
+    env.close()
+
 
 
 
@@ -57,4 +74,4 @@ if __name__ == '__main__':
     seed = 840
     for env_name in args.envs:   # Change this to the MiniGrid environment you want
         filename = 'minigrid_images/' + str(env_name) + str(seed) + '.png'      # Specify the filename for the saved image
-        save_minigrid_image(env_name, filename, seed)
+        save_minihack_image(env_name, filename, seed)

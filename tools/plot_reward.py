@@ -9,6 +9,9 @@ from collections import OrderedDict
 from copy import deepcopy
 import seaborn as sns
 
+import warnings
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+
 def cfi_delta(data, conf_int_param=0.95): # confidence interval
     mean = np.mean(data, axis=1)
     if data.ndim == 1:
@@ -164,7 +167,7 @@ def plot_tra(master, title='', xaxis_label='', yaxis_label=''):
                 if reward >= 0.8 * max_reward:
                     max_index = data['xdata'][i]
                     break
-            print(experiment_name, name, max_index)
+            #print(experiment_name, name, max_index)
 
             if max_index == 0: max_index = np.amax(data['xdata'])
 
@@ -193,7 +196,7 @@ def plot_tra(master, title='', xaxis_label='', yaxis_label=''):
                         value2 = results[exp2][name]["x_at_max_y"]
                         diff = value1 - value2
                         if diff >= 0:
-                            print(exp1, exp2, name, diff, value1, value2)
+                            #print(exp1, exp2, name, diff, value1, value2)
                             results[exp1][name]["max_index_diff"] = diff
                             y_data.append(diff)
                             x_data.append(name)
@@ -1687,7 +1690,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     MYPATHS = mypaths10
-
+    #MYPATHS = mypaths15
+    #MYPATHS = mypaths11
 
     fig2 = plt.figure(figsize=(30, 6))
     ax2 = fig2.subplots()
@@ -1736,15 +1740,15 @@ if __name__ == '__main__':
         master2[plot_name] = {}
 
         for name, path in paths.items():
+            print(path)
             data = pd.DataFrame()
-
             experiment_summed_rewards = []
-
             for i, filepath in enumerate(sorted(glob.glob(f'{path}*.csv'))):
                 # Load data into a pandas dataframe
                 df = pd.read_csv(filepath)
                 # Select data from second column for each seed run
                 data.loc[:, i] = df['Value']
+                print(data)
 
             master[name] = {}
             master[name]['xdata'] = np.arange(data.shape[0])
@@ -1757,24 +1761,28 @@ if __name__ == '__main__':
             master2[plot_name][name]['ydata'] = np.mean(data, axis=1)
             master2[plot_name][name]['ydata_cfi'] = cfi_delta(data)
             master2[plot_name][name]['plot_colour'] = 'green'
-
-            print(data.columns)
-
+            
+            
             # For each seed, calculate the sum of rewards at the specified interval steps
             for seed in data.columns:
                 # Get the rewards for the specific seed
                 seed_data = data[seed]
-                print(seed_data)
 
                 # Sum the rewards at the specified interval steps for this seed
-                summed_seed_reward = np.sum([seed_data[step] for step in interval_steps if step < len(seed_data)])
+                values = []
+                for step in interval_steps:
+                    if step < len(seed_data):
+                        #print(seed_data[step])
+                        values.append(seed_data[step])
+                summed_seed_reward = np.average(values)
+                #summed_seed_reward = np.average([seed_data[step] for step in interval_steps if step < len(seed_data)])
 
                 # Append the summed reward for this seed and task to the overall experiment rewards
                 experiment_summed_rewards.append(summed_seed_reward)
 
-        # Once all tasks in the experiment are summed, append the data for boxplot
-        boxplot_data.extend(experiment_summed_rewards)  # Add all the summed rewards for this experiment
-        boxplot_labels.extend([plot_name] * len(experiment_summed_rewards))  # Label with the experiment name
+            # Once all tasks in the experiment are summed, append the data for boxplot
+            boxplot_data.extend(experiment_summed_rewards)  # Add all the summed rewards for this experiment
+            boxplot_labels.extend([plot_name] * len(experiment_summed_rewards))  # Label with the experiment name
 
         """
             for step in interval_steps:
@@ -1788,31 +1796,36 @@ if __name__ == '__main__':
         fig1 = plot(master, yaxis_label='Return')
         fig1.savefig(f'./log/plots/{plot_name}.pdf', dpi=256, format='pdf', bbox_inches='tight')
 
-        
-
         fig2, ax2 = plot_sum(fig2, ax2, master, title=plot_name, yaxis_label='Instant Cumulative Return')
 
         #fig3, ax3 = plot_box(fig3, ax3, master, title=plot_name, yaxis_label='Summed Return')
 
+    print(len(boxplot_data))
     # Convert boxplot_data to the format required by seaborn
     boxplot_data_df = pd.DataFrame({
-        "Summed Reward": boxplot_data,
+        "Average Reward": boxplot_data,
         "Experiment": boxplot_labels
     })
 
-
+    def remove_duplicates(original_list):
+        unique_list = []
+        for item in original_list:
+            if item not in unique_list:
+                unique_list.append(item)
+        return unique_list
+    
+    botplot_ticks = remove_duplicates(boxplot_labels)
     # Create a new figure for box plots
     fig_box, ax_box = plt.subplots(figsize=(8, 6))
     #plt.boxplot(boxplot_data)
-    sns.boxplot(x="Experiment", y="Summed Reward", data=boxplot_data_df, ax=ax_box)
-    ax_box.set_xticklabels(boxplot_labels, rotation=45, ha='right')
+    sns.boxplot(x="Experiment", y="Average Reward", data=boxplot_data_df, ax=ax_box)
+    ax_box.set_xticklabels(botplot_ticks, rotation=45, ha='right')
     ax_box.set_xlabel('Experiment')
-    ax_box.set_ylabel('Summed Reward (at specific intervals)')
+    ax_box.set_ylabel('Reward distrubtion across all tasks')
 
-    # Save the box plot figure
+    # Save figures
     fig_box.savefig('./log/plots/boxplot_comparison.pdf', dpi=256, bbox_inches='tight')  # Save the figure
-
-
     fig2.savefig(f'./log/plots/cumulative.pdf', dpi=256, format='pdf', bbox_inches='tight')
 
+    # Plot TRA metric
     plot_tra(master2)

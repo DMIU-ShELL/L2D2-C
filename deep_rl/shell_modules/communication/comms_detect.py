@@ -237,6 +237,8 @@ class ParallelCommDetect(object):
 
         except Exception as e:
             traceback.print_exc()
+            while True:
+                pass
     
     def send_query(self, dict_to_query, queue_mask):
         """

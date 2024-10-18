@@ -1108,7 +1108,7 @@ class PPODetectShell(PPOShellAgent):
         for tpl in buffer_data:
             tmp0 = tpl[:3]                                              # Get the obs, action, reward
             tmp1 = np.array(tmp0[1])                                    # Convert action tensor to np.array
-            tmp1 = tmp1.reshape(8,)                                     # Reshape data to one axis? Not sure what this is for.. maybe for multiple workers?
+            tmp1 = tmp1.reshape(1,)                                     # Reshape data to one axis? Not sure what this is for.. maybe for multiple workers?
             tmp2 = np.array(tmp0[2])                                    # Convert reward to np.array
             tmp2 = tmp2.reshape(1,)                                     # Also reshape
             tmp3 = np.concatenate([tmp0[0].ravel(), tmp1, tmp2])        # Concatenate together obs, action, reward as sar_data

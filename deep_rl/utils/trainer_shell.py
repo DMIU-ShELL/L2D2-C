@@ -648,8 +648,8 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     wdist_log = logger.log_dir + '/wdist_log.csv'
 
 
-    '''###############################################################################
-    ### Comm module event handlers. These run in parallel to enable the interactions between the comm and agent.
+    ###############################################################################
+    '''### Comm module event handlers. These run in parallel to enable the interactions between the comm and agent.
     def mask_handler():
         """
         Handles incoming masks from other agents. Linearly combines masks and adds resulting mask to network.

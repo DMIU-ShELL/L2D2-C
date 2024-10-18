@@ -798,7 +798,7 @@ class MiniHack(BaseTask):
         return self.tasks
     
     def random_tasks(self, num_tasks, requires_task_label=True):
-        return NotImplementedError    
+        return NotImplementedError
 
 class Procgen(BaseTask):
     def __init__(self, name, env_config_path, log_dir=None, num_threads=1):
