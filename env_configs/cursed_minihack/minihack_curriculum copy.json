@@ -1,13 +1,13 @@
 {
     "tasks": [
-        "MiniHack-Room-5x5-v0",
         "MiniHack-Room-Random-5x5-v0",
         "MiniHack-Room-Random-15x15-v0",
+        "MiniHack-HideNSeek-v0",
+        "MiniHack-HideNSeek-Lava-v0",
         "MiniHack-Room-Trap-15x15-v0",
         "MiniHack-Room-Monster-15x15-v0",
         "MiniHack-Room-Ultimate-15x15-v0",
-        "MiniHack-HideNSeek-v0",
-        "MiniHack-HideNSeek-Lava-v0",
+        "MiniHack-KeyRoom-S5-v0",
         "MiniHack-River-Narrow-v0",
         "MiniHack-River-v0",
         "MiniHack-River-Monster-v0",

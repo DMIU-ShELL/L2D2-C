@@ -1,0 +1,29 @@
+{
+    "tasks": [
+        "MiniHack-Room-Random-5x5-v0",
+        "MiniHack-Room-Monster-5x5-v0",
+        "MiniHack-KeyRoom-S5-v0",
+        "MiniHack-KeyRoom-S15-v0",
+        "MiniHack-River-Monster-v0",
+        "MiniHack-HideNSeek-v0",
+        "MiniHack-River-Narrow-v0",
+        "MiniHack-River-Monster-v0",
+        "MiniHack-CorridorBattle-v0",
+        "MiniHack-Room-Monster-5x5-v0"
+    ],
+    "one_hot": true,
+    "label_dim": 10,
+    "action_dim": 8, 
+    "seeds": [
+        840, 
+        840,
+        840,
+        840,
+        840,
+        840,
+        840,
+        840,
+        840,
+        840
+    ]
+}

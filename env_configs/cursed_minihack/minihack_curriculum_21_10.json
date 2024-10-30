@@ -1,0 +1,20 @@
+{
+    "tasks": [
+        "MiniHack-Room-Random-5x5-v0",
+        "MiniHack-Room-Random-15x15-v0",
+        "MiniHack-HideNSeek-v0",
+        "MiniHack-MazeWalk-Mapped-15x15-v0",
+        "MiniHack-Room-Trap-15x15-v0"
+
+    ],
+    "one_hot": true,
+    "label_dim": 5,
+    "action_dim": 8, 
+    "seeds": [
+        840, 
+        840,
+        840,
+        840,
+        840
+    ]
+}

@@ -33,6 +33,9 @@ import ipinfo
 import pandas as pd
 
 
+from scipy.spatial.distance import cdist, pdist, squareform
+
+
 
 
 class ParallelCommDetect(object):
@@ -336,6 +339,39 @@ class ParallelCommDetect(object):
 
             return ret, msg_type
         
+        def calculate_weighted_similarity(embedding1, embedding2, alpha=0.5, percentile=95):
+            self.logger.info(f'{embedding1}\n{embedding2}')
+            embedding1_np = np.expand_dims(np.array(embedding1), (0))
+            embedding2_np = np.expand_dims(np.array(embedding2), (0))
+            
+            cosine_sim_matrix = F.cosine_similarity(embedding1, embedding2.unsqueeze(0))
+            self.logger.info(f'{cosine_sim_matrix}')
+            cosine_sim_matrix = (cosine_sim_matrix + 1) / 2
+            self.logger.info(f'{cosine_sim_matrix}')
+
+            euclidean_distances = cdist(embedding1_np, embedding2_np, metric='euclidean')
+            self.logger.info(f'{euclidean_distances}')
+
+            combined_embeddings = np.vstack([embedding1_np, embedding2_np])
+            D_max = np.linalg.norm(embedding2) + 1e-8#np.percentile(pdist(combined_embeddings, metric='euclidean'), percentile)
+            self.logger.info(f'{combined_embeddings}')
+            self.logger.info(f"{pdist(combined_embeddings, metric='euclidean')}")
+            self.logger.info(f'{D_max}')
+
+            euclidean_sim_matrix = 1 - (euclidean_distances / D_max)
+            self.logger.info(f'{euclidean_sim_matrix}')
+            #euclidean_sim_matrix = np.clip(euclidean_sim_matrix, 0, 1)
+            #self.logger.info(f'{euclidean_sim_matrix}')
+
+            weighted_similarity_matrix = alpha * cosine_sim_matrix + (1 - alpha) * euclidean_sim_matrix
+            self.logger.info(f'{alpha * cosine_sim_matrix}')
+            self.logger.info(f'{1-alpha}')
+            self.logger.info(f'{(1-alpha) * euclidean_sim_matrix}')
+            self.logger.info(f'{weighted_similarity_matrix}')
+
+            return weighted_similarity_matrix
+
+        
         def proc_meta_embedding(query):
             """
             Find the most similar task record and get the internal task id if any satisfying entries found. Create response dictionary and return otherwise return NoneType.
@@ -363,6 +399,15 @@ class ParallelCommDetect(object):
                 known_reward = value['reward']
                 embeddings.append(known_embedding)
                 rewards.append(known_reward)
+
+            """self.logger.info(f'Weighted embedding similarity matrices for target embedding: {target_embedding}')
+            try:
+                for embedding in embeddings:
+                    similarities_matrix = calculate_weighted_similarity(embedding, target_embedding)
+                    self.logger.info(f'Matrix for internal embedding {embedding}: {similarities_matrix}')
+            except Exception as e:
+                traceback.print_exc()"""
+
 
             if not embeddings:
                 self.logger.info(Fore.GREEN + "No entries satisfying the condition found.")
@@ -406,7 +451,7 @@ class ParallelCommDetect(object):
                     self.logger.info(Fore.GREEN + "No entries satisfying the condition found.")
                     return None
             except Exception as e:
-                traceback.print_exc
+                traceback.print_exc()
         
         def proc_meta_label(query):
             target_label = query['sender_embedding']
@@ -468,7 +513,7 @@ class ParallelCommDetect(object):
         try:
             query, msg_type = recv_query(data)
             self.logger.info(Fore.CYAN + f'Received query: {query} {msg_type}')
-            self.log_data(list(query.values()), '/queries.csv')
+            self.log_data(list(query), '/queries.csv')
 
             # Get the mask with the most task similarity, if any such mask exists in the network.
             response = None
@@ -538,23 +583,24 @@ class ParallelCommDetect(object):
 
                         # We want to know that the information we select is actually useful so the reward needs to be relatively high
                         # We want the knowledge that we use to also improve as we improve so we scale it with our own reward
-                        if (self.current_task_reward < sender_rw) or self.no_reward:# and sender_dist <= self.threshold:
-                            # Create a new dictionary for each request
-                            data = {
-                                'req_address': sender_address,
-                                'req_port': sender_port,
-                                'req_id': sender_id,
-                                'req_emb': sender_emb,
-                                'req_rw': sender_rw
-                            }
-                            self.logger.info(f'Prepared mask request for task id from {sender_address}, {sender_port}')
-                            requests.append(data)
+                        #if (self.current_task_reward < sender_rw) or self.no_reward:# and sender_dist <= self.threshold:
+                        # Create a new dictionary for each request
+                        data = {
+                            'req_address': sender_address,
+                            'req_port': sender_port,
+                            'req_id': sender_id,
+                            'req_emb': sender_emb,
+                            'req_rw': sender_rw,
+                            'sender_task_id': np.argmax(sender_label,axis=0)
+                        }
+                        self.logger.info(f'Prepared mask request for task id from {sender_address}, {sender_port}')
+                        requests.append(data)
 
-                            num_requests_added += 1
+                        num_requests_added += 1
 
-                            # Check if the desired number of requests is reached
-                            if num_requests_added >= n:
-                                break
+                        # Check if the desired number of requests is reached
+                        if num_requests_added >= n:
+                            break
 
                     # Reset the metadata list
                     self.metadata[:] = []

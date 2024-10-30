@@ -24,9 +24,9 @@ from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, Running
 from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
 from deep_rl.component.policy import SamplePolicy
-from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, MiniGrid, MetaCTgraph, CompoSuite, MiniHack 
+from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, MiniGrid, MetaCTgraph, CompoSuite, MiniHack, MiniHackFlatObs
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, CategoricalActorCriticNet_SS_Comp
-from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL, FCBody_SS_Comp
+from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL, FCBody_SS_Comp, ConvBody_SS_Modified
 from deep_rl.agent.PPO_agent import PPODetectShell, PPOShellAgent
 from deep_rl.agent.SAC_agent import SACDetectShell, SACShellAgent
 
@@ -52,7 +52,8 @@ def global_config(config, name):
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
-    config.state_normalizer = RescaleNormalizer(1./10.)
+    config.state_normalizer = ImageNormalizer()#RescaleNormalizer(1./10.)
+    #config.reward_normalizer = RewardRunningStatsNormalizer()
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.99
@@ -63,8 +64,8 @@ def global_config(config, name):
     config.ppo_ratio_clip = 0.1
     config.iteration_log_interval = 1
     config.gradient_clip = 5
-    config.max_steps = 25600
-    config.evaluation_episodes = 1#50
+    #config.max_steps = 25600
+    config.evaluation_episodes = 1 
     config.cl_requires_task_label = True
     config.task_fn = None
     config.eval_task_fn = None
@@ -116,7 +117,7 @@ def setup_configs_and_logs(config, args, shell_config, global_config):
         num_tasks = len(set(shell_config['curriculum']['task_ids']))
     else:
         num_tasks = len(shell_config['curriculum']['task_paths'])
-
+    
     config.cl_num_tasks = num_tasks
     config.task_paths, config.task_ids = None, None
     if 'task_paths' in shell_config['curriculum']:
@@ -162,7 +163,7 @@ def detect_finalise_and_run(config, Agent):
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.curriculum_id)
 
     # Communication frequency. TODO: This will need a rework if we don't know the length of task encounters.
-    config.querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
+    config.querying_frequency = 20#(config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
 
     ###############################################################################
@@ -250,26 +251,35 @@ def minihack_ppo(name, args, shell_config):
     # ENVIRONMENT SPECIFIC SETUP. SETUP TRAINING AND EVALUATION TASK FUNCTIONS
     # AND THE NETWORK FUNCTION.
     # Training task lambda function
-    task_fn = lambda log_dir: MiniHack(name=name, env_config_path=env_config_path, log_dir=log_dir)
+    #task_fn = lambda log_dir: MiniHackFlatObs(name, env_config_path, log_dir=log_dir,seed=shell_config['seed'], eval_mode=False)    #################
+    task_fn = lambda log_dir: MiniHack(name, env_config_path, log_dir=log_dir,seed=shell_config['seed'], eval_mode=False)
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
 
     # Evaluation task mabda function. TODO: Is the evaluation task function necessary for a traditional learner?
-    eval_task_fn= lambda log_dir: MiniHack(name=name, env_config_path=env_config_path, log_dir=log_dir)
+    eval_task_fn= lambda log_dir: MiniHack(name, env_config_path, log_dir=log_dir)#, eval_mode=True)  #################
     config.eval_task_fn = eval_task_fn
 
     # Network lambda function
     config.network_fn = lambda state_dim, action_dim, label_dim: CategoricalActorCriticNet_SS_Comp(\
         state_dim, action_dim, label_dim,
-        phi_body=FCBody_SS_Comp(
+        # phi_body=FCBody_SS_Comp(
+        #     state_dim, 
+        #     task_label_dim=label_dim, 
+        #     hidden_units=(200, 200, 200), 
+        #     num_tasks=config.cl_num_tasks, 
+        #     new_task_mask=args.new_task_mask,
+        #     seed=config.seed
+        #     ),
+        phi_body=ConvBody_SS_Modified(
             state_dim, 
+            feature_dim=256,
             task_label_dim=label_dim, 
-            hidden_units=(200, 200, 200), 
             num_tasks=config.cl_num_tasks, 
             new_task_mask=args.new_task_mask,
             seed=config.seed
             ),
-        actor_body=DummyBody_CL(200),
-        critic_body=DummyBody_CL(200),
+        actor_body=DummyBody_CL(256),  #200
+        critic_body=DummyBody_CL(256),
         num_tasks=config.cl_num_tasks,
         new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
@@ -296,7 +306,7 @@ def minihack_ppo_eval(name, args, shell_config):
     #config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
 
     # Evaluation task mabda function. TODO: Is the evaluation task function necessary for a traditional learner?
-    eval_task_fn= lambda log_dir: MiniHack(name=name, env_config_path=env_config_path, log_dir=log_dir, eval_mode=True)
+    eval_task_fn= lambda log_dir: MiniHack(name=name, env_config_path=env_config_path, log_dir=log_dir, eval_mode=True)   #################
     config.eval_task_fn = eval_task_fn
 
     # Network lambda function
@@ -314,7 +324,6 @@ def minihack_ppo_eval(name, args, shell_config):
         num_tasks=25,#config.cl_num_tasks,
         new_task_mask=args.new_task_mask
         )    # 'random' for mask RI. 'linear_comb' for mask LC.
-    
     # Environment sepcific setup ends.
     ###############################################################################
     
@@ -336,7 +345,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('curriculum_id', help='index of the curriculum to use from the shell config json', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/mg_mt.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/mh.json') 
+    #parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/mg_mt.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
@@ -348,7 +358,7 @@ if __name__ == '__main__':
     parser.add_argument('--localhost', '--ls', '-ls', help='used to run DMIU in localhost mode', action='store_true')   # Flag used to start the system using localhost instead of public IP. Can be useful for debugging network related problems.
     parser.add_argument('--shuffle', '--s', '-s', help='randomise the task curriculum', action='store_true')            # Not required. If you want to randomise the order of tasks in the curriculum then you can change to 1
     parser.add_argument('--comm_interval', '--i', '-i', help='integer value indicating the number of communications '\
-        'to perform per task', type= int, default=20)                                                                    # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
+        'to perform per task', type= int, default=20)                                                                   # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
                                                                                                                         # Please do not modify this value unless you know what you're doing as it may cause unexpected results.
 
     parser.add_argument('--device', help='select device 1 for GPU or 0 for CPU. default is GPU', type=int, default=1)   # Used to select device. By default system will try to use the GPU. Currently PyTorch is only compatible with NVIDIA GPUs or Apple M Series processors.
@@ -365,7 +375,6 @@ if __name__ == '__main__':
         # Load shell configuration JSON
         shell_config = json.load(f)
         shell_config['curriculum'] = shell_config['agents'][args.curriculum_id]
-
         # Randomise the curriculum if shuffle raised and not in evaluation mode
         if args.shuffle and not args.eval: random.shuffle(shell_config['curriculum']['task_ids'])
 
@@ -385,6 +394,7 @@ if __name__ == '__main__':
         args.pathheader = shell_config['env']['env_name']
         
     # Parse arguments and launch the correct environment-agent configuration.
+    #print(shell_config['env']['env_name'])
     if shell_config['env']['env_name'] == 'minihack':
         name = Config.ENV_MINIHACK
         if args.eval:

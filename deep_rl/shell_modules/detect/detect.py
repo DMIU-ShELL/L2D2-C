@@ -3,7 +3,7 @@ import ot
 import torch
 #from plotting import *
 from torch.utils.data import DataLoader, SubsetRandomSampler
-from scipy.spatial.distance import mahalanobis
+from scipy.spatial.distance import mahalanobis, cdist, pdist, squareform
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from sklearn.neighbors import KernelDensity
 from scipy.stats import wasserstein_distance
 from sklearn.decomposition import IncrementalPCA
+from sklearn.metrics.pairwise import cosine_similarity
 import matplotlib.pyplot as plt
 import random
 
@@ -257,3 +258,20 @@ class Detect:
         if not hasattr(self, 'projection_matrix'):
             self.projection_matrix = torch.nn.init.xavier_normal_(torch.empty(embedding.shape[0], n_components))
         return torch.matmul(embedding, self.projection_matrix)
+    
+    def calculate_weighted_similarity(self, embedding1, embedding2, alpha=0.5, percentile=95):
+        cosine_sim_matrix= F.cosine_similarity(embedding1, embedding2)
+        cosine_sim_matrix = (cosine_sim_matrix + 1) / 2
+
+        euclidean_distances = cdist(embedding1, embedding2, metric='euclidean')
+
+        combined_embeddings = np.vstack([embedding1, embedding2])
+        D_max = np.percentile(pdist(combined_embeddings, metric='euclidean'), percentile)
+
+        euclidean_sim_matrix = 1 - (euclidean_distances / D_max)
+        euclidean_sim_matrix = np.clip(euclidean_sim_matrix, 0, 1)
+
+        weighted_similarity_matrix = alpha * cosine_sim_matrix + (1 - alpha) * euclidean_sim_matrix
+
+        return weighted_similarity_matrix
+

@@ -162,6 +162,7 @@ class FCBody_SS_Comp(nn.Module): # fcbody for supermask superposition continual 
             dims = (state_dim, ) + hidden_units
         else:
             dims = (state_dim + task_label_dim, ) + hidden_units
+
         self.layers = nn.ModuleList([CompBLC_MultitaskMaskLinear(dim_in, dim_out, discrete=discrete_mask, \
             num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed) \
             for dim_in, dim_out in zip(dims[:-1], dims[1:])
@@ -252,6 +253,94 @@ class ConvBody_SS(nn.Module): # conv body for supermask lifelong learning algori
         #print(y.shape)
         if return_layer_output:
             ret_act.append(('{0}.conv.3'.format(prefix), y.detach().cpu().reshape(-1,)))
+
+        # flatten
+        y = self.flatten(y)
+        #y = y.view(y.shape[0], -1)
+        #print(y.shape)
+        if self.task_label_dim is not None:
+            y = torch.cat([y, task_label], dim=1)
+        
+        # fc1
+        y = self.gate(self.fc(y))
+        if return_layer_output:
+            ret_act.append(('{0}.fc.1'.format(prefix), y.detach().cpu().reshape(-1,)))
+        return y, ret_act
+
+    '''def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+            x = torch.cat([x, task_label], dim=1)
+        #if task_label is not None: x = torch.cat([x, task_label], dim=1)
+       
+        ret_act = []
+        if return_layer_output:
+            for i, layer in enumerate(self.layers):
+                x = self.gate(layer(x))
+                ret_act.append(('{0}.layers.{1}'.format(prefix, i), x))
+        else:
+            for i, layer in enumerate(self.layers):
+                x = self.gate(layer(x))
+
+        return x, ret_act'''
+    
+class ConvBody_SS_Modified(nn.Module): # conv body for supermask lifelong learning algorithm
+    def __init__(self, state_dim, kernels=[(3,3), (3,3)], strides=[1,1], paddings=[1,1], feature_dim=512, task_label_dim=None, gate=F.relu, discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM, seed=1):
+        super(ConvBody_SS_Modified, self).__init__()
+
+        print('State dim: ',state_dim)
+        in_channels = state_dim[2] # assumes state_state with dim: num_channels x height x width
+        self.conv1 = ComposeMultitaskMaskConv2d(in_channels, 16, kernel_size=8, stride=4, padding=0, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
+        self.conv2 = ComposeMultitaskMaskConv2d(16, 32, kernel_size=4, stride=2, padding=0, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
+        
+        '''if task_label_dim is None: dims = (state_dim[0], ) + hidden_units
+        else: dims = (state_dim[0] + task_label_dim, ) + hidden_units
+        self.layers = nn.ModuleList(
+            [
+                ComposeMultitaskMaskConv2d(dim_in, dim_out, kernel_size=kernel, stride=stride, padding=padding, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed) \
+                for dim_in, dim_out, kernel, stride, padding in zip(dims[:-1], dims[1:], kernels, strides, paddings)
+            ]
+        )
+
+        flattened_in = 128 * max(state_dim) * min(state_dim)
+        self.layers.append(CompBLC_MultitaskMaskLinear(flattened_in, feature_dim, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed))
+
+        print(f'Network: {self.layers}')'''
+
+        #self.direction_emb = nn.Embedding(4, 4)
+        #self.mission_emb = nn.Embedding(100, 16)
+        #self.lstm = nn.LSTM(input_size=32 * 7 * 7 + 4 + 16, hidden_size=lstm_hidden_size, num_layers=1, batch_first=True)
+        #self.maxp1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        
+        # Fully connected layer for output
+        self.flatten = nn.Flatten()
+        flattened_in = 32 * max(state_dim) * min(state_dim)
+        #self.fc = CompBLC_MultitaskMaskLinear(64 * 7 * 7, feature_dim, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
+        self.fc = CompBLC_MultitaskMaskLinear(32 * 16 * 16, feature_dim, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
+
+        self.gate = gate
+        self.feature_dim = feature_dim
+        self.task_label_dim = task_label_dim
+
+    def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
+        if self.task_label_dim is not None:
+            assert task_label is not None, '`task_label` should be set'
+
+        ret_act = []
+
+        # conv1
+        y = self.gate(self.conv1(x))
+        if return_layer_output:
+            ret_act.append(('{0}.conv.1'.format(prefix), y.detach().cpu().reshape(-1,)))
+        
+        # maxp1
+        #y = self.maxp1(y)
+        
+        # conv2
+        y = self.gate(self.conv2(y))
+        #print(y.shape)
+        if return_layer_output:
+            ret_act.append(('{0}.conv.2'.format(prefix), y.detach().cpu().reshape(-1,)))
 
         # flatten
         y = self.flatten(y)

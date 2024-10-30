@@ -492,7 +492,9 @@ class MiniGrid(BaseTask):
             assert len(seeds) == len(env_names), 'number of seeds in config file should match'\
                 ' the number of tasks.'
         else: raise ValueError('invalid seed specification in config file')
-        self.envs = {'{0}_seed{1}'.format(name, seed) : ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) for name, seed in zip(env_names, seeds)}
+        self.envs = {'{0}_seed{1}'.format(name, seed) : \
+            ReseedWrapper(ImgObsWrapper(gym.make(name)), seeds=[seed,]) \
+            for name, seed in zip(env_names, seeds)}
         env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
         #self.envs = {name: TimeLimit(env, MiniGrid.TIME_LIMIT) for name, env in self.envs.items()}
         
@@ -509,6 +511,7 @@ class MiniGrid(BaseTask):
         self.observation_space = self.envs[env_names[0]].observation_space
         self.action_space = self.envs[env_names[0]].action_space
         self.state_dim = self.observation_space.shape
+        print('State dim: \n',self.state_dim)
         # note, action_dim of 3 will reduce agent action to left, right, and forward
         if 'action_dim' in env_config.keys():
             self.action_dim = env_config['action_dim']
@@ -718,6 +721,7 @@ class CompoSuiteFlatObs(CompoSuite):
         self.action_map = {}
 
     def step(self, action):
+        print(action)
         state, reward, done, truncated, info = self.env.step(action)
         if done or truncated:
             state = self.reset()
@@ -730,23 +734,49 @@ class CompoSuiteFlatObs(CompoSuite):
         state, info = self.env.reset()
         return state.ravel()
 
+
 class MiniHack(BaseTask):
-    def __init__(self, name, env_config_path, log_dir=None):
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
+        BaseTask.__init__(self)     ##################
         import minihack
         import gym
-
+        from nle import nethack
+        self.name = name
         with open(env_config_path, 'r') as f:
             env_config = json.load(f)
         self.env_config = env_config
         env_names = env_config['tasks']
+        
+        if 'seeds' in env_config.keys():
+            seeds = env_config['seeds']
+        else:
+            seeds = seed
+            del seed
+        if isinstance(seeds, int): seeds = [seeds,] * len(env_names)
+        elif isinstance(seeds, list):
+            assert len(seeds) == len(env_names), 'number of seeds in config file should match'\
+                ' the number of tasks.'
+        else: raise ValueError('invalid seed specification in config file')
+        
+        ##############################################################################################################################
+        MOVE_ACTIONS = tuple(nethack.CompassDirection)
+        NAVIGATE_ACTIONS = MOVE_ACTIONS + (
+            nethack.Command.OPEN,
+            nethack.Command.KICK,
+            nethack.Command.SEARCH,
+            )
+        #self.envs = {'{0}_seed{1}'.format(name, seed) : gym.make(name, observation_keys=("glyphs_crop",),actions=NAVIGATE_ACTIONS,obs_crop_h=15, obs_crop_w=15) for name, seed in zip(env_names, seeds)}
+        ##############################################################################################################################
 
-        self.envs = {'{0}_seed{1}'.format(name, seed) : gym.make(name) for name, seed in zip(env_names, seeds)}
+        reward_manager = minihack.RewardManager()
+        reward_manager.penalty_step = 0.0
+        #self.envs = {'{0}_seed{1}'.format(name, seed) : gym.make(name, observation_keys=("pixel_crop",), actions=NAVIGATE_ACTIONS, reward_manager=reward_manager) for name, seed in zip(env_names, seeds)}
+        self.envs = {'{0}_seed{1}'.format(name, seed) : gym.make(name, observation_keys=("pixel_crop",), actions=NAVIGATE_ACTIONS) for name, seed in zip(env_names, seeds)}
         env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
-
-        self.observation_space = self.envs[env_names[0]].observation_space
+        
+        self.observation_space = self.envs[env_names[0]].observation_space['pixel_crop']
         self.action_space = self.envs[env_names[0]].action_space
         self.state_dim = self.observation_space.shape
-
         if 'action_dim' in env_config.keys():
             self.action_dim = env_config['action_dim']
         else:
@@ -759,8 +789,8 @@ class MiniHack(BaseTask):
         self.one_hot_labels = True if env_config['one_hot'] else False
 
         self.tasks = [{'name': name, 'task': name, 'task_label': None} \
-                   for name in self.envs.keys()]
-        
+                    for name in self.envs.keys()]
+
         if self.one_hot_labels:
             for idx in range(len(self.tasks)):
                 label = np.zeros((self.task_label_dim,)).astype(np.float32)
@@ -771,17 +801,26 @@ class MiniHack(BaseTask):
             labels = labels.astype(np.float32)
             for idx in range(len(self.tasks)):
                 self.tasks[idx]['task_label'] = labels[idx]
-
         self.current_task = self.tasks[0]
         self.env = self.envs[self.current_task['task']]
 
     def step(self, action):
         state, reward, done, info = self.env.step(action)
-        return state, reward, done, info
+        if done:
+            state = self.reset()
+            done = done or truncated
+        #return state, reward, done, info
+        if type(state)==dict:
+            return np.transpose(state['pixel_crop']), reward, done, info
+        else:
+            return state, reward, done, info
     
     def reset(self):
         state = self.env.reset()
-        return state
+        return np.transpose(state['pixel_crop'])
+    # def reset(self):
+    #     state = self.env.reset()['pixel_crop']
+    #     return state
     
     def reset_task(self, taskinfo):
         self.set_task(taskinfo)
@@ -794,11 +833,58 @@ class MiniHack(BaseTask):
     def get_task(self):
         return self.current_task
     
-    def get_all_tasks(self):
+    def get_all_tasks(self, requires_task_label=True):
         return self.tasks
     
     def random_tasks(self, num_tasks, requires_task_label=True):
-        return NotImplementedError
+        return NotImplementedError    
+
+class MiniHackFlatObs(MiniHack):
+    def __init__(self, name, env_config_path, log_dir=None, seed=1000, eval_mode=False):
+        super(MiniHackFlatObs, self).__init__(name, env_config_path, log_dir, seed, eval_mode)
+
+        self.state_dim = int(np.prod(self.state_dim))
+
+
+        # Action mapping for curriculum with
+        # RandomRoom
+        # USE GYM.MAKE
+        """
+        self.action_map = {
+            0: ord("k"),           # move up
+            1: ord("l"),           # move right
+            2: ord("h"),           # move left
+            3: ord("j"),            # move down
+            4: ord("o")            # open door
+        }
+        """
+
+    def step(self, action):
+        # Remap action using action map
+        # We do this to reduce the action space and make things a bit quicker to learn for our agents.
+        #action = self.action_map[action]
+
+        #state, reward, done, truncated, info = self.env.step(action)
+        state, reward, done, info = self.env.step(action)
+        #if done or truncated:
+        if done:
+            state = self.reset()
+            done = done or truncated
+        # Adding noise to reward for synchronised learning
+        #noise = float(np.random.uniform(0, 0.001, 1))
+        #reward = reward + noise
+        #return state.ravel(), reward, done, info
+        try: 
+            state = state[list(state.keys())[0]]
+            return state[list(state.keys())[0]].ravel(), reward, done, info
+        except: 
+            return state.ravel(), reward, done, info
+
+    def reset(self):
+        state = self.env.reset()
+        #state, info = self.env.reset()
+        return state[list(state.keys())[0]].ravel()
+
 
 class Procgen(BaseTask):
     def __init__(self, name, env_config_path, log_dir=None, num_threads=1):
