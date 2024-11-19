@@ -1,6 +1,7 @@
 # L2D2-C
 Lifelong Learning Distributed Decentralized Collective (L2D2-C) is a shared experience lifelong learning system.
 A distributed lifelong learning framework where each agent is a lifelong learner capable of sharing and recieving knowledge about previously learned tasks from other agents.
+Our publication can be found at [https://proceedings.mlr.press/v232/nath23a/nath23a.pdf](https://proceedings.mlr.press/v232/nath23a/nath23a.pdf)
 
 ## Agent Description
 - Each lifelong learner agent is a [PPO](https://arxiv.org/abs/1707.06347) controller combined with [Modulating Masks](https://openreview.net/forum?id=V7tahqGrOq) algorithm for knowledge preservation across multiple tasks. We leverage the masking methodology to share policies across agents.
