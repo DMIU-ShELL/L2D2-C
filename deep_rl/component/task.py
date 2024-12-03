@@ -763,16 +763,23 @@ class MiniHack(BaseTask):
         NAVIGATE_ACTIONS = MOVE_ACTIONS + (
             nethack.Command.OPEN,
             nethack.Command.KICK,
-            nethack.Command.SEARCH,
             )
         #self.envs = {'{0}_seed{1}'.format(name, seed) : gym.make(name, observation_keys=("glyphs_crop",),actions=NAVIGATE_ACTIONS,obs_crop_h=15, obs_crop_w=15) for name, seed in zip(env_names, seeds)}
         ##############################################################################################################################
 
         reward_manager = minihack.RewardManager()
         reward_manager.penalty_step = 0.0
+        
         #self.envs = {'{0}_seed{1}'.format(name, seed) : gym.make(name, observation_keys=("pixel_crop",), actions=NAVIGATE_ACTIONS, reward_manager=reward_manager) for name, seed in zip(env_names, seeds)}
-        self.envs = {'{0}_seed{1}'.format(name, seed) : gym.make(name, observation_keys=("pixel_crop",), actions=NAVIGATE_ACTIONS) for name, seed in zip(env_names, seeds)}
+        #self.envs = {'{0}_seed{1}'.format(name, seed) : gym.make(name, observation_keys=("pixel_crop",), actions=NAVIGATE_ACTIONS) for name, seed in zip(env_names, seeds)}
+        self.envs = {}
+        for name, seed in zip(env_names, seeds):
+            env = gym.make(name, observation_keys=("pixel_crop",), actions=NAVIGATE_ACTIONS)
+            env.seed(seed)
+            self.envs['{0}_seed{1}'.format(name, seed)] = env
+
         env_names = ['{0}_seed{1}'.format(name, seed) for name, seed in zip(env_names, seeds)]
+
         
         self.observation_space = self.envs[env_names[0]].observation_space['pixel_crop']
         self.action_space = self.envs[env_names[0]].action_space
@@ -808,7 +815,7 @@ class MiniHack(BaseTask):
         state, reward, done, info = self.env.step(action)
         if done:
             state = self.reset()
-            done = done or truncated
+            #done = done or truncated
         #return state, reward, done, info
         if type(state)==dict:
             return np.transpose(state['pixel_crop']), reward, done, info

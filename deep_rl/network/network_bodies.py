@@ -289,7 +289,7 @@ class ConvBody_SS_Modified(nn.Module): # conv body for supermask lifelong learni
         super(ConvBody_SS_Modified, self).__init__()
 
         print('State dim: ',state_dim)
-        in_channels = state_dim[2] # assumes state_state with dim: num_channels x height x width
+        in_channels = 1#state_dim[2] # assumes state_state with dim: num_channels x height x width
         self.conv1 = ComposeMultitaskMaskConv2d(in_channels, 16, kernel_size=8, stride=4, padding=0, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
         self.conv2 = ComposeMultitaskMaskConv2d(16, 32, kernel_size=4, stride=2, padding=0, discrete=discrete_mask, num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed)
         

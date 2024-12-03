@@ -1680,6 +1680,40 @@ mypaths16 = {
 }
 
 
+
+# Minihack experiment results comparison
+mypaths17 = {
+    'C3L' : {
+        'Room-5x5' :            'MINIHACK_COMPARISON/fullcomm/T0/',
+        'Room-15x15' :          'MINIHACK_COMPARISON/fullcomm/T1/',
+        'Room-Random-5x5' :     'MINIHACK_COMPARISON/fullcomm/T2/',
+        'Room-random-15x15' :   'MINIHACK_COMPARISON/fullcomm/T3/',
+        'Room-Monster-5x5' :    'MINIHACK_COMPARISON/fullcomm/T4/',
+        'Room-Monster-15x15' :  'MINIHACK_COMPARISON/fullcomm/T5/',
+        'Room-Trap-5x5' :       'MINIHACK_COMPARISON/fullcomm/T6/',
+        'Room-Trap-15x15' :     'MINIHACK_COMPARISON/fullcomm/T7/',
+        'Room-Dark-5x5' :       'MINIHACK_COMPARISON/fullcomm/T8/',
+        'Room-Dark-15x15' :     'MINIHACK_COMPARISON/fullcomm/T9/',
+        'Room-Ultimate-5x5' :   'MINIHACK_COMPARISON/fullcomm/T10/',
+        'Room-Ultimate-15x15' : 'MINIHACK_COMPARISON/fullcomm/T11/'
+    },
+
+    'Isolated agents' : {
+        'Room-5x5' :            'MINIHACK_COMPARISON/nocomm/T0/',
+        'Room-15x15' :          'MINIHACK_COMPARISON/nocomm/T1/',
+        'Room-Random-5x5' :     'MINIHACK_COMPARISON/nocomm/T2/',
+        'Room-random-15x15' :   'MINIHACK_COMPARISON/nocomm/T3/',
+        'Room-Monster-5x5' :    'MINIHACK_COMPARISON/nocomm/T4/',
+        'Room-Monster-15x15' :  'MINIHACK_COMPARISON/nocomm/T5/',
+        'Room-Trap-5x5' :       'MINIHACK_COMPARISON/nocomm/T6/',
+        'Room-Trap-15x15' :     'MINIHACK_COMPARISON/nocomm/T7/',
+        'Room-Dark-5x5' :       'MINIHACK_COMPARISON/nocomm/T8/',
+        'Room-Dark-15x15' :     'MINIHACK_COMPARISON/nocomm/T9/',
+        'Room-Ultimate-5x5' :   'MINIHACK_COMPARISON/nocomm/T10/',
+        'Room-Ultimate-15x15' : 'MINIHACK_COMPARISON/nocomm/T11/'
+    }
+}
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--plot_name', help='paths to the experiment folder for single'\
@@ -1689,9 +1723,10 @@ if __name__ == '__main__':
     parser.add_argument('--interval', help='interval', type=int, default=1)
     args = parser.parse_args()
 
-    MYPATHS = mypaths10
+    #MYPATHS = mypaths10
     #MYPATHS = mypaths15
     #MYPATHS = mypaths11
+    MYPATHS = mypaths17
 
     fig2 = plt.figure(figsize=(30, 6))
     ax2 = fig2.subplots()

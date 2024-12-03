@@ -725,7 +725,7 @@ class ComposeMultitaskMaskLinear(nn.Linear):
 """
 
 class CompBLC_MultitaskMaskLinear(nn.Linear):
-    def __init__(self, *args, discrete=True, num_tasks=1, max_community_masks=40, seed=1, new_mask_type=NEW_MASK_RANDOM, bias=False, **kwargs):
+    def __init__(self, *args, discrete=True, num_tasks=1, max_community_masks=12, seed=1, new_mask_type=NEW_MASK_RANDOM, bias=False, alpha=0.1, **kwargs):
         super().__init__(*args, bias=False, **kwargs)
         self.num_tasks = num_tasks
         
@@ -762,6 +762,9 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
 
         # to initialize/register the stacked module buffer.
         self.cache_masks()
+
+        self.prev_reward = None
+        self.alpha = alpha
     
     @torch.no_grad()
     def cache_masks(self):
@@ -812,7 +815,7 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
         _subnets.extend([c.detach() for c in self.comm_masks])
 
         _betas = self.betas[self.task, 0:self.task+1+self.num_comm_masks]
-        #_betas = torch.softmax(_betas, dim=-1)
+        _betas = torch.softmax(_betas, dim=-1)
 
         _subnets = [_b * _s for _b, _s in zip(_betas, _subnets)]
         _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
@@ -871,7 +874,7 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
         assert len(_subnets) > 0, 'an error occured'
         
         _betas = self.betas[self.task, 0:self.task+1+self.num_comm_masks]
-        #_betas = torch.softmax(_betas, dim=-1)
+        _betas = torch.softmax(_betas, dim=-1)
         assert len(_betas) == len(_subnets), 'an error ocurred'
 
         
@@ -894,7 +897,7 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
         
         _betas = self.betas[self.task, self.task:self.task+1+self.num_comm_masks]
         print(f'Betas before softmax: {_betas}')
-        #_betas = torch.softmax(_betas, dim=-1)
+        _betas = torch.softmax(_betas, dim=-1)
         assert len(_betas) == len(_subnets), 'an error ocurred'
         print(f'Betas after softmax: {_betas}')
 
@@ -921,21 +924,38 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
                 r = current_reward
 
                 # Undo log operation
-                #self.betas.data[t, 0:t+1+c] = torch.exp(self.betas.data[t, 0:t+1+c])
+                self.betas.data[t, 0:t+1+c] = torch.exp(self.betas.data[t, 0:t+1+c])
 
                 # Reset beta values to initial position
                 #self.betas.data[t, 0:t+1] = 0.5
                 #self.betas.data[t, t+1:t+1+c] = 0.5 / c
+                
+                #if self.prev_reward is None:
+                #    self.prev_reward = r
 
-                print(f'Current mask: {0.5+0.5*r}')
-                print(f'Incoming masks: {(0.5*(1-r))/c}')
+                #reward_change = abs(r - self.prev_reward)
+                #d = np.exp(-self.alpha * reward_change)
 
-                self.betas.data[t, 0:t+1] = 0.5 + 0.5*r              # Set current mask beta to 0.5 + reward scaling
-                self.betas.data[t, t+1:t+1+c] = (0.5 * (1-r)) / c       # Set remaining beta as (1 - current mask beta) / c
+                #current_network_weight = 0.5 + 0.5 * (d * r)
+                #other_network_weight = 0.5 * (1 - d * r) / c
 
-                if self.betas.data[t, 0:t+1+c].min() < 0.0:
-                    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] - self.betas.data[t, 0:t+1+c].min()
-                    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] / self.betas.data[t, 0:t+1+c].sum()
+                
+                #print(f'Current mask: {0.5+0.5*r}')
+                #print(f'Incoming masks: {(0.5*(1-r))/c}')
+
+
+                e = 1e-8
+                r = max(r, 0)
+                r = min(r, 0.9999)
+                self.betas.data[t, 0:t+1] = 0.5 + 0.5*r                # Set current mask beta to 0.5 + reward scaling
+                self.betas.data[t, t+1:t+1+c] = ((0.5 * (1-r))) / c    # Set remaining beta as (1 - current mask beta) / c
+
+                #self.betas.data[t, 0:t+1] = current_network_weight
+                #self.betas.data[t, t+1:t+1+c] = other_network_weight
+
+                #if self.betas.data[t, 0:t+1+c].min() < 0.0:
+                #    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] - self.betas.data[t, 0:t+1+c].min()
+                #    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] / self.betas.data[t, 0:t+1+c].sum()
 
                 #value = 0.5 + 0.5*(1 / (1 + np.exp(-14 * (r-0.5)))) * ((1-0.001) + 0.001)
                 #self.betas.data[t, 0:t+1] = value
@@ -949,7 +969,7 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
                 #self.betas.data[t, t+1:t+1+c] = remainder / c
                 
                 # Redo the log operation
-                #self.betas.data[t, 0:t+1+c] = torch.log_softmax(self.betas.data[t, 0:t+1+c], dim=-1)
+                self.betas.data[t, 0:t+1+c] = torch.log(self.betas.data[t, 0:t+1+c])
         
         print(f'LOG BETAS IN UPDATE_COMM_MASKS(): {self.betas}')
 
@@ -993,15 +1013,32 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
                 #self.betas.data[t, 0:t+1] = 0.5
                 #self.betas.data[t, t+1:t+1+c] = 0.5 / c
 
-                print(f'Current mask: {0.5+0.5*r}')
-                print(f'Incoming masks: {(0.5*(1-r))/c}')
+                #if self.prev_reward is None:
+                #    self.prev_reward = r
 
-                self.betas.data[t, 0:t+1] = 0.5 + 0.5*r
-                self.betas.data[t, t+1:t+1+c] = (0.5*(1-r))/c
+                #reward_change = abs(r - self.prev_reward)
+                #d = np.exp(-self.alpha * reward_change)
 
-                if self.betas.data[t, 0:t+1+c].min() < 0.0:
-                    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] - self.betas.data[t, 0:t+1+c].min()
-                    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] / self.betas.data[t, 0:t+1+c].sum()
+                #current_network_weight = 0.5 + 0.5 * (d * r)
+                #other_network_weight = 0.5 * (1 - d * r) / c
+
+                
+                #print(f'Current mask: {0.5+0.5*r}')
+                #print(f'Incoming masks: {(0.5*(1-r))/c}')
+
+
+                e = 1e-8
+                r = max(r, 0)
+                r = min(r, 0.9999)
+                self.betas.data[t, 0:t+1] = 0.5 + 0.5*r                # Set current mask beta to 0.5 + reward scaling
+                self.betas.data[t, t+1:t+1+c] = ((0.5 * (1-r))) / c    # Set remaining beta as (1 - current mask beta) / c
+
+                #self.betas.data[t, 0:t+1] = current_network_weight
+                #self.betas.data[t, t+1:t+1+c] = other_network_weight
+
+                #if self.betas.data[t, 0:t+1+c].min() < 0.0:
+                #    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] - self.betas.data[t, 0:t+1+c].min()
+                #    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] / self.betas.data[t, 0:t+1+c].sum()
                 
 
                 #value = 0.5 + 0.5*(1 / (1 + np.exp(-14 * (r-0.5)))) * ((1-0.001) + 0.001)
@@ -1012,7 +1049,7 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
             #self.betas.data[task, 0:k] = 1 / (2*k)
             #self.betas.data[task, k:k+self.k] = 1 / (2*self.k)
                 
-            #self.betas.data[t, 0:t+1+c] = torch.log_softmax(self.betas.data[t, 0:t+1+c], dim=-1)
+            self.betas.data[t, 0:t+1+c] = torch.log(self.betas.data[t, 0:t+1+c])
 
             print(self.betas)
     '''def set_task(self, task, new_task=False, reward_input=0.0):
@@ -1035,9 +1072,13 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
 
             print(self.betas)'''
       
-    def get_betas(self, task=None, c=5):
-        if task is None: return self.betas[self.task, 0:self.task+1+c]#torch.exp(self.betas[self.task, 0:self.task+1+c])
-        else: return self.betas[self.task, 0:self.task+1+c]#torch.exp(self.betas[task, 0:task+1+c])
+    def get_betas(self, task=None, c=12):
+        if task is None: 
+            #return self.betas[self.task, 0:self.task+1+c]
+            return torch.softmax(self.betas[self.task, 0:self.task+1+c], dim=-1)
+        else: 
+            #return self.betas[self.task, 0:self.task+1+c]
+            return torch.softmax(self.betas[task, 0:task+1+c], dim=-1)
 
 
 # Subnetwork forward from hidden networks
@@ -1946,7 +1987,7 @@ class MultitaskMaskConv2dSparse(nn.Conv2d):
 
 
 class ComposeMultitaskMaskConv2d(nn.Conv2d):
-    def __init__(self, *args, discrete=True, num_tasks=1, max_community_masks=40, seed=1, new_mask_type=NEW_MASK_RANDOM, bias=False, **kwargs):
+    def __init__(self, *args, discrete=True, num_tasks=1, max_community_masks=12, seed=1, new_mask_type=NEW_MASK_RANDOM, bias=False, alpha=0.1, **kwargs):
         super().__init__(*args, bias=False, **kwargs)
         self.num_tasks = num_tasks
 
@@ -1983,6 +2024,9 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
 
         # to initialize/register the stacked module buffer.
         self.cache_masks()
+
+        self.prev_reward = None
+        self.alpha = alpha
 
     @torch.no_grad()
     def cache_masks(self):
@@ -2035,7 +2079,7 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
         _subnets.extend([c.detach() for c in self.comm_masks])
 
         _betas = self.betas[self.task, 0:self.task+1+self.num_comm_masks]
-        #_betas = torch.softmax(_betas, dim=-1)
+        _betas = torch.softmax(_betas, dim=-1)
 
         _subnets = [_b * _s for _b, _s in zip(_betas, _subnets)]
         _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
@@ -2094,7 +2138,7 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
         assert len(_subnets) > 0, 'an error occured'
         
         _betas = self.betas[self.task, 0:self.task+1+self.num_comm_masks]
-        #_betas = torch.softmax(_betas, dim=-1)
+        _betas = torch.softmax(_betas, dim=-1)
         assert len(_betas) == len(_subnets), 'an error ocurred'
 
         
@@ -2117,7 +2161,7 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
         
         _betas = self.betas[self.task, self.task:self.task+1+self.num_comm_masks]
         print(f'Betas before softmax: {_betas}')
-        #_betas = torch.softmax(_betas, dim=-1)
+        _betas = torch.softmax(_betas, dim=-1)
         assert len(_betas) == len(_subnets), 'an error ocurred'
         print(f'Betas after softmax: {_betas}')
 
@@ -2144,20 +2188,37 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
                 r = current_reward
 
                 # Undo log operation
-                #self.betas.data[t, 0:t+1+c] = torch.exp(self.betas.data[t, 0:t+1+c])
+                self.betas.data[t, 0:t+1+c] = torch.exp(self.betas.data[t, 0:t+1+c])
 
                 # Reset beta values to initial position
                 #self.betas.data[t, 0:t+1] = 0.5
                 #self.betas.data[t, t+1:t+1+c] = 0.5 / c
-                print(f'Current mask: {0.5+0.5*r}')
-                print(f'Incoming masks: {(0.5*(1-r))/c}')
 
-                self.betas.data[t, 0:t+1] = 0.5 + 0.5*r              # Set current mask beta to 0.5 + reward scaling
-                self.betas.data[t, t+1:t+1+c] = (0.5 * (1-r)) / c       # Set remaining beta as (1 - current mask beta) / c
+                #if self.prev_reward is None:
+                #    self.prev_reward = r
 
-                if self.betas.data[t, 0:t+1+c].min() < 0.0:
-                    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] - self.betas.data[t, 0:t+1+c].min()
-                    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] / self.betas.data[t, 0:t+1+c].sum()
+                #reward_change = abs(r - self.prev_reward)
+                #d = np.exp(-self.alpha * reward_change)
+
+                #current_network_weight = 0.5 + 0.5 * (d * r)
+                #other_network_weight = 0.5 * (1 - d * r) / c
+
+                
+                #print(f'Current mask: {0.5+0.5*r}')
+                #print(f'Incoming masks: {(0.5*(1-r))/c}')
+
+                e = 1e-8
+                r = max(r, 0)
+                r = min(r, 0.9999)
+                self.betas.data[t, 0:t+1] = 0.5 + 0.5*r                # Set current mask beta to 0.5 + reward scaling
+                self.betas.data[t, t+1:t+1+c] = ((0.5 * (1-r))) / c    # Set remaining beta as (1 - current mask beta) / c
+
+                #self.betas.data[t, 0:t+1] = current_network_weight
+                #self.betas.data[t, t+1:t+1+c] = other_network_weight
+
+                #if self.betas.data[t, 0:t+1+c].min() < 0.0:
+                #    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] - self.betas.data[t, 0:t+1+c].min()
+                #    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] / self.betas.data[t, 0:t+1+c].sum()
 
                 #value = 0.5 + 0.5*(1 / (1 + np.exp(-14 * (r-0.5)))) * ((1-0.001) + 0.001)
                 #self.betas.data[t, 0:t+1] = value
@@ -2171,7 +2232,7 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
                 #self.betas.data[t, t+1:t+1+c] = remainder / c
                 
                 # Redo the log operation
-                #self.betas.data[t, 0:t+1+c] = torch.log_softmax(self.betas.data[t, 0:t+1+c], dim=-1)
+                self.betas.data[t, 0:t+1+c] = torch.log(self.betas.data[t, 0:t+1+c])
 
         print(f"LOG BETAS IN UPDATE_COMM_MASKS(): {self.betas}")
 
@@ -2241,15 +2302,33 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
             else: # otherwise use BLC (1/2)
                 #self.betas.data[t, 0:t+1] = 0.5
                 #self.betas.data[t, t+1:t+1+c] = 0.5 / c
-                print(f'Current mask: {0.5+0.5*r}')
-                print(f'Incoming masks: {(0.5*(1-r))/c}')
 
-                self.betas.data[t, 0:t+1] = 0.5 + 0.5*r
-                self.betas.data[t, t+1:t+1+c] = (0.5*(1-r))/c
+                #if self.prev_reward is None:
+                #    self.prev_reward = r
 
-                if self.betas.data[t, 0:t+1+c].min() < 0.0:
-                    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] - self.betas.data[t, 0:t+1+c].min()
-                    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] / self.betas.data[t, 0:t+1+c].sum()
+                #reward_change = abs(r - self.prev_reward)
+                #d = np.exp(-self.alpha * reward_change)
+
+                #current_network_weight = 0.5 + 0.5 * (d * r)
+                #other_network_weight = 0.5 * (1 - d * r) / c
+
+                
+                #print(f'Current mask: {0.5+0.5*r}')
+                #print(f'Incoming masks: {(0.5*(1-r))/c}')
+
+
+                e = 1e-8
+                r = max(r, 0)
+                r = min(r, 0.9999)
+                self.betas.data[t, 0:t+1] = 0.5 + 0.5*r                # Set current mask beta to 0.5 + reward scaling
+                self.betas.data[t, t+1:t+1+c] = ((0.5 * (1-r))) / c    # Set remaining beta as (1 - current mask beta) / c
+
+                #self.betas.data[t, 0:t+1] = current_network_weight
+                #self.betas.data[t, t+1:t+1+c] = other_network_weight
+
+                #if self.betas.data[t, 0:t+1+c].min() < 0.0:
+                #    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] - self.betas.data[t, 0:t+1+c].min()
+                #    self.betas.data[t, 0:t+1+c] = self.betas.data[t, 0:t+1+c] / self.betas.data[t, 0:t+1+c].sum()
                 
                 #value = 0.5 + 0.5*(1 / (1 + np.exp(-14 * (r-0.5)))) * ((1-0.001) + 0.001)
                 #self.betas.data[t, 0:t+1] = value
@@ -2258,15 +2337,17 @@ class ComposeMultitaskMaskConv2d(nn.Conv2d):
 
             #self.betas.data[task, 0:k] = 1 / (2*k)
             #self.betas.data[task, k:k+self.k] = 1 / (2*self.k)
-            #self.betas.data[t, 0:t+1+c] = torch.log_softmax(self.betas.data[t, 0:t+1+c], dim=-1)
+            self.betas.data[t, 0:t+1+c] = torch.log(self.betas.data[t, 0:t+1+c])
 
             print(f"LOG BETAS IN SET_TASK(): {self.betas}")
             
-    def get_betas(self, task=None, c=5):
+    def get_betas(self, task=None, c=12):
         if task is None: 
-            return self.betas[self.task, 0:self.task+1+c]#torch.softmax(self.betas[self.task, 0:self.task+1+c], dim=-1)
+            #return self.betas[self.task, 0:self.task+1+c]
+            return torch.softmax(self.betas[self.task, 0:self.task+1+c], dim=-1)
         else: 
-            return self.betas[self.task, 0:self.task+1+c]#torch.softmax(self.betas[task, 0:task+1+c], dim=-1)
+            #return self.betas[self.task, 0:self.task+1+c]
+            return torch.softmax(self.betas[task, 0:task+1+c], dim=-1)
 
 
 

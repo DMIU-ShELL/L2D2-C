@@ -4,6 +4,7 @@
 # declaration at the top                                              #
 #######################################################################
 import numpy as np
+import cv2
 
 class BaseNormalizer:
     def __init__(self, read_only=False):
@@ -88,6 +89,47 @@ class RescaleNormalizer(BaseNormalizer):
 class ImageNormalizer(RescaleNormalizer):
     def __init__(self):
         RescaleNormalizer.__init__(self, 1.0 / 255)
+
+class GrayscaleImageNormalizer(BaseNormalizer):
+    def __init__(self):
+        BaseNormalizer.__init__(self)
+        self.target_size=(144,144)
+
+    def __call__(self, x):
+        # Validate the input
+        if not isinstance(x, np.ndarray):
+            raise ValueError("Input observation must be a NumPy array.")
+        
+        if x.size == 0:
+            raise ValueError("Input observation is empty")
+        
+        if x.dtype != np.uint8:
+            x = x.astype(np.uint8)
+
+        # Extract dimensions
+        batch_size, channels, height, width = x.shape
+        if channels != 3:
+            raise ValueError(f"Expected input with 3 channels (RGB), but got {channels} channels.")
+
+        # Initialize an array to hold the grayscale results
+        grayscale_batch = np.zeros((batch_size, 1, height, width), dtype=np.float32)  # Grayscale format
+
+        for i in range(batch_size):
+            # Transpose to (H, W, C) for OpenCV, process, then transpose back
+            rgb_image = np.transpose(x[i], (1, 2, 0))  # (H, W, C)
+            grayscale = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)  # Convert to grayscale
+
+            # Resize the grayscale image
+            resized = cv2.resize(grayscale, self.target_size, interpolation=cv2.INTER_AREA)
+            
+            # Normalize to [0, 1]
+            normalized = resized / 255.0
+
+            # Store in the output batch (H, W -> 1, H, W for grayscale)
+            grayscale_batch[i, 0, :, :] = normalized
+
+        return grayscale_batch
+
 
 class SignNormalizer(BaseNormalizer):
     def __call__(self, x):

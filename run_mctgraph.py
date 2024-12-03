@@ -142,7 +142,7 @@ def detect_finalise_and_run(config, Agent):
     ###############################################################################
     # Setup detect module
     #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
-    config.detect_fn = lambda reference_num, input_dim, num_samples: Detect(reference_num, input_dim, num_samples, one_hot=True, normalized=True)
+    config.detect_fn = lambda reference_num, input_dim, action_dim, num_samples: Detect(reference_num, input_dim, action_dim, num_samples, one_hot=True, normalized=True)
 
 
     ###############################################################################

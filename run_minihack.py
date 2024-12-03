@@ -20,7 +20,7 @@ import multiprocessing as mp
 from deep_rl.utils.misc import mkdir, get_default_log_dir
 from deep_rl.utils.torch_utils import set_one_thread, random_seed, select_device
 from deep_rl.utils.config import Config
-from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, RunningStatsNormalizer, RewardRunningStatsNormalizer
+from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, RunningStatsNormalizer, RewardRunningStatsNormalizer, GrayscaleImageNormalizer
 from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
 from deep_rl.component.policy import SamplePolicy
@@ -32,11 +32,12 @@ from deep_rl.agent.SAC_agent import SACDetectShell, SACShellAgent
 
 from deep_rl.shell_modules.communication.comms import ParallelComm, ParallelCommEval, ParallelCommOmniscient
 from deep_rl.shell_modules.communication.comms_detect import ParallelCommDetect, ParallelCommDetectEval
-from deep_rl.shell_modules.detect.detect import Detect
+from deep_rl.shell_modules.detect.detect import Detect, AutoDetect
 
 import argparse
 import torch
 import random
+import traceback
 
 # helper functions
 def global_config(config, name):
@@ -52,7 +53,7 @@ def global_config(config, name):
     config.optimizer_fn = lambda params, lr: torch.optim.RMSprop(params, lr=lr)
 
     config.policy_fn = SamplePolicy
-    config.state_normalizer = ImageNormalizer()#RescaleNormalizer(1./10.)
+    config.state_normalizer = GrayscaleImageNormalizer()#RescaleNormalizer(1./10.)
     #config.reward_normalizer = RewardRunningStatsNormalizer()
     config.discount = 0.99
     config.use_gae = True
@@ -144,7 +145,7 @@ def detect_finalise_and_run(config, Agent):
     ###############################################################################
     # Setup detect module
     #Passing the Detect Module in the config object of the Agent OPTIONAL COULD BE USED BY THE TRAINER ONLY
-    config.detect_fn = lambda reference_num, input_dim, num_samples: Detect(reference_num, input_dim, num_samples, one_hot=True, normalized=True)
+    config.detect_fn = lambda reference_num, input_dim, action_dim, num_samples: Detect(reference_num, input_dim, action_dim, num_samples, one_hot=True, normalized=True)
 
 
     ###############################################################################
@@ -163,7 +164,7 @@ def detect_finalise_and_run(config, Agent):
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.curriculum_id)
 
     # Communication frequency. TODO: This will need a rework if we don't know the length of task encounters.
-    config.querying_frequency = 20#(config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
+    config.querying_frequency = 25#(config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
 
     ###############################################################################
@@ -187,7 +188,7 @@ def detect_finalise_and_run(config, Agent):
     # Comm hyperparameters
     config.query_wait = 0.3 # ms
     config.mask_wait = 0.3  # ms
-    config.top_n = 14 # get top 5 masks for collective linear comb
+    config.top_n = 5 # get top 5 masks for collective linear comb
     #config.reward_progression_factor = 0.6 # x * self.current_task_reward < sender_rw @send_mask_requests() # NOTE: NOT USED ANYMORE
     #config.reward_stability_threshold = 0.6 # Reward threshold at which point we don't want the agent to query anymore for stability
 
@@ -345,7 +346,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('curriculum_id', help='index of the curriculum to use from the shell config json', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/mh.json') 
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/mh_room.json') 
     #parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/mg_mt.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
@@ -402,6 +403,7 @@ if __name__ == '__main__':
 
         else:
             minihack_ppo(name, args, shell_config)
+
 
     else:
         raise ValueError('--env_name {0} not implemented'.format(args.env_name))

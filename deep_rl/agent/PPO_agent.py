@@ -30,6 +30,7 @@ from sklearn.cluster import Birch
 import tensorboardX as tf
 from collections import deque
 import pandas as pd
+import time
 
 # Base PPO agent implementations
 class PPOAgent(BaseAgent):
@@ -191,9 +192,9 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         self.iteration_rewards = np.zeros(config.num_workers)
 
         self.states = self.task.reset()
-        print(self.states.shape)
+        print(f'FIRST PRINT: {self.states.shape}')
         self.states = config.state_normalizer(self.states)
-        print(self.states.shape)
+        print(f'SECOND PRINT: {self.states.shape}')
         
         self.layers_output = None
         self.data_buffer = Replay(memory_size=int(1.5*1e2), batch_size=130)
@@ -219,6 +220,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
     def iteration(self):
         '''This function performs the training iteration.
         It is where the learner of the agent (the neural network) is being optimized'''
+
+        start_time = time.time()
         
         config = self.config
         rollout = []
@@ -226,6 +229,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         # Rollout function.
         states, rollout = self._rollout_fn(states)
+        #self.config.logger.info(f'----------------------- Rollout function complete in {time.time() - start_time} seconds -----------------------\n')
 
         self.states = states
         pending_value = self.network.predict(states)[-2]#self.network.predict(states, task_label=batch_task_label)[-2]
@@ -248,6 +252,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                 td_error = rewards + config.discount * terminals*next_value.detach() - value.detach()
                 advantages = advantages * config.gae_tau * config.discount * terminals + td_error
             processed_rollout[i] = [states, actions, log_probs, returns, advantages]
+        
+        #self.config.logger.info(f'----------------------- Rollout processing complete in {time.time() - start_time} seconds -----------------------\n')
 
         states, actions, log_probs_old, returns, advantages = map(lambda x: torch.cat(x, dim=0), zip(*processed_rollout))
         eps = 1e-6
@@ -301,6 +307,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                 grad_norm_log.append(norm_.detach().cpu().numpy())
                 self.opt.step()
 
+        #self.config.logger.info(f'----------------------- Optimization epochs complete in {time.time() - start_time} seconds -----------------------\n')
+
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
         self.layers_output = outs
@@ -311,6 +319,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
     def _rollout_normal(self, states):
         '''It runs the agent on the environment and collects SAR data to staore in the Replay
         Buffer'''
+        start_time = time.time()
         # Clear running performance buffers
         self.running_episodes_rewards = [[] for _ in range(self.config.num_workers)]
         
@@ -341,6 +350,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
                 ]
             )
             states = next_states
+
+        #self.config.logger.info(f'----------------------- Rollout function data collection complete in {time.time() - start_time} seconds -----------------------\n')
 
         # Compute average performance across episodes in the rollout
         for i in range(config.num_workers):
@@ -869,12 +880,14 @@ class PPODetectShell(PPOShellAgent):
         observation_size = tmp_state_obs.ravel().shape[0]       # ravel() to accomodate for 2D obs as well when using a convolutional model...
 
         # Initialise detect module within the agent
-        self.detect = config.detect_fn(self.detect_reference_num, observation_size, self.detect_num_samples)
+        #self.detect = config.detect_fn(self.detect_reference_num, observation_size, self.detect_num_samples)
+        self.detect = config.detect_fn(self.detect_reference_num, observation_size, self.task.action_dim, self.detect_num_samples)
 
         # Variable for saving the size of the task embedding that the detect module has produced.
         # Initially we store the precalculated embedding size
         self.detect.set_reference(observation_size, self.detect_reference_num, self.task.action_dim)
         self.task_emb_size  = self.detect.precalculate_embedding_size(self.detect_reference_num, observation_size, self.task.action_dim)
+        self.config.logger.info(f'task embedding size: {self.task_emb_size}')
         self.current_task_emb = torch.zeros(self.get_task_emb_size())
         self.new_task_emb =  torch.zeros(self.get_task_emb_size())      # FIXME: We don't use this! Consider removal.
 

@@ -6,18 +6,23 @@ import time
 from glob import glob
 import csv
 import os.path as osp
+import os
 import json
+import numpy as np
 
 class Monitor(Wrapper):
     EXT = "monitor.csv"
     f = None
 
     def __init__(self, env, filename, allow_early_resets=True, reset_keywords=(), info_keywords=()):
-        Wrapper.__init__(self, env=env)
+        super().__init__(env)
         self.tstart = time.time()
+
+        # Set up episode-level logging
         if filename is None:
             self.f = None
             self.logger = None
+            self.log_file = None
         else:
             if not filename.endswith(Monitor.EXT):
                 if osp.isdir(filename):
@@ -25,10 +30,21 @@ class Monitor(Wrapper):
                 else:
                     filename = filename + "." + Monitor.EXT
             self.f = open(filename, "wt")
-            self.f.write('#%s\n'%json.dumps({"t_start": self.tstart, 'env_id' : env.spec and env.spec.id}))
-            self.logger = csv.DictWriter(self.f, fieldnames=('r', 'l', 't')+reset_keywords+info_keywords)
+            self.log_file = filename.replace(Monitor.EXT, "monitor_log.csv")
+            self.f.write('#%s\n' % json.dumps({"t_start": self.tstart, 'env_id': env.spec and env.spec.id}))
+            self.logger = csv.DictWriter(self.f, fieldnames=('r', 'l', 't') + reset_keywords + info_keywords)
             self.logger.writeheader()
             self.f.flush()
+
+        # Set up step-level logging
+        self.step_log_file = self.log_file  # Use the same base name for the step-level CSV
+        self.step_log_writer = None
+        if self.step_log_file:
+            step_fieldnames = ["episode", "step", "action", "observation", "reward", "done", "truncated", "info"]
+            self.step_log_writer = open(self.step_log_file, "wt", newline="")
+            self.step_csv_writer = csv.DictWriter(self.step_log_writer, fieldnames=step_fieldnames)
+            self.step_csv_writer.writeheader()
+            self.step_log_writer.flush()
 
         self.reset_keywords = reset_keywords
         self.info_keywords = info_keywords
@@ -39,63 +55,108 @@ class Monitor(Wrapper):
         self.episode_lengths = []
         self.episode_times = []
         self.total_steps = 0
-        self.current_reset_info = {} # extra info about the current episode, that was passed in during reset()
+        self.current_reset_info = {}  # Extra info about the current episode
 
     def reset(self, **kwargs):
+        # Enforce early reset rules
         if not self.allow_early_resets and not self.needs_reset:
-            raise RuntimeError("Tried to reset an environment before done. If you want to allow early resets, wrap your env with Monitor(env, path, allow_early_resets=True)")
+            raise RuntimeError(
+                "Tried to reset an environment before done. If you want to allow early resets, "
+                "wrap your env with Monitor(env, path, allow_early_resets=True)"
+            )
+
         self.rewards = []
         self.needs_reset = False
+
+        # Log reset keywords
         for k in self.reset_keywords:
             v = kwargs.get(k)
             if v is None:
-                raise ValueError('Expected you to pass kwarg %s into reset'%k)
+                raise ValueError(f"Expected you to pass kwarg {k} into reset")
             self.current_reset_info[k] = v
-        return self.env.reset(**kwargs)
+
+        # Record reset data
+        done = None
+        reset_tuple = self.env.reset(**kwargs)
+        if len(reset_tuple) == 2:
+            state, done = reset_tuple
+        else:
+            state = reset_tuple
+        
+        if self.step_csv_writer:
+            self.step_csv_writer.writerow({
+                "episode": len(self.episode_rewards) + 1,
+                "step": 0,
+                "action": None,
+                "observation": None,
+                "reward": None,
+                "done": done if done is not None else False,
+                "truncated": False,
+                "info": {}
+            })
+            self.step_log_writer.flush()
+
+        return reset_tuple
 
     def step(self, action):
-        #print 'monitor step'
         if self.needs_reset:
             raise RuntimeError("Tried to step environment that needs reset")
-        #ob, rew, done, truncated, info = self.env.step(action)
 
-        ob, rew, done, truncated, info = None, None, None, None, None
-        
+        # Interact with the environment
         step_tuple = self.env.step(action)
-        if len(step_tuple) == 4: ob, rew, done, info = step_tuple
-        elif len(step_tuple) == 5: ob, rew, done, truncated, info = step_tuple
-        else: assert ValueError('Did not get expected number of values from step function (4~5).')
+        if len(step_tuple) == 4:
+            ob, rew, done, info = step_tuple
+            truncated = None
+        elif len(step_tuple) == 5:
+            ob, rew, done, truncated, info = step_tuple
+        else:
+            raise ValueError("Unexpected step tuple size; expected 4 or 5 elements.")
 
+        # Log step data
         self.rewards.append(rew)
+        self.total_steps += 1
+        step_data = {
+            "episode": len(self.episode_rewards) + 1,
+            "step": len(self.rewards),
+            "action": action,
+            "observation": None,
+            "reward": rew,
+            "done": done,
+            "truncated": truncated,
+            "info": info
+        }
+        if self.step_csv_writer:
+            self.step_csv_writer.writerow(step_data)
+            self.step_log_writer.flush()
 
+        # Handle episode end
         if done or truncated:
             self.needs_reset = True
             eprew = sum(self.rewards)
             eplen = len(self.rewards)
             epinfo = {"r": round(eprew, 6), "l": eplen, "t": round(time.time() - self.tstart, 6)}
             for k in self.info_keywords:
-                epinfo[k] = info[k]
+                epinfo[k] = info.get(k, None)
+
             self.episode_rewards.append(eprew)
             self.episode_lengths.append(eplen)
             self.episode_times.append(time.time() - self.tstart)
             epinfo.update(self.current_reset_info)
+
             if self.logger:
-                #print 'write log'
-                #print 'reward:'+str(eprew)
-                #print 'steps:'+str(eplen)
                 self.logger.writerow(epinfo)
                 self.f.flush()
-            info['episode'] = epinfo
-        self.total_steps += 1
 
-        if truncated is None: output = ob, rew, done, info
-        else: output = ob, rew, done, truncated, info
-        
-        return output
+            info['episode'] = epinfo
+
+        return step_tuple
 
     def close(self):
+        # Close log files and write final logs
         if self.f is not None:
             self.f.close()
+        if self.step_log_writer is not None:
+            self.step_log_writer.close()
 
     def get_total_steps(self):
         return self.total_steps

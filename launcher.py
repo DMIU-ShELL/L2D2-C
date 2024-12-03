@@ -250,19 +250,19 @@ commands_minihack = [
     ['MIG-4590f80d-be70-58e4-af75-eeb950255d4a', "python run_minihack.py 8 29508 -l -d 0.0 --exp_id='minihack_agent9'"],
 
     # MIG 10 (1-9)
-    ['MIG-e76a2a9b-9867-5f8a-b145-d857cd5ed8e2', "python run_minihack.py 9 29509 -l -d 0.0 --exp_id='minihack_agent10'"],
+    #['MIG-e76a2a9b-9867-5f8a-b145-d857cd5ed8e2', "python run_minihack.py 9 29509 -l -d 0.0 --exp_id='minihack_agent10'"],
 
     # MIG 11 (1-10)
-    ['MIG-2593b912-5975-58e9-bc3d-495311cee807', "python run_minihack.py 10 29510 -l -d 0.0 --exp_id='minihack_agent11'"],
+    #['MIG-2593b912-5975-58e9-bc3d-495311cee807', "python run_minihack.py 10 29510 -l -d 0.0 --exp_id='minihack_agent11'"],
 
     # MIG 12 (1-11)
-    ['MIG-51069529-f343-59c6-bac7-a75648296e7b', "python run_minihack.py 11 29511 -l -d 0.0 --exp_id='minihack_agent12'"],
+    #['MIG-51069529-f343-59c6-bac7-a75648296e7b', "python run_minihack.py 11 29511 -l -d 0.0 --exp_id='minihack_agent12'"],
 
     # MIG 13 (1-12)
-    ['MIG-187573d8-7df7-5e5f-87b2-c8b8f73c54e7', "python run_minihack.py 12 29512 -l -d 0.0 --exp_id='minihack_agent13'"],
+    #['MIG-187573d8-7df7-5e5f-87b2-c8b8f73c54e7', "python run_minihack.py 12 29512 -l -d 0.0 --exp_id='minihack_agent13'"],
 
     # MIG 14 (1-13)
-    ['MIG-3045e3dd-28b6-5ee8-96b5-60a085c9fcf1', "python run_minihack.py 13 29513 -l -d 0.0 --exp_id='minihack_agent14'"]
+    #['MIG-3045e3dd-28b6-5ee8-96b5-60a085c9fcf1', "python run_minihack.py 13 29513 -l -d 0.0 --exp_id='minihack_agent14'"]
 ]
 
 
