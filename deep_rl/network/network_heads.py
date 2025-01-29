@@ -421,10 +421,16 @@ class GaussianActorCriticNet_SS_Comp_FixedStd(nn.Module):
 
         v = self.network.fc_critic(phi_v)
 
-        # Set fixed log standard deviation
-        log_std = GaussianActorCriticNet_SS_Comp_FixedStd.FIXED_LOG_STD * torch.ones_like(mean)  # Create tensor of fixed log std
+        # Separate fixed log_std for joint and gripper actions
+        log_std_joint = 0.0 * torch.ones(mean[:, :7].shape, device=mean.device)  # log(σ) = 0 for joints
+        log_std_gripper = -0.5 * torch.ones(mean[:, 7:].shape, device=mean.device)  # log(σ) = -0.5 for gripper
+
+        # Combine joint and gripper log_std
+        log_std = torch.cat((log_std_joint, log_std_gripper), dim=1)
+
+        # Clamp log_std within bounds
         log_std = torch.clamp(log_std, GaussianActorCriticNet_SS_Comp_FixedStd.LOG_STD_MIN,
-                               GaussianActorCriticNet_SS_Comp_FixedStd.LOG_STD_MAX)
+                            GaussianActorCriticNet_SS_Comp_FixedStd.LOG_STD_MAX)
         std = torch.exp(log_std)
 
         dist = torch.distributions.Normal(mean, std)
@@ -433,7 +439,7 @@ class GaussianActorCriticNet_SS_Comp_FixedStd(nn.Module):
         
         if return_layer_output:
             layers_output += [('policy_mean', mean), ('policy_std', std),
-                              ('policy_action', action), ('value_fn', v)]
+                            ('policy_action', action), ('value_fn', v)]
         
         log_prob = dist.log_prob(action)
         log_prob = torch.sum(log_prob, dim=1, keepdim=True)

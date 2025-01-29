@@ -1,29 +1,15 @@
 {
     "tasks": [
-        "compotask1", 
-        "compotask2", 
-        "compotask3", 
-        "compotask4", 
-        "compotask5",
-        "compotask6",
-        "compotask7",
-        "compotask8",
-        "compotask9",
-        "compotask10"
+        ["IIWA", "Box", "None", "Push"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "ObjectWall", "PickPlace"]
     ],
     "one_hot": true,
-    "label_dim": 10,
+    "label_dim": 3,
     "action_dim": 8,
     "seeds": [
         840, 
         841,
-        842,
-        843,
-        844,
-        845,
-        846,
-        847,
-        848,
-        849
+        842
     ]
 }

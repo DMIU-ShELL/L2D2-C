@@ -5,11 +5,19 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import time
-
+import math
 import ast
 import seaborn as sns
 from matplotlib.animation import FFMpegWriter
 import re
+import gym
+from gym.wrappers.monitoring.video_recorder import VideoRecorder
+#from deep_rl.utils.config import Config
+
+import json
+import random
+import argparse
+
 
 def _plot_hm_policy_output(data, title, fname):
     data = data.T
@@ -197,9 +205,6 @@ def generate_heatmap_video(root_dir, max_steps, interval=200):
 # Example usage
 #generate_heatmap_video('log/minihack_debugging/room/fullcomm/run1', 32, 200)
 
-
-
-
 def generate_beta_heatmaps(root_dir, interval):
     for subdir, _, files in os.walk(root_dir):
         for file in files:
@@ -365,18 +370,166 @@ def generate_beta_heatmaps(root_dir, interval):
                 fig.savefig(image_path, dpi=300, bbox_inches='tight')
 
 
+
+
+
 def generate_videos(root_dir):
+    """
+    Walk through directories to find relevant monitor_log.csv and shell_config.json files,
+    match them, and generate videos for each agent.
+    """
     for subdir, _, files in os.walk(root_dir):
+        monitor_log_path = None
+        shell_config_path = None
+
+        # Locate monitor_log.csv and shell_config.json in the directory
         for file in files:
             if 'monitor_log.csv' in file:
-                file_path = os.path.join(subdir, file)
-                agent_name = os.path.basename(subdir)  # Use subdir name as agent identifier
+                monitor_log_path = os.path.join(subdir, file)
 
-                # Load logits data from CSV
-                df = pd.read_csv(file_path)
+                # Load monitor_log.csv and filter valid rows
+                df = pd.read_csv(monitor_log_path)
+
+                # Check for empty or invalid monitor logs
+                if df.empty or (df.columns.tolist() == ['episode', 'step', 'action', 'observation', 'reward', 'done', 'truncated', 'info'] and len(df) == 0):
+                    print(f"Skipping empty or header-only monitor log: {monitor_log_path}")
+                    continue
+
+                break
+
+        for file in files:
+            if file == 'shell_config.json':
+                shell_config_path = os.path.join(subdir, file)
+
+        if not monitor_log_path or not shell_config_path:
+            continue  # Skip if either file is missing
+
+        # Load the shell_config.json
+        with open(shell_config_path, 'r') as f:
+            shell_config = json.load(f)
+
+        # Extract curriculum details
+        curriculum = shell_config.get("curriculum", {})
+        task_ids = curriculum.get("task_ids", [])
+        max_steps = curriculum.get("max_steps", None)
+
+        if not task_ids or max_steps is None:
+            print(f"Skipping {subdir} due to incomplete curriculum in shell_config.json")
+            continue
+
+        # Generate the video for this agent
+        agent_name = os.path.basename(subdir)
+        output_video_file = os.path.join(subdir, f"{agent_name}_replay.mp4")
+        print(f"Generating video for agent: {agent_name} using log file: {monitor_log_path}")
+        generate_video_for_agent(shell_config, df, output_video_file, task_ids)
 
 
-import argparse
+def generate_video_for_agent(shell_config, log_data, output_video_file, task_ids):
+    """
+    Replay actions for an agent and record a video.
+
+    Args:
+        shell_config (dict): Parsed shell_config.json for environment setup.
+        log_data (pd.DataFrame): DataFrame containing step-level log data.
+        output_video_file (str): Path to save the generated video.
+    """
+    # Create the environment
+    env_name = shell_config['env']['env_name']
+    env_config_path = shell_config['env']['env_config_path']
+    env = create_environment(env_name, env_config_path, task_ids)
+    recorder = VideoRecorder(env, output_video_file, enabled=True)
+
+    current_episode = -1
+    done = None
+    for _, row in log_data.iterrows():
+        # Check if we need to reset the environment
+        if done or row['episode'] != current_episode:
+            observation = env.reset()
+            current_episode = row['episode']
+            print(f"Starting Episode {current_episode}")
+
+        # Extract action and perform a step
+        action = eval(row['action']) if isinstance(row['action'], str) else row['action']
+        if not math.isnan(action):
+            if isinstance(action, float):
+                action = int(action)
+            observation, reward, done, info = env.step(action)
+        else:
+            continue
+
+        # Render and record the frame
+        env.render()
+        recorder.capture_frame()
+
+        # Break if the episode ends
+        if row['done']:
+            print(f"Episode {current_episode} finished.")
+            continue
+
+    # Close environment and video recorder
+    env.close()
+    recorder.close()
+
+
+def create_environment(env_name, env_config_path, task_ids):
+    """
+    Create the environment based on its name and configuration.
+
+    Args:
+        env_name (str): Environment name (e.g., 'minihack').
+        env_config_path (str): Path to the environment configuration.
+
+    Returns:
+        gym.Env: The environment instance.
+    """
+    if env_name == 'minihack':
+        return minihack(env_config_path, task_ids)
+    elif env_name == 'minigrid':
+        return minigrid(env_config_path, task_ids)
+    elif env_name == 'composuite':
+        return composuite(env_config_path, task_ids)
+    elif env_name == 'ctgraph':
+        return mctgraph(env_config_path, task_ids)
+    else:
+        raise ValueError(f"Unsupported environment: {env_name}")
+
+
+# Example environment creation functions
+def minihack(env_config_path, task_ids):
+    import minihack
+    from nle import nethack
+
+    with open(env_config_path, 'r') as f:
+        env_config = json.load(f)
+
+    env_names = env_config['tasks'][task_ids[0]]
+
+    MOVE_ACTIONS = tuple(nethack.CompassDirection)
+    NAVIGATE_ACTIONS = MOVE_ACTIONS + (
+        nethack.Command.OPEN, 
+        nethack.Command.KICK
+    )
+
+    env = gym.make(env_names, observation_keys=('pixel_crop',), actions=NAVIGATE_ACTIONS)
+    return env
+
+
+def minigrid(env_config_path, task_ids):
+    # Example placeholder for Minigrid setup
+    return None
+
+
+def composuite(env_config_path, task_ids):
+    # Example placeholder for Composuite setup
+    return None
+
+
+def mctgraph(env_config_path, task_ids):
+    # Example placeholder for MCTGraph setup
+    return None
+    
+
+
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
@@ -384,6 +537,10 @@ if __name__ == '__main__':
     parser.add_argument('--interval', help='', type=int)
     parser.add_argument('--betas', '--b', '-b', help='plots betas', action='store_true')
     parser.add_argument('--policy', '--p', '-p', help='plots policy', action='store_true')
+    parser.add_argument('--video', '--v', '-v', help='plots videos', action='store_true')
+    parser.add_argument('--curriculum_id', '--c', '-c', help='curriculum identifier', type=int)
+    parser.add_argument('--shell_config_path', '--spath', '-sp', help='shell configuration path for environment', type=str)
+    
     
     args = parser.parse_args()
 

@@ -9,16 +9,17 @@ import os.path as osp
 import os
 import json
 import numpy as np
+import cv2
 
 class Monitor(Wrapper):
     EXT = "monitor.csv"
     f = None
 
-    def __init__(self, env, filename, allow_early_resets=True, reset_keywords=(), info_keywords=()):
+    def __init__(self, env, filename, allow_early_resets=True, reset_keywords=(), info_keywords=(), frame_rate=5):
         super().__init__(env)
         self.tstart = time.time()
 
-        # Set up episode-level logging
+        # Episode-level logging setup
         if filename is None:
             self.f = None
             self.logger = None
@@ -36,11 +37,11 @@ class Monitor(Wrapper):
             self.logger.writeheader()
             self.f.flush()
 
-        # Set up step-level logging
-        self.step_log_file = self.log_file  # Use the same base name for the step-level CSV
+        # Step-level logging setup
+        self.step_log_file = self.log_file
         self.step_log_writer = None
         if self.step_log_file:
-            step_fieldnames = ["episode", "step", "action", "observation", "reward", "done", "truncated", "info"]
+            step_fieldnames = ["episode", "step", "action", "reward", "done", "truncated", "info"]
             self.step_log_writer = open(self.step_log_file, "wt", newline="")
             self.step_csv_writer = csv.DictWriter(self.step_log_writer, fieldnames=step_fieldnames)
             self.step_csv_writer.writeheader()
@@ -55,71 +56,72 @@ class Monitor(Wrapper):
         self.episode_lengths = []
         self.episode_times = []
         self.total_steps = 0
-        self.current_reset_info = {}  # Extra info about the current episode
+        self.current_reset_info = {}
+
+        # Video recording setup
+        self.video_path = filename.replace(Monitor.EXT, 'video.mp4')
+        self.frame_rate = frame_rate
+        self.video_writer = None
+        self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+
+    def _initialize_video_writer(self, frame):
+        if self.video_path and self.video_writer is None:
+            height, width, _ = frame.shape
+            self.video_writer = cv2.VideoWriter(self.video_path, self.fourcc, self.frame_rate, (width, height))
+
+    def _write_video_frame(self, frame):
+        if self.video_writer:
+            self.video_writer.write(frame)
 
     def reset(self, **kwargs):
-        # Enforce early reset rules
         if not self.allow_early_resets and not self.needs_reset:
-            raise RuntimeError(
-                "Tried to reset an environment before done. If you want to allow early resets, "
-                "wrap your env with Monitor(env, path, allow_early_resets=True)"
-            )
+            raise RuntimeError("Tried to reset an environment before done. Use allow_early_resets=True to bypass.")
 
         self.rewards = []
         self.needs_reset = False
 
-        # Log reset keywords
         for k in self.reset_keywords:
             v = kwargs.get(k)
             if v is None:
-                raise ValueError(f"Expected you to pass kwarg {k} into reset")
+                raise ValueError(f"Expected kwarg {k} in reset")
             self.current_reset_info[k] = v
 
-        # Record reset data
-        done = None
-        reset_tuple = self.env.reset(**kwargs)
-        if len(reset_tuple) == 2:
-            state, done = reset_tuple
-        else:
-            state = reset_tuple
-        
-        if self.step_csv_writer:
-            self.step_csv_writer.writerow({
-                "episode": len(self.episode_rewards) + 1,
-                "step": 0,
-                "action": None,
-                "observation": None,
-                "reward": None,
-                "done": done if done is not None else False,
-                "truncated": False,
-                "info": {}
-            })
-            self.step_log_writer.flush()
+        state = self.env.reset(**kwargs)
 
-        return reset_tuple
+        if isinstance(state, dict) and 'pixel_crop' in state:
+            frame = state['pixel_crop']
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            self._initialize_video_writer(frame)
+            self._write_video_frame(frame)
+
+        return state
 
     def step(self, action):
         if self.needs_reset:
-            raise RuntimeError("Tried to step environment that needs reset")
+            raise RuntimeError("Tried to step an environment that needs reset.")
 
-        # Interact with the environment
         step_tuple = self.env.step(action)
         if len(step_tuple) == 4:
             ob, rew, done, info = step_tuple
-            truncated = None
+            truncated = False
         elif len(step_tuple) == 5:
             ob, rew, done, truncated, info = step_tuple
         else:
             raise ValueError("Unexpected step tuple size; expected 4 or 5 elements.")
 
-        # Log step data
         self.rewards.append(rew)
         self.total_steps += 1
+
+        if isinstance(ob, dict) and 'pixel_crop' in ob:
+            frame = ob['pixel_crop']
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            self._write_video_frame(frame)
+
+        # Step-level logging
         step_data = {
             "episode": len(self.episode_rewards) + 1,
             "step": len(self.rewards),
             "action": action,
-            "observation": None,
             "reward": rew,
             "done": done,
             "truncated": truncated,
@@ -129,7 +131,6 @@ class Monitor(Wrapper):
             self.step_csv_writer.writerow(step_data)
             self.step_log_writer.flush()
 
-        # Handle episode end
         if done or truncated:
             self.needs_reset = True
             eprew = sum(self.rewards)
@@ -152,11 +153,12 @@ class Monitor(Wrapper):
         return step_tuple
 
     def close(self):
-        # Close log files and write final logs
-        if self.f is not None:
+        if self.f:
             self.f.close()
-        if self.step_log_writer is not None:
+        if self.step_log_writer:
             self.step_log_writer.close()
+        if self.video_writer:
+            self.video_writer.release()
 
     def get_total_steps(self):
         return self.total_steps

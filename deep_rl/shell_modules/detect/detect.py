@@ -104,11 +104,8 @@ class Detect:
             img = (img.float()-mean)/std
         if self.oh:
             act_oh = torch.zeros(X.shape[0], some_task_action_space_size)
-            #print("INITIAL ACT_OH:", act_oh, act_oh.shape)
-            #print(act, act.shape)
       
             for i in range(act.shape[0]):
-                #print("HI form i:", i)
                 act_oh [i,int(act[i])]=1
             act = act_oh.to(self.device)
             #print("act_OH:", act_oh)

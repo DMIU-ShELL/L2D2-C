@@ -85,6 +85,14 @@ class RescaleNormalizer(BaseNormalizer):
         if not np.isscalar(x):
             x = np.asarray(x)
         return self.coef * x
+    
+
+class DummyNormalizer(BaseNormalizer):
+    def __init__(self):
+        BaseNormalizer.__init__(self)
+
+    def __call__(self, x):
+        return x
 
 class ImageNormalizer(RescaleNormalizer):
     def __init__(self):

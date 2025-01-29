@@ -1,26 +1,14 @@
 {
     "tasks": [
         "MiniHack-MultiRoom-N2-v0",
-        "MiniHack-MultiRoom-N2-Monster-v0",
-        "MiniHack-MultiRoom-N2-Locked-v0",
         "MiniHack-MultiRoom-N4-v0",
-        "MiniHack-MultiRoom-N4-Monster-v0",
-        "MiniHack-MultiRoom-N4-Locked-v0",
-        "MiniHack-MultiRoom-N6-v0",
-        "MiniHack-MultiRoom-N6-Monster-v0",
-        "MiniHack-MultiRoom-N6-Locked-v0"
+        "MiniHack-MultiRoom-N6-v0"
     ],
     "one_hot": true,
-    "label_dim": 9,
+    "label_dim": 3,
     "action_dim": 10,
     "seeds": [
         840, 
-        840,
-        840,
-        840,
-        840,
-        840,
-        840,
         840,
         840
     ]

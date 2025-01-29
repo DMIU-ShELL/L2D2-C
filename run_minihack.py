@@ -164,7 +164,7 @@ def detect_finalise_and_run(config, Agent):
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.curriculum_id)
 
     # Communication frequency. TODO: This will need a rework if we don't know the length of task encounters.
-    config.querying_frequency = 25#(config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
+    config.querying_frequency = 10#(config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
 
     ###############################################################################
@@ -359,7 +359,7 @@ if __name__ == '__main__':
     parser.add_argument('--localhost', '--ls', '-ls', help='used to run DMIU in localhost mode', action='store_true')   # Flag used to start the system using localhost instead of public IP. Can be useful for debugging network related problems.
     parser.add_argument('--shuffle', '--s', '-s', help='randomise the task curriculum', action='store_true')            # Not required. If you want to randomise the order of tasks in the curriculum then you can change to 1
     parser.add_argument('--comm_interval', '--i', '-i', help='integer value indicating the number of communications '\
-        'to perform per task', type= int, default=20)                                                                   # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
+        'to perform per task', type= int, default=50)                                                                   # Configures the communication interval used to test and take advantage of the lucky agent phenomenon. We found that a value of 5 works well. 
                                                                                                                         # Please do not modify this value unless you know what you're doing as it may cause unexpected results.
 
     parser.add_argument('--device', help='select device 1 for GPU or 0 for CPU. default is GPU', type=int, default=1)   # Used to select device. By default system will try to use the GPU. Currently PyTorch is only compatible with NVIDIA GPUs or Apple M Series processors.

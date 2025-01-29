@@ -23,7 +23,7 @@ def process_data(csv_file, title):
     pivot_df = df.pivot_table(index='iteration', columns='task_id', aggfunc='size', fill_value=0)
 
     # Plotting
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(12, 200))
     sns.heatmap(pivot_df, cmap='Blues', annot=True, fmt='d', annot_kws={"fontsize": 8}, square=True, cbar=False, linewidths=2)
     #plt.title('Exchanges of Data Between RL Agents Over Time')
     plt.xlabel('Task ID')
@@ -34,7 +34,7 @@ def process_data(csv_file, title):
 
     # Save the heatmap as a PDF
     directory_name = os.path.dirname(csv_file)
-    plt.savefig(os.path.join(directory_name, f'{title.lower()}_heatmap.pdf'), dpi=256, format='pdf', bbox_inches='tight')
+    plt.savefig(os.path.join(directory_name, f'{title.lower()}_heatmap.pdf'), dpi=256, format='pdf')
     plt.close()  # Close the plot to avoid overlapping plots
 
     # Plotting cumulative frequency bar chart

@@ -24,7 +24,7 @@ from deep_rl.utils.normalizer import ImageNormalizer, RescaleNormalizer, Running
 from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
 from deep_rl.component.policy import SamplePolicy
-from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, MiniGrid, MetaCTgraph, CompoSuite, CompoSuiteFlatObs, MiniHack 
+from deep_rl.component.task import ParallelizedTask, RobosuiteFlatObs
 from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, CategoricalActorCriticNet_SS_Comp, GaussianActorCriticNet_SS_Comp, GaussianActorCriticNet_SS_Comp_FixedStd
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL, FCBody_SS_Comp
 from deep_rl.agent.PPO_agent import PPODetectShell, PPOShellAgent
@@ -164,7 +164,7 @@ def detect_finalise_and_run(config, Agent):
     config.agent_name = agent.__class__.__name__ + '_{0}'.format(args.curriculum_id)
 
     # Communication frequency. TODO: This will need a rework if we don't know the length of task encounters.
-    config.querying_frequency = 10#(config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
+    config.querying_frequency = (config.max_steps[0]/(config.rollout_length * config.num_workers)) / args.comm_interval
 
 
     ###############################################################################
@@ -252,11 +252,11 @@ def composuite_ppo(name, args, shell_config):
     # ENVIRONMENT SPECIFIC SETUP. SETUP TRAINING AND EVALUATION TASK FUNCTIONS
     # AND THE NETWORK FUNCTION.
     # Training task lambda function
-    task_fn = lambda log_dir: CompoSuiteFlatObs(name=name, env_config_path=env_config_path, log_dir=log_dir)
+    task_fn = lambda log_dir: RobosuiteFlatObs(name=name, env_config_path=env_config_path, log_dir=log_dir)
     config.task_fn = lambda: ParallelizedTask(task_fn,config.num_workers,log_dir=config.log_dir, single_process=True)
 
     # Evaluation task mabda function. TODO: Is the evaluation task function necessary for a traditional learner?
-    eval_task_fn= lambda log_dir: CompoSuiteFlatObs(name=name, env_config_path=env_config_path, log_dir=log_dir)
+    eval_task_fn= lambda log_dir: RobosuiteFlatObs(name=name, env_config_path=env_config_path, log_dir=log_dir)
     config.eval_task_fn = eval_task_fn
 
     # Network lambda function
@@ -347,7 +347,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('curriculum_id', help='index of the curriculum to use from the shell config json', type=int)                   # NOTE: REQUIRED Used to create the logging filepath and select a specific curriculum from the shell configuration JSON.
     parser.add_argument('port', help='port to use for this agent', type=int)                                            # NOTE: REQUIRED Port for the listening server.
-    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/compo.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
+    parser.add_argument('--shell_config_path', help='shell config', default='./shell_configs/the_chosen_one/robo.json')                         # File path to your chosen shell.json configuration file. Changing the default here might save you some time.
     parser.add_argument('--exp_id', help='id of the experiment. useful for setting '\
         'up structured directory of experiment results/data', default='upz', type=str)                                  # Experiment ID. Can be useful for setting up directories for logging results/data.
     parser.add_argument('--eval', '--e', '-e', help='launches agent in evaluation mode', action='store_true')           # Flag used to start the system in evaluation agent mode. By default the system will run in learning mode.
@@ -396,7 +396,7 @@ if __name__ == '__main__':
         args.pathheader = shell_config['env']['env_name']
         
     # Parse arguments and launch the correct environment-agent configuration.
-    if shell_config['env']['env_name'] == 'composuite':
+    if shell_config['env']['env_name'] == 'robosuite':
         name = Config.ENV_COMPOSUITE
         if args.eval:
             composuite_ppo_eval(name, args, shell_config)

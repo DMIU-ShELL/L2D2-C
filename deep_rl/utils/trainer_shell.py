@@ -800,6 +800,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
                 # NOTE: RE-ENABLE FOR MAIN EXPERIMENTS!!!!!!!!!!!!!
                 #emb_t = torch.stack(tuple(_embeddings))
                 #tb_writer_emb.add_embedding(emb_t, metadata=_labels, global_step=shell_iterations)
+                #agent.env.close()
                 
                 idling = False
                 # Alternatively we can shutdown the agent here or do something for the experiment termination.
@@ -827,6 +828,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         ###############################################################################
         ### Query for knowledge using communication process. Send label/embedding to the communication module to query for relevant knowledge from other peers.
         if dict_to_query is not None:
+            print(dict_logs)
             if shell_iterations % mask_interval == 0:
                 # Approach 2: At this point consolidate masks and then we can reset beta parameters. Then we can get new masks from network and combine.
                 dict_to_query['shell_iteration'] = shell_iterations

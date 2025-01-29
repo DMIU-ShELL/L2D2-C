@@ -131,6 +131,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         tasks = []
         if config.task_ids is not None:
             tasks_ = self.task.get_all_tasks(config.cl_requires_task_label)
+            print(config.task_ids)
+            [print(dumb) for dumb in tasks_]
             tasks = [tasks_[task_id] for task_id in config.task_ids]
             del tasks_
         elif config.task_paths is not None:
@@ -371,13 +373,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         for _ in range(config.rollout_length):
             _, actions, log_probs, _, values, _ = self.network.predict(states)
             next_states, rewards, terminals, infos = self.task.step(actions.cpu().detach().numpy())
-
-            # if using composuite then dictionary is slightly different
-            if self.task.name == config.ENV_COMPOSUITE:
-                success_rates = [info['Success'] for info in infos]
-            else:
-                success_rates = [info['success'] for info in infos]
-                
+            success_rates = [info['success'] for info in infos]
             self.episode_rewards += rewards
             self.episode_success_rate += success_rates
             rewards = config.reward_normalizer(rewards)
@@ -393,7 +389,7 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             next_states = config.state_normalizer(next_states)
 
             # save data to buffer for the detect module
-            self.data_buffer.feed_batch([states, actions.cpu(), rewards, terminals, next_states])
+            self.data_buffer.feed_batch([states, actions, rewards, terminals, next_states])
 
             rollout.append([states, values.detach(), actions.detach(), log_probs.detach(), \
                 rewards, 1 - terminals])
