@@ -1,21 +1,41 @@
 {
     "tasks": [
-        ["IIWA", "Box", "None", "Reach"],
-        ["IIWA", "Box", "None", "Grasp"],
-        ["IIWA", "Box", "None", "Lift"],
-        ["IIWA", "Box", "None", "Approach"],
-        ["IIWA", "Box", "None", "Lower"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
+        ["IIWA", "Box", "None", "PickPlace"],
         ["IIWA", "Box", "None", "PickPlace"]
+      
     ],
     "one_hot": true,
-    "label_dim": 6,
+    "label_dim": 14,
     "action_dim": 8,
     "seeds": [
         840,
-        840,
-        840,
-        840,
-        840,
-        840
+        841,
+        842,
+        843,
+        844,
+        845,
+        846,
+        847,
+        848,
+        849,
+        850,
+        851,
+        852,
+        853
+
     ]
 }
+
+

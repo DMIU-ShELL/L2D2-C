@@ -130,10 +130,12 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
 
         tasks = []
         if config.task_ids is not None:
+            print(config.task_ids, "taskids")
             tasks_ = self.task.get_all_tasks(config.cl_requires_task_label)
             print(config.task_ids)
-            [print(dumb) for dumb in tasks_]
-            tasks = [tasks_[task_id] for task_id in config.task_ids]
+            print(tasks_)
+            # [print(dumb) for dumb in tasks_]
+            tasks = [tasks_[0] for task_id in config.task_ids]
             del tasks_
         elif config.task_paths is not None:
             tasks_ = self.task.get_all_tasks(config.cl_requires_task_label)

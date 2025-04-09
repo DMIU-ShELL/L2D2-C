@@ -646,7 +646,7 @@ class CompoSuite(BaseTask):
             #robot, obj, obstacle, objective = train[0]
             reward_shaping = True
             if objective == 'PickPlace':
-                reward_shaping = False
+                reward_shaping = True
 
             print(robot, obj, obstacle, objective)
             env = composuite.make(robot, obj, obstacle, objective, use_task_id_obs=True, ignore_done=True, reward_shaping=reward_shaping, env_horizon=500)

@@ -411,24 +411,55 @@ commands_procgen = [
 ]'''
 
 commands_composuite = [
-    # MIG 1 (0-7)
-    ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', "python run_composuite.py 0 29500 -l -d 0.0 --exp_id='comp_agent1'"],
+    ['MIG-c8cbc779-6499-5d1f-86e7-ad789e047331', "python run_composuite.py 0 29600 -l -d 0.0 --exp_id='comp_agent0'"],
 
-    # MIG 2 (0-8)
-    ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', "python run_composuite.py 1 29501 -l -d 0.0 --exp_id='comp_agent2'"],
+    ['MIG-f6c4eed6-1edf-5515-8e0b-0a5521e81cbb', "python run_composuite.py 1 29601 -l -d 0.0 --exp_id='comp_agent1'"],
 
-    # MIG 3 (0-9)
-    ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', "python run_composuite.py 2 29502 -l -d 0.0 --exp_id='comp_agent3'"],
+    ['MIG-ae777ac5-da68-5606-8581-1878288224dc', "python run_composuite.py 2 29602 -l -d 0.0 --exp_id='comp_agent2'"],
 
-    # MIG 4 (0-10)
-    ['MIG-e8f61a95-352a-56cc-b95d-0c35fc14e8bf', "python run_composuite.py 3 29503 -l -d 0.0 --exp_id='comp_agent4'"],
+    ['MIG-b2a723b5-db7a-50d8-a267-70569dafe609', "python run_composuite.py 3 29603 -l -d 0.0 --exp_id='comp_agent3'"],
 
-    # MIG 5 (0-11)
-    ['MIG-35ecef79-db2e-590b-9e8c-2c07c787008e', "python run_composuite.py 4 29504 -l -d 0.0 --exp_id='comp_agent5'"],
+    ['MIG-73000f9d-03d4-5dab-ad23-34b546569bdd', "python run_composuite.py 4 29604 -l -d 0.0 --exp_id='comp_agent4'"],
 
-    # MIG 6 (0-12)
-    ['MIG-76cd8dd7-7703-5581-8ac5-a7ee81a402a0', "python run_composuite.py 5 29505 -l -d 0.0 --exp_id='comp_agent6'"],
+    ['MIG-f86cf155-b80e-56da-92ed-03c78bf647c7', "python run_composuite.py 5 29605 -l -d 0.0 --exp_id='comp_agent5'"],
+
+    ['MIG-bfb3fc5a-8b5e-59c1-87e8-3468c995103d', "python run_composuite.py 6 29606 -l -d 0.0 --exp_id='comp_agent6'"],
+
+    ['MIG-f61216a8-2a31-500e-acf7-f0158fbf7ce3', "python run_composuite.py 7 29607 -l -d 0.0 --exp_id='comp_agent7'"],
+
+    ['MIG-bc91396f-1c2b-5319-8862-6f16d089ce5e', "python run_composuite.py 8 29608 -l -d 0.0 --exp_id='comp_agent8'"],
+
+    ['MIG-13d6b3aa-c302-5ac2-9183-5494d22547e6', "python run_composuite.py 9 29609 -l -d 0.0 --exp_id='comp_agent9'"],
+
+    ['MIG-f2d8b14c-d00c-5b5f-be98-bd1bff3bf371', "python run_composuite.py 10 29610 -l -d 0.0 --exp_id='comp_agent10'"],
+
+    ['MIG-62fabbf0-b8de-5040-b4db-93f62c477543', "python run_composuite.py 11 29611 -l -d 0.0 --exp_id='comp_agent11'"],
+
+    ['MIG-fcda8ac4-e82d-5259-8495-c777d8c95d74', "python run_composuite.py 12 29612 -l -d 0.0 --exp_id='comp_agent12'"],
+
+    ['MIG-f4aecf22-d8a0-50a9-b804-c65cb2d2ff7e', "python run_composuite.py 13 29613 -l -d 0.0 --exp_id='comp_agent13'"],
 ]
+
+
+# [
+#     # MIG 1 (0-7)
+#     ['MIG-c3ce33ce-ced8-5961-bb87-2b40eb100277', "python run_composuite.py 0 29500 -l -d 0.0 --exp_id='comp_agent1'"],
+
+#     # MIG 2 (0-8)
+#     ['MIG-280489c4-1d98-5b07-b4f6-2fc85fc874fa', "python run_composuite.py 1 29501 -l -d 0.0 --exp_id='comp_agent2'"],
+
+#     # MIG 3 (0-9)
+#     ['MIG-c432df19-0894-5232-ac1c-9a3440fc267e', "python run_composuite.py 2 29502 -l -d 0.0 --exp_id='comp_agent3'"],
+
+#     # MIG 4 (0-10)
+#     ['MIG-e8f61a95-352a-56cc-b95d-0c35fc14e8bf', "python run_composuite.py 3 29503 -l -d 0.0 --exp_id='comp_agent4'"],
+
+#     # MIG 5 (0-11)
+#     ['MIG-35ecef79-db2e-590b-9e8c-2c07c787008e', "python run_composuite.py 4 29504 -l -d 0.0 --exp_id='comp_agent5'"],
+
+#     # MIG 6 (0-12)
+#     ['MIG-76cd8dd7-7703-5581-8ac5-a7ee81a402a0', "python run_composuite.py 5 29505 -l -d 0.0 --exp_id='comp_agent6'"],
+# ]
 
 '''commands_composuite = [
     # MIG 1 (0-7)

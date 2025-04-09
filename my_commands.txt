@@ -1,0 +1,738 @@
+nvidida
+nvidia
+ls
+cd Desktop
+ls
+cd snap
+ls
+cd ..
+nvidia-smi
+conda env list
+ls
+git clone git@github.com:DMIU-ShELL/SolarLLM.git
+ssh
+ssh-gen
+ssh-keygen -t ed25519 -C "inishd7@gmail.com"
+[200~ssh-copy-id username@remote_server_address
+ssh-copy-id coimd@lnx-grid-02
+git clone git@github.com:DMIU-ShELL/SolarLLM.git
+ssh keys
+ls
+snap 
+cd snap
+ls
+cd snapd-desktop-integration/
+ls
+cd ..
+ls
+cd coimd
+cd ..
+cd comb8
+cd coimd
+ls
+cd ..
+cd comid
+cd coimd
+.ssh
+cd .ssh
+ls
+cd authorized_keys
+cat ~/.ssh/id_ed25519.pub
+git clone git@github.com:DMIU-ShELL/SolarLLM.git
+cd ..
+git clone git@github.com:DMIU-ShELL/SolarLLM.git
+cd ..
+cd comid
+cd coimd
+ssh-keygen -t rsa -b 4096
+cd .ssh
+ls
+cd ..
+cat ~/.ssh/id_rsa.pub
+git clone git@github.com:DMIU-ShELL/SolarLLM.git
+ls
+cd SolarLLM/
+ls
+conda 
+conda create -n SolarLLM python==3.10
+conda activate SolarLLM
+conda list
+pip list
+conda env create -f environment.yml
+conda list
+pip list
+python pipeline.py
+conda install transformers
+conda list
+pip list
+pip install transformers
+pip list
+conda list
+conda env create -f environment.yml
+conda activate llama
+pip list
+python3 pipeline.py
+huugingface-login
+huggingface-cli login
+python3 pipeline.py
+conda deactivate
+conda activate
+python3 pipeline.py
+conda activate SolarLLM
+python3 pipeline.py
+conda activate llama
+conda deactivate
+conda activate llama
+python3 pipeline.py
+conda activate llama
+python3 pipeline.py
+conda deactivate
+conda activate llama
+python3 pipeline.py
+pip uninstall transformer
+pip uninstall transformers
+pip install transformers=4.45.0
+pip install transformers==4.45.0
+python3 pipeline.py
+pip install sentencepiece
+python3 pipeline.py
+conda activate llama
+python3 pipeline.py
+conda activate llama
+python3 pipeline.py
+nvidia-smi
+pip list
+pip uninstall torch
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+python3 pipeline.py
+conda activate llama
+python3 pipeline.py
+nvidid-smi
+nvidia-smi
+pip uninstall torch
+pip install torch==2.5.1+cu124 -f https://download.pytorch.org/whl/cu124/torch_stable.html
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+conda activate llama
+python3 pipeline.py
+pip list
+pip uninstall transformers
+pip install transformers
+python3 pipeline.py
+conda activate SolarLLM
+pip list
+conda list
+conda install transformers
+conda activate SolarLLM
+pip list
+pip install torch
+pip list
+pip uninstall torch
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu122
+pip install torch==2.5.1+cu124 -f https://download.pytorch.org/whl/cu124/torch_stable.html
+nvcc --version
+apt install nvidia-cuda-toolkit
+sudo apt install nvidia-cuda-toolkit
+nvidai-smi
+nvidia-smi
+conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch-nightly -c nvidia
+pip list
+nvidia-smi
+sudo reboot
+pip uninstall torch
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu122
+conda install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu122
+pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
+conda deactivate
+conda create -n env
+python --version
+conda actiate env
+conda activate env
+python --version
+python3 --version
+conda create -n env
+conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia
+python -version
+python3 --version
+nvidia-smi
+conda deactivate
+conda create -n env1 python=3.10
+conda activate env1
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+python --version
+python3
+/bin/python3 /home/lunet/coimd/.vscode-server/extensions/ms-python.python-2025.0.0-linux-x64/python_files/printEnvVariablesToFile.py /home/lunet/coimd/.vscode-server/extensions/ms-python.python-2025.0.0-linux-x64/python_files/deactivate/bash/envVars.txt
+nvidia-smi -L
+unmae
+uname
+arch
+lsb_release -a
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+python -m venv test
+source test/bin/activate
+pip list
+deactivate
+conda create -name test1 python=3.9
+conda create -name test1 python==3.9
+conda create --name test1 python==3.9
+conda activate test1
+conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.8 -c pytorch -c nvidia
+conda list
+python3
+deactivate
+conda deactivate
+conda activate llama
+python3 pipeline.py
+python3 env -v envtest
+pip install virtualenv
+python3 -m venv envtest
+source envtest/bin/acitvate
+source envtest/bin/activate
+python3
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip list
+python
+pip clear
+pip clean
+deactivate
+python3 -m venv envtest1
+source envtest1/source/activate
+source envtest1/bin/activate
+pip3 install torch torchvision torchaudio
+python3
+pip list
+nvidia-smi
+deactivate
+python3 -m env envtest2
+python3 -m venv envtest2
+python3
+source envtest2/bin/activate
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+python3
+pip list
+deactivate
+source envtest/bin/activate
+pip list
+cd SolarLLM
+conda activate llama
+python3 pipeline.py
+conda info --envs
+deactivate
+conda activate llama
+python3 pipeline.py
+conda list#
+conda list
+python
+pip list
+pip install transformers
+python3 pipeline.py
+pip install datasets
+python3 pipeline.py
+pip install accelerate
+python3 pipeline.py
+conda deactivate
+conda create -n phi3 python=3.10
+conda activate phi3
+conda install -c conda-forge accelerate
+pip3 install -i https://pypi.org/simple/ bitsandbytes
+pip3 install peft transformers trl datasets
+pip3 install deepspeed
+pip uninstall pytorch
+pip uninstall torch
+pip3 install deepspeed
+pip install deepspeed==0.3.16
+accelerate env
+accelerate-env
+accelerate launch phi3-mini-4K-instruct-finetune.py
+pip install importlib_metadata
+accelerate launch phi3-mini-4K-instruct-finetune.py
+python3 phi3-mini-4K-instruct-finetune.py
+df -h
+cd ..
+cd run
+cd user
+ls
+cd 127
+mkdir 128
+cd ..
+cd home
+du -h --max-depth=1 /home
+rm -rf ~/.cache/huggingface/*
+df -h
+cd SolarLLM
+ls
+cd ..
+ls
+cd home
+ls
+cd lunet
+ls
+cd coimd
+cd
+ls
+cd SolarLLM
+python3 phi3-mini-4K-instruct-finetune.py
+pip install flash-attn --no-build-isolation
+pip install flash-at
+pip install flash-attn
+pip install flash-attn==2.0.2
+pip install flash-attn==2.6.3
+pip uninstall torch
+pip install flash-attn==2.6.3
+pip install wheel
+pip install flash-attn==2.6.3
+pip install torch
+pip install flash-attn==2.6.3
+conda activate llama
+/bin/python3 /home/lunet/coimd/.vscode-server/extensions/ms-python.python-2025.0.0-linux-x64/python_files/printEnvVariablesToFile.py /home/lunet/coimd/.vscode-server/extensions/ms-python.python-2025.0.0-linux-x64/python_files/deactivate/bash/envVars.txt
+deactivate
+python -m venv unsloth1
+source unsloth1/bin/activate
+deactivate
+python -m venv unsloth2
+source unsloth2/bin/activate
+deactivate
+docker run --gpus=all -p 127.0.0.1:9000:8080 us-docker.pkg.dev/colab-images/public/runtime
+snap install docker
+sudo snap install docker
+python -m venv unsloth3
+source unsloth3/bin/activate
+pip uninstall unsloth
+deactivate#
+deactivate
+python -m venv unsloth4
+source unsloth4/bin/activate
+docker
+snap install docker
+sudo snap install docker
+apt install podman-docker
+apt install docker.io
+exit() clear
+clear
+ls
+cd ..
+ls
+cd root
+ls
+cd ..
+docker run -p 127.0.0.1:9000:8080 us-docker.pkg.dev/colab-images/public/runtime
+docker
+jupyter notebook --NotebookApp.allow_origin='https://colab.research.google.com' --port=8888 --NotebookApp.port_retries=0
+docker run -p 127.0.0.1:8888:8080 us-docker.pkg.dev/colab-images/public/runtime
+docker run --gpus=all -p 127.0.0.1:9000:8080 us-docker.pkg.dev/colab-images/public/runtime
+deactivate
+source /home/lunet/coimd/deepseek-r1-finetune/deepseek/bin/activate
+source llama_factory/bin/activate
+source llama_-factory/bin/activate
+source llama-factory/bin/activate
+llamafactory-clu help
+llamafactory-cli help
+llamafactory-cli --help
+llamafactory-cli webui
+rm -r llama-factory
+deactivate
+cd docker/docker-cuda
+docker compose up -d
+docker compose exec llamafactory bash
+git lfs install
+sudo apt install git-lfs
+git lfs install
+cd scopus-custom-data/
+git lfs pull
+source /home/lunet/coimd/deepseek-r1-finetune/deepseek/bin/activate
+nvidia-smi
+nvidia-smi pmon -c 1
+nvidia-smi dmon -s u
+cd ..
+python deepseek_finetune.py
+cd deepseek-r1-finetune/
+python deepseek_finetune.py
+python test_model.py
+python -v
+python -m venv litgpt
+df -h
+sudo sync
+rm -rf ~/.cache/thumbnails/*
+df -h
+rm -rf ~/.cache/huggingface/
+df -h
+conda env list | grep -v "base" | awk '{print $1}' | xargs -I {} conda remove --name {} --all -y
+conda env list
+df -h
+cd ..
+ls
+cd ..
+ls
+cd coimd
+ls
+du -sh *
+cd SolaLLM
+cd SolarLLM
+du -sh *
+rm -r unsloth1
+rm -r unsloth2
+rm -r unsloth3
+rm -r unsloth4
+du -sh *
+cd ..
+du -sh *
+rm -r envtest
+rm -r envtest1
+rm -r envtest2
+du -sh *
+df -h
+cd SolarLLM/
+rm -r checkpoints
+df -h
+du -sh *
+rm -r test
+du -sh *
+cd ..
+ls
+du -sh *
+df -h 
+cd coimd
+ls
+cd SolarLLM
+ls
+rm -r checkpoints
+rm -r litgpt
+ls
+du -sh *
+python -m venv ligpt
+python -m venv litgpt
+cd ..
+ls
+cd SolarLLM
+python -m venv litgpt
+ls
+python 3-m venv litgpt
+conda create -n litgpt
+litgpt
+cd ..
+litgpt
+litgpt --help
+conda activate litgpt
+litgpt --help
+litgpt 
+conda deactivate
+git clone --depth 1 https://github.com/hiyouga/LLaMA-Factory.git
+cd LLaMA-Factory/
+ls
+python3 -m venv llama-factory
+python3
+pip install -e ".[torch,metrics]"
+pip install --no-deps -e .
+uv sync --extra torch --extra metrics --prerelease=allow
+llamafactory-cli chat examples/inference/llama3_lora_sft.yaml
+conda list
+pip list
+source llama-factory/bin/activate
+pip install -e ".[torch,metrics]"
+pip install --no-deps -e .
+llamafactory-cli chat examples/inference/llama3_lora_sft.yaml
+huggingface-cli login
+llamafactory-cli chat examples/inference/llama3_lora_sft.yaml
+llamafactory-cli chat examples/inference/llama3.yaml
+llamafactory-cli chat examples/inference/qwen2_vl.yaml
+llamafactory-cli help
+llamafactory-cli train -h
+llamafactory-cli webui
+pip install importlib-metadata
+llamafactory-cli webui
+pip install bitsandbytes>=0.37.0
+pip list
+llamafactory-cli webui
+pip uninstall bitsandbytes
+pip uistall bitsandbytes==0.43.1
+pip install bitsandbytes==0.43.1
+llamafactory-cli webui
+pip install triton
+pip install triton.ops
+llamafactory-cli webui
+pip3 install deepseed
+pip3 install deepspeed
+pip3 install deepspeed==0.16.2
+pip3 install deepspeed==0.10.0
+conda install deepspeed
+pip3 install deepspeed==0.10.0
+llamafactory-cli webui
+pip install deepspeed
+pip install deepspeed==0.10.0
+pip install deepspeed==0.11
+pip list
+pip uninstall torch
+pip install torch
+/home/lunet/coimd/LLaMA-Factory/llama-factory/bin/python3 -m pip install --upgrade pip
+pip install triton==1.0.0
+pip install deepspeed==0.11
+pip install deepspeed==0.10.0
+deactivaet
+deactivate
+cd ..
+git clone https://github.com/jbarnes850/deepseek-r1-finetune.git
+cd deepseek-r1-finetune/
+python -m venv deepseek
+source deepseek/bin/activate
+pip install -r requirements.txt
+/home/lunet/coimd/deepseek-r1-finetune/deepseek/bin/python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install scipy
+pip install -r requirements.txt
+wandb login
+python deepseek_finetune.py
+/bin/python3 /home/lunet/coimd/.vscode-server/extensions/ms-python.python-2025.0.0-linux-x64/python_files/printEnvVariablesToFile.py /home/lunet/coimd/.vscode-server/extensions/ms-python.python-2025.0.0-linux-x64/python_files/deactivate/bash/envVars.txt
+python3 -m venv unsloth-continued
+source unsloth-continued/bin/activate
+rm -v unsloth-continued
+deactivate
+rm -v unsloth-continued
+rm  unsloth-continued
+rm  -rf unsloth-continued
+python3 -m venv unsloth-continued
+rm  -rf unsloth-continued
+conda create -n unsloth-continued python=3.10
+conda activate
+python
+conda activate
+cd ..
+cd SolarLLM/
+cd scopus-custom-data/
+git lfs status
+cd ..
+cd deepseek-r1-finetune/
+source deepseek/bin/activate
+python deepseek_finetune.py
+source /home/lunet/coimd/deepseek-r1-finetune/deepseek/bin/activate
+python deepseek_finetune.py
+conda activate /home/lunet/coimd/SolarLLM/.conda
+cd ..
+rm -rf deepseek-r1-finetune
+ls
+git clone https://github.com/jbarnes850/deepseek-r1-finetune.git
+deactivate
+cd ..
+cd deepseek-r1-finetune/
+python -m venv deepseek-r1
+source deepseek-r1/bin/activate
+pip install -m requirements.txt
+pip install -r requirements.txt
+python3 deepseek_finetune.py
+python3
+python3 deepseek_finetune.py
+python deepseek_finetune.py
+nvidia-smi
+pkill 1821973
+nvidia-smi
+kill 1821973
+nvidia-smi
+python deepseek_finetune.py
+python test_model.py
+source deepseek-r1/bin/activate
+python deepseek_finetune.py
+source /home/lunet/coimd/deepseek-r1-finetune/deepseek-r1/bin/activate
+python deepseek_finetune.py
+source /home/lunet/coimd/deepseek-r1-finetune/deepseek-r1/bin/activate
+python deepseek_finetune.py
+source /home/lunet/coimd/deepseek-r1-finetune/deepseek-r1/bin/activate
+python
+nvidia-smi
+python deepseek_finetune.py
+source /home/lunet/coimd/deepseek-r1-finetune/deepseek-r1/bin/activate
+nvidia-smi
+source /home/lunet/coimd/deepseek-r1-finetune/deepseek-r1/bin/activate
+python deepseek_finetune.py
+conda activate /home/lunet/coimd/SolarLLM/.conda
+git status
+git add .
+git commit -m changesInish
+git push
+git config lfs.fetchexclude "*"
+git push
+git lfs track "scopus-custom-data/proj_127_solarcells_export.json"
+git add .gitattributes
+git add scopus-custom-data/proj_127_solarcells_export.json
+git commit -m "Track large files with Git LFS"
+git push origin main
+git rm --cached scopus-custom-data/proj_127_solarcells_export.json
+git commit -m "Remove large files"
+git push origin main
+git add .
+git commit -m check
+git push
+git stash
+git reset --hard HEAD~1
+git reflog
+git reset --hard 163af4b
+git add .
+git commit -m "changes2"
+git push
+git rm --cached scopus-custom-data/proj_127_solarcells_export.json
+git commit -m "changes2"
+git push 
+git rm --cached scopus_full_data.txt
+git commit -m 'remove'
+git push
+git clean
+git
+git show
+conda activate /home/lunet/coimd/SolarLLM/.conda
+git status
+git add 
+git add .
+git commit -m "changes"
+git push
+git reset
+git add .
+git commit -m chages
+git pull
+git push
+ls
+git clone https://github.com/DMIU-ShELL/L2D2-C.git
+ls
+git clone https://github.com/DMIU-ShELL/L2D2-C.git -b l2d2c-detect
+ls
+cd L2D2-C/
+cd ..
+ls 
+cd l2d20c
+cd l2d2-
+cd L2D2-C
+/bin/python3 /home/lunet/coimd/.vscode-server/extensions/ms-python.python-2025.2.0-linux-x64/python_files/printEnvVariablesToFile.py /home/lunet/coimd/.vscode-server/extensions/ms-python.python-2025.2.0-linux-x64/python_files/deactivate/bash/envVars.txt
+nividia-smi -L
+nvidia-smi -L
+conda env create -f environment.yml
+conda env create -f env.yml
+cd ..
+git clone https://github.com/Chocological45/Composuite-Hierarchical
+ls
+cd Composuite-Hierarchical/
+conda activate c3l_mujoco
+pip install -e .
+cd ..
+cd L2D2-C/
+ls
+nividia-smi -l
+nividia-smi -L
+nvidia-smi -L
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l 
+conda deactivate
+conda env list
+conda env remove --name c3l_mujoco
+conda env list
+conda create --name l2d2-c  python=3.9.13
+conda activate l2d2-c
+conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia
+conda install -c conda-forge colorama tqdm pandas numpy=1.24.3 tensorboardx psutil scikit-image matplotlib=3.9.2 gym=0.26.1 pot
+conda env list
+conda activate l2d2-c
+conda install colorama
+conda install tqdm
+conda install pandas
+
+conda install numpy=1.24.3
+conda install tensorboardx
+conda install psutil
+conda install matplotlib=3.9.2
+conda gym=0.26.1
+conda install gym=0.26.1
+conda install pot
+conda install scikit-learn
+conda install scikit-image
+conda install gym=0.26.1 -c conda forge
+conda install gym=0.26.1 -c conda-forge
+pip install opencv-python ipinfo robosuite==1.4.0
+cd ..
+ls
+cd Composuite-Hierarchical/
+pip install -e .
+cd ..
+cd L2D2-C/
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+conda install ot
+pip install ot
+conda uninstall pot
+conda list
+conda env list
+conda activate l2d2-c
+conda env list
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+conda activate l2d2-c
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+pip install ot
+conda install ot
+conda deactivate
+conda env remove --name l2d2-c
+
+
+
+all starts here...
+conda create --name myenv python=3.9.13
+conda activate myenv
+conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia
+conda list
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+import matplotlib
+python
+conda install matplotlib=3.9.2
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+conda install colorama
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+pip install ipinfo
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+pip install ot
+conda install ot
+conda install pot
+pip install pot
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+conda install sklearn
+conda install scikit-learn -c anaconda
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+pip install opencv-python
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+conda install tensorboardx
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+conda install gym=0.26.1
+pip install gym=0.26.1
+pip install gym==0.26.1
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+conda install psuti;
+conda install psutil
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+conda install pandas
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+conda install -c conda-forge memory_profiler
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+pip uninstall torch torchvision
+pip install torch==2.2.1 torchvision==0.17.1
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+pip uninstall torch torchvision
+Saptarshi Nath
+conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia~
+conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia
+conda uninstall pytorch torchvision
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+python
+conda install pytorch torchvision torchaudio -c pytorch
+python
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+pip install 'importlib_metadata<5.0.0'
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+conda install scikit-image
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+cd ..
+cd Composuite-Hierarchical/
+pip install -e .
+cd ..
+cd L2D2-C/
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+pip install robosuite==1.4.0
+CUDA_VISIBLE_DEVICES=MIG-c8cbc779-6499-5d1f-86e7-ad789e047331 python run_composuite.py 0 29500 -l
+python launcher.py --env compo --exp compsuite_reach_14_seeds/
+conda activate myenv
+python launcher.py --env compo --exp compsuite_reach_14_seeds/
+screen -S experiment1 
+screen -R experiment1
+screen -S experiment2
+screen -R experiment2
+tail -f output.log
