@@ -624,6 +624,7 @@ class CompoSuite(BaseTask):
         with open(env_config_path, 'r') as f:
             env_config = json.load(f)
         self.env_config = env_config
+        print(env_config, "env_config")
         _env_args = env_config['tasks']
         if 'seeds' in env_config.keys():
             seeds = env_config['seeds']

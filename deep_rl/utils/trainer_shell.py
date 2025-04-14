@@ -837,18 +837,18 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
 
         ###############################################################################
         ### Query for knowledge using communication process. Send label/embedding to the communication module to query for relevant knowledge from other peers.
-        if dict_to_query is not None:
-            #print('Entropy:', np.mean(dict_logs['entropy']))
-            #print('Reward:', np.mean(agent.iteration_rewards))
-            if agent.config.continuous == True:
-                mask_interval = adaptive_communication_interval(np.mean(dict_logs['entropy']), agent.iteration_success_rate)
-            else:
-                mask_interval = adaptive_communication_interval(np.mean(dict_logs['entropy']), agent.iteration_rewards)
+        # if dict_to_query is not None:
+        #     #print('Entropy:', np.mean(dict_logs['entropy']))
+        #     #print('Reward:', np.mean(agent.iteration_rewards))
+        #     if agent.config.continuous == True:
+        #         mask_interval = adaptive_communication_interval(np.mean(dict_logs['entropy']), agent.iteration_success_rate)
+        #     else:
+        #         mask_interval = adaptive_communication_interval(np.mean(dict_logs['entropy']), agent.iteration_rewards)
 
-            if shell_iterations % mask_interval == 0:
-                # Approach 2: At this point consolidate masks and then we can reset beta parameters. Then we can get new masks from network and combine.
-                dict_to_query['shell_iteration'] = shell_iterations
-                queue_label.put(dict_to_query)
+        #     if shell_iterations % mask_interval == 0:
+        #         # Approach 2: At this point consolidate masks and then we can reset beta parameters. Then we can get new masks from network and combine.
+        #         dict_to_query['shell_iteration'] = shell_iterations
+        #         queue_label.put(dict_to_query)
 
         # Report performance to evaluation agent if present. Otherwise skip.
         if agent.config.evaluator_present.value == True:
@@ -891,7 +891,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         ###############################################################################
         ### Run detect module. Generates embedding for SAR. Perform check to see if there has been a task change or not.
         _dist_threshold = agent.emb_dist_threshold
-        if shell_iterations != 0 and shell_iterations % agent.detect_module_activation_frequency == 0 and agent.data_buffer.size() >= (agent.detect.get_num_samples()):
+        if  False: #shell_iterations != 0 and shell_iterations % agent.detect_module_activation_frequency == 0 and agent.data_buffer.size() >= (agent.detect.get_num_samples()):
             # Run the detect module on SAR and return some logging output.
             task_change_flag, new_emb, ground_truth_task_label, dist_arr, emb_bool, agent_seen_tasks = run_detect_module(agent)
 

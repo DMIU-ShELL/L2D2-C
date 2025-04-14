@@ -531,7 +531,7 @@ commands_metaworld = [
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--env', help='indicate which experiment is being run for command selection', type=str, default='ctgraph')
+parser.add_argument('--env', help='indicate which experiment is being run for command selection', type=str, default='compo')
 parser.add_argument('--exp', help='', type=str, default='')
 args = parser.parse_args()
 commands = None
