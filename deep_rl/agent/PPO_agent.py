@@ -1000,28 +1000,28 @@ class PPODetectShell(PPOShellAgent):
         It is based on the "task_train_start()" method.'''
 
         # Get the task idx (key) for if the task record exists (based on embedding similarity)
-        self.current_task_key = self._embedding_to_idx(task_embedding)
+        # self.current_task_key = self._embedding_to_idx(task_embedding)
 
-        print(f'Current task key: {self.current_task_key}')
+        # print(f'Current task key: {self.current_task_key}')
  
-        if self.current_task_key is None:
+        # if self.current_task_key is None:
             # If no similar embedding record was found then its a new task
-            self.current_task_key = len(self.seen_tasks)                                        # Generate an internal task index for new task
+        self.current_task_key = len(self.seen_tasks)                                        # Generate an internal task index for new task
 
             # Create the dictionary key-value pair for the new task
-            self.update_seen_tasks(
-                embedding=task_embedding, 
-                reward=0,
-                label=self.task.get_task()['task_label']
-            )
+        self.update_seen_tasks(
+            embedding=task_embedding, 
+            reward=0,
+            label=self.task.get_task()['task_label']
+        )
 
-            self.new_task = True                                                                # Set the new_task flag to True
-            set_model_task(self.network, self.current_task_key, new_task=True, current_reward=current_reward)                  # Set the new task mask inside the model
-            self.set_current_task_embedding(task_embedding)        # Set the self.current_task_emb for the newly detected task
+        self.new_task = True                                                                # Set the new_task flag to True
+        set_model_task(self.network, self.current_task_key, new_task=True, current_reward=current_reward)                  # Set the new task mask inside the model
+        self.set_current_task_embedding(task_embedding)        # Set the self.current_task_emb for the newly detected task
 
-        else:
-            # Set model to use the existing task mask.
-            set_model_task(self.network, self.current_task_key, current_reward=current_reward)
+        # else:
+        #     # Set model to use the existing task mask.
+        #     set_model_task(self.network, self.current_task_key, current_reward=current_reward)
 
         return
     
@@ -1032,6 +1032,7 @@ class PPODetectShell(PPOShellAgent):
         to work with embeddings instead of labels.'''
         # NOTE, comment/uncomment alongside a block of code in `_forward_mask_lnear_comb` method in
         # MultitaskMaskLinear and MultiMaskLinearSparse classes
+        print("consolidating masks and cacheing masks")
         consolidate_mask(self.network)
 
         self.current_task_emb = None

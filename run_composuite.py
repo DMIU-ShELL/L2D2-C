@@ -273,7 +273,7 @@ def composuite_ppo(name, args, shell_config):
             hidden_units=(64, 64),
             discrete_mask=False,
             gate=torch.tanh,
-            num_tasks=config.cl_num_tasks,
+            num_tasks= int(500/30),#config.cl_num_tasks,
             new_task_mask=args.new_task_mask,
             seed=config.seed
         ),
@@ -282,11 +282,11 @@ def composuite_ppo(name, args, shell_config):
             hidden_units=(64, 64),
             discrete_mask=False,
             gate=torch.tanh,
-            num_tasks=config.cl_num_tasks,
+            num_tasks= int(500/30),#config.cl_num_tasks,
             new_task_mask=args.new_task_mask,
             seed=config.seed
         ),
-        num_tasks=config.cl_num_tasks,
+        num_tasks= int(500/30),#config.cl_num_tasks,
         new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
     
@@ -323,12 +323,12 @@ def composuite_ppo_eval(name, args, shell_config):
             state_dim, 
             task_label_dim=label_dim, 
             hidden_units=(200, 200, 200), 
-            num_tasks=25,#config.cl_num_tasks, 
+            num_tasks=int(500/30),#config.cl_num_tasks, 
             new_task_mask=args.new_task_mask
             ),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
-        num_tasks=25,#config.cl_num_tasks,
+        num_tasks=int(500/30),#config.cl_num_tasks,
         new_task_mask=args.new_task_mask
         )    # 'random' for mask RI. 'linear_comb' for mask LC.
     

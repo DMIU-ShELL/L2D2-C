@@ -607,6 +607,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     shell_done = False
     shell_iterations = 0
     shell_tasks = agent.config.cl_tasks_info # tasks for agent
+    print(shell_tasks, "shell_tasks")
     #shell_task_ids = agent.config.task_ids
     shell_task_counter = 0
     #shell_eval_tracker = False
@@ -646,6 +647,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
     # NOTE: ADDED detect.add_embedding() to accomodate the WEIGHTED AVG COSINE SIM
     agent.current_task_emb = torch.zeros(agent.get_task_emb_size())
     if agent.config.continuous == True:
+        
         agent.task_train_start_emb(task_embedding=agent.current_task_emb, current_reward=agent.iteration_success_rate)   # TODO: There is an issue with this which is that the first task will be set as zero and then the detect module with do some learning, find that the task does not match the zero embedding and start another task change. This leaves the first entry to a task change as useless. Also issues if we try to moving average this
     else:
         agent.task_train_start_emb(task_embedding=agent.current_task_emb, current_reward=agent.iteration_rewards)
@@ -1051,10 +1053,11 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         only when required.
         '''
         if not agent.config.max_steps: raise ValueError('`max_steps` should be set for each agent')
-        task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
+        # task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
 
         # If agent completes the maximum number of steps for a task then switch to the next task in the curriculum.
-        if agent.total_steps >= task_steps_limit:
+        if shell_iterations % 50 == 0: #agent.total_steps >= task_steps_limit:
+            print("reached here")
             task_counter_ = shell_task_counter
             logger.info('\n' + Fore.WHITE + f'*****agent {agent_id} / end of training on task {task_counter_}')
             
@@ -1065,30 +1068,33 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             shell_task_counter = task_counter_
 
             # If curriculum is not completed, switch to the next task in the curriculum
-            if task_counter_ < len(shell_tasks):
+            if  True:    #task_counter_ < len(shell_tasks):
+                # print("reached here 2")
                 # new task
                 logger.info(Fore.WHITE + f'***** ENVIRONMENT SWITCHING TASKS')
-                logger.info(Fore.WHITE + f'***** agent {agent_id} / set next task {task_counter_}')
-                logger.info(Fore.WHITE + f"***** task: {shell_tasks[task_counter_]['task']}")
-                logger.info(Fore.WHITE + f"***** task_label: {shell_tasks[task_counter_]['task_label']}")
+                # logger.info(Fore.WHITE + f'***** agent {agent_id} / set next task {task_counter_}')
+                # logger.info(Fore.WHITE + f"***** task: {shell_tasks[task_counter_]['task']}")
+                # logger.info(Fore.WHITE + f"***** task_label: {shell_tasks[task_counter_]['task_label']}")
                 
                 # Set the new task from the environment. Agent remains unaware of this change and will continue until
                 # detect module detects distrubtion shift.
-                states_ = agent.task.reset_task(shell_tasks[task_counter_]) # reset_task sets the new task and returns the reset intial states.
-                agent.states = agent.config.state_normalizer(states_)
+                # states_ = agent.task.reset_task(shell_tasks[0]) # reset_task sets the new task and returns the reset intial states.
+                # agent.states = agent.config.state_normalizer(states_)
                 
                 #MOVED to Assing EMB in PPO agent agent.task_train_start(shell_tasks[task_counter_]['task_label'])
 
-                del states_
+                # del states_
+                agent.task_train_end_emb()
+                agent.task_train_start_emb(shell_tasks[0]['task_label'], current_reward=agent.iteration_rewards)
 
-                task_times.append([task_counter_, shell_iterations, np.argmax(shell_tasks[task_counter_]['task_label'], axis=0), time.time()])
-                np.savetxt(logger.log_dir + '/task_changes_{0}.csv'.format(agent_id), task_times, delimiter=',', fmt='%s')
+                #task_times.append([task_counter_, shell_iterations, np.argmax(shell_tasks[task_counter_]['task_label'], axis=0), time.time()])
+                #np.savetxt(logger.log_dir + '/task_changes_{0}.csv'.format(agent_id), task_times, delimiter=',', fmt='%s')
 
             else:
                 shell_done = True # training done for all task for agent. This leads to the idling behaviour in next iteration.
                 logger.info(f'*****agent {agent_id} / end of all training')
 
-            del task_counter_
+            #del task_counter_
         
 
 

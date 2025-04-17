@@ -751,6 +751,7 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
         self.k = max_community_masks
 
         if self.new_mask_type == NEW_MASK_LINEAR_COMB:
+            print(f'num_tasks: {num_tasks}')
             self.betas = nn.Parameter(torch.zeros(num_tasks, self.k + num_tasks).type(torch.float32))
             self._forward_mask = self._forward_mask_linear_comb
         else:
@@ -1003,7 +1004,7 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
 
 
         if self.new_mask_type == NEW_MASK_LINEAR_COMB and new_task:
-            print('IN SET_TASK()')
+            # print('IN SET_TASK()')
             if self.task > 0:   # If not first task then use BLC (1/3)
                 self.betas.data[t, 0:t] = 1/(3*task)
                 self.betas.data[t, t:t+1] = 1/3
@@ -1051,7 +1052,7 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
                 
             self.betas.data[t, 0:t+1+c] = torch.log(self.betas.data[t, 0:t+1+c])
 
-            print(self.betas)
+            # print(self.betas)
     '''def set_task(self, task, new_task=False, reward_input=0.0):
         self.task = task
         if self.new_mask_type == NEW_MASK_LINEAR_COMB and new_task:
