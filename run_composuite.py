@@ -25,7 +25,7 @@ from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
 from deep_rl.component.policy import SamplePolicy
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, MiniGrid, MetaCTgraph, CompoSuite, CompoSuiteFlatObs, MiniHack 
-from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, CategoricalActorCriticNet_SS_Comp, GaussianActorCriticNet_SS_Comp, GaussianActorCriticNet_SS_Comp_FixedStd, GaussianActorCriticNet_FixedStd
+from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, CategoricalActorCriticNet_SS_Comp, GaussianActorCriticNet_SS_Comp, GaussianActorCriticNet_SS_Comp_FixedStd, GaussianActorCriticNet_FixedStd, MultitaskMaskLinear 
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL, FCBody_SS_Comp, FCBody_Baseline
 from deep_rl.agent.PPO_agent import PPODetectShell, PPOShellAgent, PPOBaselineAgent, PPOAgent
 
