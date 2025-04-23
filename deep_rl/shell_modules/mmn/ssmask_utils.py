@@ -1007,9 +1007,10 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
         if self.new_mask_type == NEW_MASK_LINEAR_COMB and new_task:
             # print('IN SET_TASK()')
             if self.task > 0:   # If not first task then use BLC (1/3)
-                self.betas.data[t, 0:t] = self.betas.data[t-1, 0:t]  #1/(3*task)
-                self.betas.data[t, t:t+1] = 1e-3
-                self.betas.data[t, t+1:t+1+c] = self.betas.data[t-1, t+1:t+1+c]#1 / (3*c)
+                # print(self.betas.data, "betas")
+                self.betas.data[t, 0:t] =   1/(3*task)
+                self.betas.data[t, t:t+1] = 1/3
+                self.betas.data[t, t+1:t+1+c] = 1 / (3*c)
 
             else: # otherwise use BLC (1/2)
                 #self.betas.data[t, 0:t+1] = 0.5

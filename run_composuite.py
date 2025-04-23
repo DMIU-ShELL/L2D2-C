@@ -57,7 +57,7 @@ def global_config(config, name):
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.95
-    config.entropy_weight = 0.0 #0.75
+    config.entropy_weight = 0.75
     config.rollout_length = 16000
 
     config.optimization_epochs = 128
@@ -273,7 +273,7 @@ def composuite_ppo(name, args, shell_config):
             hidden_units=(64, 64),
             discrete_mask=False,
             gate=torch.tanh,
-            num_tasks= int(500/30),#config.cl_num_tasks,
+            num_tasks= int(1000),#config.cl_num_tasks,
             new_task_mask=args.new_task_mask,
             seed=config.seed
         ),
@@ -282,14 +282,22 @@ def composuite_ppo(name, args, shell_config):
             hidden_units=(64, 64),
             discrete_mask=False,
             gate=torch.tanh,
-            num_tasks= int(500/30),#config.cl_num_tasks,
+            num_tasks= int(1000),#config.cl_num_tasks,
             new_task_mask=args.new_task_mask,
             seed=config.seed
         ),
-        num_tasks= int(500/30),#config.cl_num_tasks,
+        num_tasks= int(1000),#config.cl_num_tasks,
         new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
     
+    # config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_SS(
+    #     state_dim, action_dim, label_dim,
+    #     phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
+    #     actor_body=FCBody_SS(state_dim + label_dim, hidden_units=(128, 128), gate=torch.tanh, \
+    #         discrete_mask=False, num_tasks=int(500/30), new_task_mask=args.new_task_mask),
+    #     critic_body=FCBody_SS(state_dim + label_dim, hidden_units=(128, 128), gate=torch.tanh, \
+    #         discrete_mask=False, num_tasks=int(500/30), new_task_mask=args.new_task_mask),
+    #     num_tasks=int(500/30), new_task_mask=args.new_task_mask)
     # Environment sepcific setup ends.
     ###############################################################################
     
