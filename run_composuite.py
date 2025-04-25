@@ -25,7 +25,7 @@ from deep_rl.utils.logger import get_logger
 from deep_rl.utils.trainer_shell import trainer_learner, trainer_evaluator
 from deep_rl.component.policy import SamplePolicy
 from deep_rl.component.task import ParallelizedTask, MiniGridFlatObs, MetaCTgraphFlatObs, ContinualWorld, MiniGrid, MetaCTgraph, CompoSuite, CompoSuiteFlatObs, MiniHack 
-from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, CategoricalActorCriticNet_SS_Comp, GaussianActorCriticNet_SS_Comp, GaussianActorCriticNet_SS_Comp_FixedStd, GaussianActorCriticNet_FixedStd, MultitaskMaskLinear 
+from deep_rl.network.network_heads import CategoricalActorCriticNet_SS, GaussianActorCriticNet_SS, CategoricalActorCriticNet_SS_Comp, GaussianActorCriticNet_SS_Comp, GaussianActorCriticNet_SS_Comp_FixedStd, GaussianActorCriticNet_FixedStd
 from deep_rl.network.network_bodies import FCBody_SS, DummyBody_CL, FCBody_SS_Comp, FCBody_Baseline
 from deep_rl.agent.PPO_agent import PPODetectShell, PPOShellAgent, PPOBaselineAgent, PPOAgent
 
@@ -41,7 +41,7 @@ import random
 def global_config(config, name):
     config.env_name = name
     config.env_config_path = None
-    config.lr = 1e-4
+    config.lr = 1e-4#1e-4
     config.cl_preservation = 'supermask'
     config.seed = None
     config.backbone_seed = 9157
@@ -265,39 +265,32 @@ def composuite_ppo(name, args, shell_config):
     config.eval_task_fn = eval_task_fn
 
     # Network lambda function
+    print("task", config.cl_num_tasks)
     config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_SS_Comp_FixedStd(\
         state_dim, action_dim, label_dim,
         phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
         actor_body=FCBody_SS_Comp(
             state_dim,
-            hidden_units=(64, 64),
+            hidden_units=(128, 128),#(64, 64),
             discrete_mask=False,
             gate=torch.tanh,
-            num_tasks= int(1000),#config.cl_num_tasks,
+            num_tasks= 2000, #config.cl_num_tasks,
             new_task_mask=args.new_task_mask,
             seed=config.seed
         ),
         critic_body=FCBody_SS_Comp(
             state_dim,
-            hidden_units=(64, 64),
+            hidden_units=(128, 128),  #(64, 64),
             discrete_mask=False,
             gate=torch.tanh,
-            num_tasks= int(1000),#config.cl_num_tasks,
+            num_tasks=2000, #config.cl_num_tasks,
             new_task_mask=args.new_task_mask,
             seed=config.seed
         ),
-        num_tasks= int(1000),#config.cl_num_tasks,
+        num_tasks=2000, #config.cl_num_tasks,
         new_task_mask=args.new_task_mask,
         seed=config.seed)    # 'random' for mask RI. 'linear_comb' for mask LC.
     
-    # config.network_fn = lambda state_dim, action_dim, label_dim: GaussianActorCriticNet_SS(
-    #     state_dim, action_dim, label_dim,
-    #     phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
-    #     actor_body=FCBody_SS(state_dim + label_dim, hidden_units=(128, 128), gate=torch.tanh, \
-    #         discrete_mask=False, num_tasks=int(500/30), new_task_mask=args.new_task_mask),
-    #     critic_body=FCBody_SS(state_dim + label_dim, hidden_units=(128, 128), gate=torch.tanh, \
-    #         discrete_mask=False, num_tasks=int(500/30), new_task_mask=args.new_task_mask),
-    #     num_tasks=int(500/30), new_task_mask=args.new_task_mask)
     # Environment sepcific setup ends.
     ###############################################################################
     
@@ -331,12 +324,12 @@ def composuite_ppo_eval(name, args, shell_config):
             state_dim, 
             task_label_dim=label_dim, 
             hidden_units=(200, 200, 200), 
-            num_tasks=int(500/30),#config.cl_num_tasks, 
+            num_tasks=25,#config.cl_num_tasks, 
             new_task_mask=args.new_task_mask
             ),
         actor_body=DummyBody_CL(200),
         critic_body=DummyBody_CL(200),
-        num_tasks=int(500/30),#config.cl_num_tasks,
+        num_tasks=25,#config.cl_num_tasks,
         new_task_mask=args.new_task_mask
         )    # 'random' for mask RI. 'linear_comb' for mask LC.
     

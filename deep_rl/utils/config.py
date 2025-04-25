@@ -88,7 +88,7 @@ class Config:
         # extra config for continual learning (cl) experiments
         self.cl_num_learn_blocks = 1
         self.cl_requires_task_label = True
-        self.cl_num_tasks = 1
+        self.cl_num_tasks = 1000
         self.task_ids = None
         #self.cl_alpha = 0.25
         #self.cl_n_slices = 50

@@ -1033,7 +1033,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
             itr_log_fn(logger, agent, agent_id, shell_iterations, shell_task_counter, dict_logs, mask_interval)
                 
             # Save agent model
-            agent.save(agent.config.log_dir + '/%s-%s-model-%s.bin' % (agent.config.agent_name, agent.config.tag, agent.task.name))
+            # agent.save(agent.config.log_dir + '/%s-%s-model-%s.bin' % (agent.config.agent_name, agent.config.tag, agent.task.name))
         
         #logger.info(f'{Fore.BLUE}----------------------- Iteration logging complete in {time.time() - start_time} seconds -----------------------\n')
 
