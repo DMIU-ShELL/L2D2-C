@@ -1006,8 +1006,7 @@ class PPODetectShell(PPOShellAgent):
  
         # if self.current_task_key is None:
             # If no similar embedding record was found then its a new task
-        self.current_task_key = len(self.seen_tasks)                                        # Generate an internal task index for new task
-
+        self.current_task_key = len(self.seen_tasks) #this flows to self.task which is then used for indexing                                      
             # Create the dictionary key-value pair for the new task
         self.update_seen_tasks(
             embedding=task_embedding, 
