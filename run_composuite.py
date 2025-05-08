@@ -41,7 +41,7 @@ import random
 def global_config(config, name):
     config.env_name = name
     config.env_config_path = None
-    config.lr = 1e-4#1e-4
+    config.lr = 1e-3#1e-4
     config.cl_preservation = 'supermask'
     config.seed = None
     config.backbone_seed = 9157

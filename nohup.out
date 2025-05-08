@@ -1,0 +1,501 @@
+2025-05-08 15:19:43,580 - MAIN - INFO: *****initialising L2D2-C agent
+Namespace(curriculum_id=0, port=29600, shell_config_path='./shell_configs/the_chosen_one/compo.json', exp_id='upz', eval=False, omni=False, localhost=True, shuffle=False, comm_interval=20, device=1, reference='reference.csv', dropout=0.0, new_task_mask='linear_comb', pathheader='')
+{'seed': 9157, 'detect_reference_num': 50, 'detect_num_samples': 128, 'emb_dist_threshold': 24, 'detect_module_activation_frequency': 1, 'agents': [{'task_ids': [1], 'max_steps': 10000000}, {'task_ids': [2], 'max_steps': 10000000}, {'task_ids': [3], 'max_steps': 10000000}, {'task_ids': [4], 'max_steps': 10000000}, {'task_ids': [5], 'max_steps': 10000000}, {'task_ids': [6], 'max_steps': 10000000}, {'task_ids': [7], 'max_steps': 10000000}, {'task_ids': [8], 'max_steps': 10000000}, {'task_ids': [9], 'max_steps': 10000000}, {'task_ids': [10], 'max_steps': 10000000}, {'task_ids': [11], 'max_steps': 10000000}, {'task_ids': [12], 'max_steps': 10000000}, {'task_ids': [13], 'max_steps': 10000000}], 'env': {'env_name': 'composuite', 'env_config_path': './env_configs/cursed_composuite/composuite_curriculum.json'}, 'curriculum': {'task_ids': [0], 'max_steps': 10000000}}
+task 1
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+2025-05-08 15:19:43,620 - robosuite_logs - WARNING: No private macro file found!
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+2025-05-08 15:19:43,620 - robosuite_logs - WARNING: It is recommended to use a private macro file
+[robosuite WARNING] To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+2025-05-08 15:19:43,620 - robosuite_logs - WARNING: To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py
+/home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/gym/spaces/box.py:127: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+2025-05-08 15:21:03,096 - MAIN - INFO: task embedding size: 5350
+{'tasks': [['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach']], 'one_hot': True, 'label_dim': 14, 'action_dim': 8, 'seeds': [840, 841, 842, 843, 844, 845, 846, 847, 848, 849, 850, 851, 852, 853]} env_config
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+
+env_names: ['IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask']
+
+self.envs: {'IIWA_Box_None_ReachSubtask': <composuite.env.gym_wrapper.GymWrapper object at 0x76b0b2c94b20>}
+
+
+{'tasks': [['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach'], ['IIWA', 'Box', 'None', 'Reach']], 'one_hot': True, 'label_dim': 14, 'action_dim': 8, 'seeds': [840, 841, 842, 843, 844, 845, 846, 847, 848, 849, 850, 851, 852, 853]} env_config
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+IIWA Box None Reach
+
+env_names: ['IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask', 'IIWA_Box_None_ReachSubtask']
+
+self.envs: {'IIWA_Box_None_ReachSubtask': <composuite.env.gym_wrapper.GymWrapper object at 0x76b0b2cabc10>}
+
+
+[0] taskids
+[0]
+[{'name': 'IIWA_Box_None_ReachSubtask', 'task': 'IIWA_Box_None_ReachSubtask', 'task_label': array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+      dtype=float32)}]
+[{'name': 'IIWA_Box_None_ReachSubtask', 'task': 'IIWA_Box_None_ReachSubtask', 'task_label': array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+      dtype=float32)}]
+Task Name: IIWA_Box_None_ReachSubtask, Task Label (One-Hot): [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], Task Label (Integer): 0, Path: IIWA_Box_None_ReachSubtask
+
+
+
+
+STATE_DIM 98
+num_tasks: 2000
+num_tasks: 2000
+
+
+
+
+STATE_DIM 98
+num_tasks: 2000
+num_tasks: 2000
+num_tasks: 2000
+num_tasks: 2000
+FIRST PRINT: (1, 98)
+SECOND PRINT: (1, 98)
+
+Observation size: 98, Task embedding size: 5350
+Task action space size: 8
+Query table:
+
+Reference table:
+
+listening server params ->
+address: 127.0.0.1
+port: 29600
+
+mask size: 59008
+embedding size: 5350
+
+[{'name': 'IIWA_Box_None_ReachSubtask', 'task': 'IIWA_Box_None_ReachSubtask', 'task_label': array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+      dtype=float32)}] shell_tasks
+=> Set task of network.actor_body.layers.0 to 0
+=> Set task of network.actor_body.layers.1 to 0
+=> Set task of network.critic_body.layers.0 to 0
+=> Set task of network.critic_body.layers.1 to 0
+=> Set task of network.fc_action to 0
+=> Set task of network.fc_critic to 0
+2025-05-08 15:21:03,924 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:21:03,929 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:21:03,929 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:21:03,995 - MAIN - INFO: [32mAttempting to discover peers from reference...
+2025-05-08 15:21:04,997 - MAIN - INFO: [32mKnowledge base in this iteration:
+2025-05-08 15:23:20,248 - MAIN - INFO: [34magent 0, task 0 / iteration 1, total steps 16000, mean/max/min reward 5.135908/5.135908/5.135908, mean/max/min success rate 0.000000/0.000000/0.000000
+2025-05-08 15:23:20,253 - MAIN - INFO: [34m----------------------- Iteration complete in 136.3294472694397 seconds -----------------------
+
+2025-05-08 15:23:20,254 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:23:20,255 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:23:20,256 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:25:38,673 - MAIN - INFO: [34magent 0, task 0 / iteration 2, total steps 32000, mean/max/min reward 9.571495/9.571495/9.571495, mean/max/min success rate 0.000000/0.000000/0.000000
+2025-05-08 15:25:38,680 - MAIN - INFO: [34m----------------------- Iteration complete in 138.42576098442078 seconds -----------------------
+
+2025-05-08 15:25:38,681 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:25:38,682 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:25:38,683 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:27:55,020 - MAIN - INFO: [34magent 0, task 0 / iteration 3, total steps 48000, mean/max/min reward 15.379458/15.379458/15.379458, mean/max/min success rate 0.000000/0.000000/0.000000
+2025-05-08 15:27:55,026 - MAIN - INFO: [34m----------------------- Iteration complete in 136.34480476379395 seconds -----------------------
+
+2025-05-08 15:27:55,027 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:27:55,029 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:27:55,030 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:30:11,148 - MAIN - INFO: [34magent 0, task 0 / iteration 4, total steps 64000, mean/max/min reward 13.920705/13.920705/13.920705, mean/max/min success rate 0.000000/0.000000/0.000000
+2025-05-08 15:30:11,154 - MAIN - INFO: [34m----------------------- Iteration complete in 136.12690114974976 seconds -----------------------
+
+2025-05-08 15:30:11,155 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:30:11,157 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:30:11,158 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:32:29,189 - MAIN - INFO: [34magent 0, task 0 / iteration 5, total steps 80000, mean/max/min reward 24.200845/24.200845/24.200845, mean/max/min success rate 0.000000/0.000000/0.000000
+2025-05-08 15:32:29,195 - MAIN - INFO: [34m----------------------- Iteration complete in 138.04017281532288 seconds -----------------------
+
+2025-05-08 15:32:29,195 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:32:29,198 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:32:29,198 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:34:45,790 - MAIN - INFO: [34magent 0, task 0 / iteration 6, total steps 96000, mean/max/min reward 28.287491/28.287491/28.287491, mean/max/min success rate 0.031250/0.031250/0.031250
+2025-05-08 15:34:45,797 - MAIN - INFO: [34m----------------------- Iteration complete in 136.60131120681763 seconds -----------------------
+
+2025-05-08 15:34:45,797 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:34:45,799 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:34:45,799 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:37:02,672 - MAIN - INFO: [34magent 0, task 0 / iteration 7, total steps 112000, mean/max/min reward 57.153278/57.153278/57.153278, mean/max/min success rate 0.125000/0.125000/0.125000
+2025-05-08 15:37:02,678 - MAIN - INFO: [34m----------------------- Iteration complete in 136.88097643852234 seconds -----------------------
+
+2025-05-08 15:37:02,679 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:37:02,682 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:37:02,682 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:39:19,490 - MAIN - INFO: [34magent 0, task 0 / iteration 8, total steps 128000, mean/max/min reward 78.987972/78.987972/78.987972, mean/max/min success rate 0.375000/0.375000/0.375000
+2025-05-08 15:39:19,496 - MAIN - INFO: [34m----------------------- Iteration complete in 136.81637501716614 seconds -----------------------
+
+2025-05-08 15:39:19,497 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:39:19,500 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:39:19,500 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:41:37,377 - MAIN - INFO: [34magent 0, task 0 / iteration 9, total steps 144000, mean/max/min reward 87.256303/87.256303/87.256303, mean/max/min success rate 0.375000/0.375000/0.375000
+2025-05-08 15:41:37,383 - MAIN - INFO: [34m----------------------- Iteration complete in 137.8861517906189 seconds -----------------------
+
+2025-05-08 15:41:37,385 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:41:37,387 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:41:37,387 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:43:54,976 - MAIN - INFO: [34magent 0, task 0 / iteration 10, total steps 160000, mean/max/min reward 117.287050/117.287050/117.287050, mean/max/min success rate 0.562500/0.562500/0.562500
+2025-05-08 15:43:54,982 - MAIN - INFO: 
+[37m*****agent 0 / end of training on task 0
+2025-05-08 15:43:54,982 - MAIN - INFO: [37m***** ENVIRONMENT SWITCHING TASKS
+2025-05-08 15:43:55,584 - MAIN - INFO: [34m----------------------- Iteration complete in 138.19885349273682 seconds -----------------------
+
+2025-05-08 15:43:55,584 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:43:55,585 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:43:55,585 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:43:55,586 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:43:55,586 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:46:11,706 - MAIN - INFO: [34magent 0, task 1 / iteration 11, total steps 176000, mean/max/min reward 6.321386/6.321386/6.321386, mean/max/min success rate 0.000000/0.000000/0.000000
+2025-05-08 15:46:11,713 - MAIN - INFO: [34m----------------------- Iteration complete in 136.1287169456482 seconds -----------------------
+
+2025-05-08 15:46:11,714 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:46:11,715 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:46:11,715 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:46:11,716 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:46:11,716 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:48:28,557 - MAIN - INFO: [34magent 0, task 1 / iteration 12, total steps 192000, mean/max/min reward 12.770884/12.770884/12.770884, mean/max/min success rate 0.000000/0.000000/0.000000
+2025-05-08 15:48:28,564 - MAIN - INFO: [34m----------------------- Iteration complete in 136.85060858726501 seconds -----------------------
+
+2025-05-08 15:48:28,566 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:48:28,567 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:48:28,567 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:48:28,568 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:48:28,568 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:50:45,477 - MAIN - INFO: [34magent 0, task 1 / iteration 13, total steps 208000, mean/max/min reward 21.323621/21.323621/21.323621, mean/max/min success rate 0.000000/0.000000/0.000000
+2025-05-08 15:50:45,483 - MAIN - INFO: [34m----------------------- Iteration complete in 136.91741108894348 seconds -----------------------
+
+2025-05-08 15:50:45,484 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:50:45,486 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:50:45,486 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:50:45,486 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:50:45,486 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:53:02,115 - MAIN - INFO: [34magent 0, task 1 / iteration 14, total steps 224000, mean/max/min reward 28.720359/28.720359/28.720359, mean/max/min success rate 0.031250/0.031250/0.031250
+2025-05-08 15:53:02,121 - MAIN - INFO: [34m----------------------- Iteration complete in 136.6379234790802 seconds -----------------------
+
+2025-05-08 15:53:02,122 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:53:02,125 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:53:02,125 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:53:02,126 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:53:02,126 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:55:19,097 - MAIN - INFO: [34magent 0, task 1 / iteration 15, total steps 240000, mean/max/min reward 48.579125/48.579125/48.579125, mean/max/min success rate 0.093750/0.093750/0.093750
+2025-05-08 15:55:19,102 - MAIN - INFO: [34m----------------------- Iteration complete in 136.98038291931152 seconds -----------------------
+
+2025-05-08 15:55:19,103 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:55:19,105 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:55:19,105 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:55:19,106 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:55:19,106 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:57:36,509 - MAIN - INFO: [34magent 0, task 1 / iteration 16, total steps 256000, mean/max/min reward 69.726228/69.726228/69.726228, mean/max/min success rate 0.250000/0.250000/0.250000
+2025-05-08 15:57:36,515 - MAIN - INFO: [34m----------------------- Iteration complete in 137.4125485420227 seconds -----------------------
+
+2025-05-08 15:57:36,516 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:57:36,518 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:57:36,519 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:57:36,519 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:57:36,519 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:59:54,136 - MAIN - INFO: [34magent 0, task 1 / iteration 17, total steps 272000, mean/max/min reward 89.595318/89.595318/89.595318, mean/max/min success rate 0.343750/0.343750/0.343750
+2025-05-08 15:59:54,142 - MAIN - INFO: [34m----------------------- Iteration complete in 137.62643337249756 seconds -----------------------
+
+2025-05-08 15:59:54,143 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 15:59:54,146 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:59:54,146 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:59:54,146 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 15:59:54,146 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:02:12,661 - MAIN - INFO: [34magent 0, task 1 / iteration 18, total steps 288000, mean/max/min reward 133.976443/133.976443/133.976443, mean/max/min success rate 0.593750/0.593750/0.593750
+2025-05-08 16:02:12,668 - MAIN - INFO: [34m----------------------- Iteration complete in 138.5244264602661 seconds -----------------------
+
+2025-05-08 16:02:12,669 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:02:12,671 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:02:12,671 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:02:12,672 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:02:12,672 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:04:31,345 - MAIN - INFO: [34magent 0, task 1 / iteration 19, total steps 304000, mean/max/min reward 107.891657/107.891657/107.891657, mean/max/min success rate 0.406250/0.406250/0.406250
+2025-05-08 16:04:31,351 - MAIN - INFO: [34m----------------------- Iteration complete in 138.68157863616943 seconds -----------------------
+
+2025-05-08 16:04:31,351 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:04:31,354 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:04:31,354 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:04:31,355 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:04:31,355 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:06:50,324 - MAIN - INFO: [34magent 0, task 1 / iteration 20, total steps 320000, mean/max/min reward 135.989968/135.989968/135.989968, mean/max/min success rate 0.562500/0.562500/0.562500
+2025-05-08 16:06:50,330 - MAIN - INFO: 
+[37m*****agent 0 / end of training on task 1
+2025-05-08 16:06:50,331 - MAIN - INFO: [37m***** ENVIRONMENT SWITCHING TASKS
+2025-05-08 16:06:50,939 - MAIN - INFO: [34m----------------------- Iteration complete in 139.5874683856964 seconds -----------------------
+
+2025-05-08 16:06:50,939 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:06:50,940 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:06:50,940 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:06:50,940 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:06:50,941 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:06:50,941 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:06:50,941 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:09:09,300 - MAIN - INFO: [34magent 0, task 2 / iteration 21, total steps 336000, mean/max/min reward 32.004512/32.004512/32.004512, mean/max/min success rate 0.031250/0.031250/0.031250
+2025-05-08 16:09:09,306 - MAIN - INFO: [34m----------------------- Iteration complete in 138.36707282066345 seconds -----------------------
+
+2025-05-08 16:09:09,307 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:09:09,309 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:09:09,309 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:09:09,309 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:09:09,310 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:09:09,310 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:09:09,310 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:11:25,250 - MAIN - INFO: [34magent 0, task 2 / iteration 22, total steps 352000, mean/max/min reward 36.654991/36.654991/36.654991, mean/max/min success rate 0.062500/0.062500/0.062500
+2025-05-08 16:11:25,256 - MAIN - INFO: [34m----------------------- Iteration complete in 135.9493544101715 seconds -----------------------
+
+2025-05-08 16:11:25,257 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:11:25,259 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:11:25,260 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:11:25,260 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:11:25,260 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:11:25,261 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:11:25,261 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:13:41,934 - MAIN - INFO: [34magent 0, task 2 / iteration 23, total steps 368000, mean/max/min reward 82.573459/82.573459/82.573459, mean/max/min success rate 0.406250/0.406250/0.406250
+2025-05-08 16:13:41,940 - MAIN - INFO: [34m----------------------- Iteration complete in 136.68309044837952 seconds -----------------------
+
+2025-05-08 16:13:41,941 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:13:41,944 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:13:41,944 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:13:41,944 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:13:41,945 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:13:41,945 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:13:41,945 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:15:59,314 - MAIN - INFO: [34magent 0, task 2 / iteration 24, total steps 384000, mean/max/min reward 112.734565/112.734565/112.734565, mean/max/min success rate 0.531250/0.531250/0.531250
+2025-05-08 16:15:59,321 - MAIN - INFO: [34m----------------------- Iteration complete in 137.37957954406738 seconds -----------------------
+
+2025-05-08 16:15:59,321 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:15:59,323 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:15:59,323 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:15:59,323 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:15:59,324 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:15:59,324 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:15:59,324 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:18:17,899 - MAIN - INFO: [34magent 0, task 2 / iteration 25, total steps 400000, mean/max/min reward 149.503775/149.503775/149.503775, mean/max/min success rate 0.656250/0.656250/0.656250
+2025-05-08 16:18:17,905 - MAIN - INFO: [34m----------------------- Iteration complete in 138.58380937576294 seconds -----------------------
+
+2025-05-08 16:18:17,906 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:18:17,909 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:18:17,909 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:18:17,909 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:18:17,910 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:18:17,910 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:18:17,910 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:20:39,684 - MAIN - INFO: [34magent 0, task 2 / iteration 26, total steps 416000, mean/max/min reward 170.626316/170.626316/170.626316, mean/max/min success rate 0.875000/0.875000/0.875000
+2025-05-08 16:20:39,690 - MAIN - INFO: [34m----------------------- Iteration complete in 141.78394889831543 seconds -----------------------
+
+2025-05-08 16:20:39,691 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:20:39,694 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:20:39,694 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:20:39,694 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:20:39,695 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:20:39,695 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:20:39,695 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:22:58,949 - MAIN - INFO: [34magent 0, task 2 / iteration 27, total steps 432000, mean/max/min reward 176.728758/176.728758/176.728758, mean/max/min success rate 0.718750/0.718750/0.718750
+2025-05-08 16:22:58,955 - MAIN - INFO: [34m----------------------- Iteration complete in 139.2630741596222 seconds -----------------------
+
+2025-05-08 16:22:58,956 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:22:58,958 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:22:58,958 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:22:58,958 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:22:58,959 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:22:58,959 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:22:58,959 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:25:17,991 - MAIN - INFO: [34magent 0, task 2 / iteration 28, total steps 448000, mean/max/min reward 170.192220/170.192220/170.192220, mean/max/min success rate 0.875000/0.875000/0.875000
+2025-05-08 16:25:17,997 - MAIN - INFO: [34m----------------------- Iteration complete in 139.04125595092773 seconds -----------------------
+
+2025-05-08 16:25:17,998 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:25:18,001 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:25:18,001 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:25:18,001 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:25:18,002 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:25:18,002 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:25:18,002 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:27:39,448 - MAIN - INFO: [34magent 0, task 2 / iteration 29, total steps 464000, mean/max/min reward 224.713372/224.713372/224.713372, mean/max/min success rate 0.968750/0.968750/0.968750
+2025-05-08 16:27:39,454 - MAIN - INFO: [34m----------------------- Iteration complete in 141.45621466636658 seconds -----------------------
+
+2025-05-08 16:27:39,455 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:27:39,457 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:27:39,458 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:27:39,458 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:27:39,458 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:27:39,458 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:27:39,458 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:29:58,686 - MAIN - INFO: [34magent 0, task 2 / iteration 30, total steps 480000, mean/max/min reward 185.357066/185.357066/185.357066, mean/max/min success rate 0.875000/0.875000/0.875000
+2025-05-08 16:29:58,693 - MAIN - INFO: 
+[37m*****agent 0 / end of training on task 2
+2025-05-08 16:29:58,694 - MAIN - INFO: [37m***** ENVIRONMENT SWITCHING TASKS
+2025-05-08 16:29:59,307 - MAIN - INFO: [34m----------------------- Iteration complete in 139.85193395614624 seconds -----------------------
+
+2025-05-08 16:29:59,307 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:29:59,308 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:29:59,308 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:29:59,308 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:29:59,308 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:29:59,309 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:29:59,309 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:29:59,309 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:29:59,309 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:32:17,794 - MAIN - INFO: [34magent 0, task 3 / iteration 31, total steps 496000, mean/max/min reward 135.692185/135.692185/135.692185, mean/max/min success rate 0.500000/0.500000/0.500000
+2025-05-08 16:32:17,800 - MAIN - INFO: [34m----------------------- Iteration complete in 138.49359726905823 seconds -----------------------
+
+2025-05-08 16:32:17,802 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:32:17,803 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:32:17,803 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:32:17,804 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:32:17,804 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:32:17,804 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:32:17,804 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:32:17,804 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:32:17,804 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:34:36,575 - MAIN - INFO: [34magent 0, task 3 / iteration 32, total steps 512000, mean/max/min reward 154.911079/154.911079/154.911079, mean/max/min success rate 0.781250/0.781250/0.781250
+2025-05-08 16:34:36,583 - MAIN - INFO: [34m----------------------- Iteration complete in 138.78110265731812 seconds -----------------------
+
+2025-05-08 16:34:36,584 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:34:36,586 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:34:36,587 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:34:36,587 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:34:36,587 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:34:36,587 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:34:36,588 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:34:36,588 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:34:36,588 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:36:55,378 - MAIN - INFO: [34magent 0, task 3 / iteration 33, total steps 528000, mean/max/min reward 164.623514/164.623514/164.623514, mean/max/min success rate 0.875000/0.875000/0.875000
+2025-05-08 16:36:55,384 - MAIN - INFO: [34m----------------------- Iteration complete in 138.79992008209229 seconds -----------------------
+
+2025-05-08 16:36:55,385 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:36:55,388 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:36:55,388 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:36:55,388 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:36:55,388 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:36:55,389 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:36:55,389 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:36:55,389 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:36:55,389 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:39:15,151 - MAIN - INFO: [34magent 0, task 3 / iteration 34, total steps 544000, mean/max/min reward 205.032020/205.032020/205.032020, mean/max/min success rate 0.906250/0.906250/0.906250
+2025-05-08 16:39:15,157 - MAIN - INFO: [34m----------------------- Iteration complete in 139.77153038978577 seconds -----------------------
+
+2025-05-08 16:39:15,158 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:39:15,160 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:39:15,160 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:39:15,160 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:39:15,160 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:39:15,161 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:39:15,161 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:39:15,161 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:39:15,161 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:41:34,258 - MAIN - INFO: [34magent 0, task 3 / iteration 35, total steps 560000, mean/max/min reward 176.994892/176.994892/176.994892, mean/max/min success rate 0.812500/0.812500/0.812500
+2025-05-08 16:41:34,264 - MAIN - INFO: [34m----------------------- Iteration complete in 139.10600543022156 seconds -----------------------
+
+2025-05-08 16:41:34,265 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:41:34,267 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:41:34,267 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:41:34,267 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:41:34,267 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:41:34,268 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:41:34,268 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:41:34,268 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:41:34,268 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:43:54,901 - MAIN - INFO: [34magent 0, task 3 / iteration 36, total steps 576000, mean/max/min reward 208.564756/208.564756/208.564756, mean/max/min success rate 0.968750/0.968750/0.968750
+2025-05-08 16:43:54,907 - MAIN - INFO: [34m----------------------- Iteration complete in 140.6418981552124 seconds -----------------------
+
+2025-05-08 16:43:54,909 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:43:54,911 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:43:54,911 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:43:54,911 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:43:54,911 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:43:54,912 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:43:54,912 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:43:54,912 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:43:54,912 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:46:14,987 - MAIN - INFO: [34magent 0, task 3 / iteration 37, total steps 592000, mean/max/min reward 227.589105/227.589105/227.589105, mean/max/min success rate 0.968750/0.968750/0.968750
+2025-05-08 16:46:14,993 - MAIN - INFO: [34m----------------------- Iteration complete in 140.08492183685303 seconds -----------------------
+
+2025-05-08 16:46:14,995 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:46:14,996 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:46:14,997 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:46:14,997 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:46:14,997 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:46:14,998 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:46:14,998 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:46:14,998 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:46:14,998 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:48:35,342 - MAIN - INFO: [34magent 0, task 3 / iteration 38, total steps 608000, mean/max/min reward 247.963715/247.963715/247.963715, mean/max/min success rate 1.000000/1.000000/1.000000
+2025-05-08 16:48:35,348 - MAIN - INFO: [34m----------------------- Iteration complete in 140.35330605506897 seconds -----------------------
+
+2025-05-08 16:48:35,350 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:48:35,351 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:48:35,351 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:48:35,351 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:48:35,352 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:48:35,352 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:48:35,352 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:48:35,352 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:48:35,352 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:50:56,120 - MAIN - INFO: [34magent 0, task 3 / iteration 39, total steps 624000, mean/max/min reward 254.199862/254.199862/254.199862, mean/max/min success rate 1.000000/1.000000/1.000000
+2025-05-08 16:50:56,126 - MAIN - INFO: [34m----------------------- Iteration complete in 140.7759494781494 seconds -----------------------
+
+2025-05-08 16:50:56,127 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:50:56,129 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:50:56,130 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:50:56,130 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:50:56,130 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:50:56,130 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:50:56,130 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:50:56,131 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:50:56,131 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:53:16,434 - MAIN - INFO: [34magent 0, task 3 / iteration 40, total steps 640000, mean/max/min reward 244.863086/244.863086/244.863086, mean/max/min success rate 1.000000/1.000000/1.000000
+2025-05-08 16:53:16,440 - MAIN - INFO: 
+[37m*****agent 0 / end of training on task 3
+2025-05-08 16:53:16,441 - MAIN - INFO: [37m***** ENVIRONMENT SWITCHING TASKS
+2025-05-08 16:53:17,051 - MAIN - INFO: [34m----------------------- Iteration complete in 140.923969745636 seconds -----------------------
+
+2025-05-08 16:53:17,051 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:53:17,052 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:53:17,052 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:53:17,052 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:53:17,052 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:53:17,053 - MAIN - INFO: 4 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:53:17,053 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:53:17,053 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:53:17,053 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:53:17,053 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:53:17,053 - MAIN - INFO: 4 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:55:36,622 - MAIN - INFO: [34magent 0, task 4 / iteration 41, total steps 656000, mean/max/min reward 223.637587/223.637587/223.637587, mean/max/min success rate 0.937500/0.937500/0.937500
+2025-05-08 16:55:36,679 - MAIN - INFO: [34m----------------------- Iteration complete in 139.6285479068756 seconds -----------------------
+
+2025-05-08 16:55:36,681 - MAIN - INFO: [31mGLOBAL REGISTRY (seen_tasks dict)
+2025-05-08 16:55:36,683 - MAIN - INFO: 0 --> embedding: tensor([0., 0., 0.,  ..., 0., 0., 0.]), reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:55:36,683 - MAIN - INFO: 1 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:55:36,683 - MAIN - INFO: 2 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:55:36,684 - MAIN - INFO: 3 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:55:36,684 - MAIN - INFO: 4 --> embedding: [1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.], reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:55:36,684 - MAIN - INFO: 0 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:55:36,684 - MAIN - INFO: 1 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:55:36,684 - MAIN - INFO: 2 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:55:36,684 - MAIN - INFO: 3 --> reward: 0, ground truth task id: 0, label length: 14
+2025-05-08 16:55:36,685 - MAIN - INFO: 4 --> reward: 0, ground truth task id: 0, label length: 14
