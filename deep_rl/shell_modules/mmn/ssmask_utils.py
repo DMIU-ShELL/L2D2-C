@@ -724,7 +724,7 @@ class ComposeMultitaskMaskLinear(nn.Linear):
         else: return torch.exp(self.betas[task, 0:task+1+c])
 """
 
-class CompBLC_MultitaskMaskLinear_(nn.Linear):
+class CompBLC_MultitaskMaskLinear(nn.Linear):
     def __init__(self, *args, discrete=True, num_tasks=1, max_community_masks=12, seed=1, new_mask_type=NEW_MASK_RANDOM, bias=False, alpha=0.1, **kwargs):
         super().__init__(*args, bias=False, **kwargs)
         self.num_tasks = num_tasks
@@ -885,12 +885,26 @@ class CompBLC_MultitaskMaskLinear_(nn.Linear):
         # 2) Find which entries are negative
         neg_mask = _subnet_linear_comb.data < 0
 
-        # 3) Create a fresh tensor to draw from for reinitializing
-        reinit = torch.empty_like(_subnet_linear_comb.data)
-        nn.init.kaiming_uniform_(reinit, a=math.sqrt(5))
+        gamma = 0.1
+        if neg_mask.any():
+            # 2) sample a subset of those negatives
+            neg_indices = neg_mask.nonzero(as_tuple=True)
+            num_neg = neg_indices[0].numel()
+            num_to_reinit = max(1, int(gamma * num_neg))
+            
+            # randomly choose which negative indices to reinit
+            perm = torch.randperm(num_neg, device=_subnet_linear_comb.data.device)
+            chosen = perm[:num_to_reinit]
+            idx_rows = neg_indices[0][chosen]
+            idx_cols = neg_indices[1][chosen]
+            
+            # 3) draw fresh random values for those positions
+            reinit_vals = mask_init(self)[idx_rows, idx_cols]
+            
+            # 4) assign back just at those sampled spots
+            _subnet_linear_comb.data[idx_rows, idx_cols] = reinit_vals
 
-        # 4) Overwrite only the negative positions with their positive counterparts
-        _subnet_linear_comb.data[neg_mask] = reinit[neg_mask]
+        
         self.scores[self.task].data = _subnet_linear_comb.data
         self.scores[self.task+1].data = _subnet_linear_comb.data   #instead of kaiming init masks start with last consoliated one.
         return
@@ -1013,7 +1027,7 @@ class CompBLC_MultitaskMaskLinear_(nn.Linear):
         self.task = task
         r = current_reward.item() if type(current_reward) == np.ndarray else current_reward # It was getting an ndarray for some reason so unpack
         t = task
-        c = self.k
+        # c = self.k
 
 
         if self.new_mask_type == NEW_MASK_LINEAR_COMB and new_task:
@@ -1022,7 +1036,7 @@ class CompBLC_MultitaskMaskLinear_(nn.Linear):
                 # print(self.betas.data, "betas")
                 self.betas.data[t, 0:t] =   1/(3*task)
                 self.betas.data[t, t:t+1] = 1/3
-                self.betas.data[t, t+1:t+1+c] = 1 / (3*c)
+                # self.betas.data[t, t+1:t+1+c] = 1 / (3*c)
 
             else: # otherwise use BLC (1/2)
                 #self.betas.data[t, 0:t+1] = 0.5
@@ -1046,7 +1060,7 @@ class CompBLC_MultitaskMaskLinear_(nn.Linear):
                 r = max(r, 0)
                 r = min(r, 0.9999)
                 self.betas.data[t, 0:t+1] = 0.5 + 0.5*r                # Set current mask beta to 0.5 + reward scaling
-                self.betas.data[t, t+1:t+1+c] = ((0.5 * (1-r))) / c    # Set remaining beta as (1 - current mask beta) / c
+                # self.betas.data[t, t+1:t+1+c] = ((0.5 * (1-r))) / c    # Set remaining beta as (1 - current mask beta) / c
 
                 #self.betas.data[t, 0:t+1] = current_network_weight
                 #self.betas.data[t, t+1:t+1+c] = other_network_weight
@@ -1064,7 +1078,7 @@ class CompBLC_MultitaskMaskLinear_(nn.Linear):
             #self.betas.data[task, 0:k] = 1 / (2*k)
             #self.betas.data[task, k:k+self.k] = 1 / (2*self.k)
                 
-            self.betas.data[t, 0:t+1+c] = torch.log(self.betas.data[t, 0:t+1+c])
+            # self.betas.data[t, 0:t+1+c] = torch.log(self.betas.data[t, 0:t+1+c])
 
             # print(self.betas)
     '''def set_task(self, task, new_task=False, reward_input=0.0):
@@ -1094,8 +1108,52 @@ class CompBLC_MultitaskMaskLinear_(nn.Linear):
         else: 
             #return self.betas[self.task, 0:self.task+1+c]
             return torch.softmax(self.betas[task, 0:task+1+c], dim=-1)
+        
+    @torch.no_grad()
+    def _reinit_mask(self, mask_idx, gamma=0.1):
+        """
+        Partially reinitialize the mask scores at mask_idx:
+        - Only reinit a fraction gamma of the negative-score entries.
+        - gamma=0.1 means 10% of the negatives get fresh random values.
+        """
+        scores = self.scores[mask_idx].data           # (out_features, in_features) or similar
+        # 1) find negatives
+        neg_mask = scores < 0                         # boolean tensor
+        
+        if neg_mask.any():
+            # 2) sample a subset of those negatives
+            neg_indices = neg_mask.nonzero(as_tuple=True)
+            num_neg = neg_indices[0].numel()
+            num_to_reinit = max(1, int(gamma * num_neg))
+            
+            # randomly choose which negative indices to reinit
+            perm = torch.randperm(num_neg, device=scores.device)
+            chosen = perm[:num_to_reinit]
+            idx_rows = neg_indices[0][chosen]
+            idx_cols = neg_indices[1][chosen]
+            
+            # 3) draw fresh random values for those positions
+            reinit_vals = mask_init(self)[idx_rows, idx_cols]
+            
+            # 4) assign back just at those sampled spots
+            scores[idx_rows, idx_cols] = reinit_vals
+        
+        # reset its “alive” history if you track positivity
+        if hasattr(self, 'pos_history'):
+            self.pos_history[mask_idx].fill_(1.0)
+        
+        # if using linear comb, you might want to renormalize betas:
+        if self.new_mask_type == NEW_MASK_LINEAR_COMB:
+            active = self.mask_active.nonzero(as_tuple=True)[0]
+            # equalize or re-normalize however you prefer:
+            self.mask_betas[active] = torch.softmax(self.mask_betas[active], dim=0)
+        
+        # rebuild cache so forwards pick up the change
+        self.cache_masks()
+        print(f"Partially reinitialized {num_to_reinit}/{num_neg} negative scores in mask {mask_idx}")
 
-class CompBLC_MultitaskMaskLinear(nn.Linear):
+
+class CompBLC_MultitaskMaskLinear_(nn.Linear):
     def __init__(self, *args, discrete=True, num_tasks=1, max_masks=8, seed=1, new_mask_type=NEW_MASK_RANDOM, bias=False, alpha=0.1, **kwargs):
         super().__init__(*args, bias=False, **kwargs)
         
