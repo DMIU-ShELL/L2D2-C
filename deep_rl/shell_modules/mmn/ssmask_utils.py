@@ -863,51 +863,52 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
         """
         Consolidate all the masks (LL, community and current training subnet) at end of training on task
         """
-        if self.new_mask_type == NEW_MASK_RANDOM: return
-        if self.task < self.num_tasks_learned: return
-        if self.task <= 0: return # If there are no LL masks (because we are on the first task) and there are no community masks, then there is no need for consolidation.
-        if self.task > 0:  # Not on the first task so we can expect LL masks
-            _subnets = [self.scores[idx].detach() for idx in range(self.task)]
-        
-        _subnet = self.scores[self.task]
-        _subnets.append(_subnet)
-        # _subnets.extend([c.detach() for c in self.comm_masks])
-        assert len(_subnets) > 0, 'an error occured'
-        
-        _betas = self.betas[self.task, 0:self.task+1]
-        _betas = torch.softmax(_betas, dim=-1)
-        assert len(_betas) == len(_subnets), 'an error ocurred'
+        if self.new_mask_type == NEW_MASK_RANDOM:
+            return
+        if self.task < self.num_tasks_learned:
+            return
+        if self.task <= 0:
+            return  # No consolidation on first task
 
-        
-        _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
-        _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
-        print("masks...", _subnet_linear_comb.data.shape)
-        # 2) Find which entries are negative
-        neg_mask = _subnet_linear_comb.data < 0
+        # Gather previous masks up to current task
+        subnets = [self.scores[idx].detach() for idx in range(self.task + 1)]
 
+        # Softmax betas for these masks
+        betas = self.betas[self.task, : self.task + 1]
+        weights = torch.softmax(betas, dim=-1)
+
+        # Compute linear combination
+        weighted = [w * s for w, s in zip(weights, subnets)]
+        combined = torch.stack(weighted, dim=0).sum(dim=0)
+
+        # Partial reinit: sample a fraction of negative entries
+        device = combined.device
+        neg_mask = combined.data < 0
         gamma = 0.1
         if neg_mask.any():
-            # 2) sample a subset of those negatives
-            neg_indices = neg_mask.nonzero(as_tuple=True)
-            num_neg = neg_indices[0].numel()
+            neg_rows, neg_cols = neg_mask.nonzero(as_tuple=True)
+            neg_rows, neg_cols = neg_rows.to(device), neg_cols.to(device)
+            num_neg = neg_rows.numel()
             num_to_reinit = max(1, int(gamma * num_neg))
-            
-            # randomly choose which negative indices to reinit
-            perm = torch.randperm(num_neg, device=_subnet_linear_comb.data.device)
-            chosen = perm[:num_to_reinit]
-            idx_rows = neg_indices[0][chosen]
-            idx_cols = neg_indices[1][chosen]
-            
-            # 3) draw fresh random values for those positions
-            reinit_vals = mask_init(self)[idx_rows, idx_cols]
-            
-            # 4) assign back just at those sampled spots
-            _subnet_linear_comb.data[idx_rows, idx_cols] = reinit_vals
+            perm = torch.randperm(num_neg, device=device)
+            choice = perm[:num_to_reinit]
+            rows = neg_rows[choice]
+            cols = neg_cols[choice]
 
+            # Draw fresh random scores on correct device
+            init_tensor = mask_init(self).to(device)
+            combined.data[rows, cols] = init_tensor[rows, cols]
+
+        # Update current and next mask slots
+        self.scores[self.task].data.copy_(combined.data)
         
-        self.scores[self.task].data = _subnet_linear_comb.data
-        self.scores[self.task+1].data = _subnet_linear_comb.data   #instead of kaiming init masks start with last consoliated one.
+        self.scores[self.task + 1].data.copy_(combined.data)
+
+        # Re-cache masks
+        self.cache_masks()
+        print(f"Consolidated and updated masks at task {self.task} and {self.task + 1}")
         return
+
 
     @torch.no_grad()
     def consolidate_comm_mask(self):

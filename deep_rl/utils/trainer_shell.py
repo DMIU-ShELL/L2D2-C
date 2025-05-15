@@ -1056,7 +1056,7 @@ def trainer_learner(agent, comm, agent_id, manager, mask_interval, mode):
         # task_steps_limit = agent.config.max_steps[shell_task_counter] * (shell_task_counter + 1)
 
         # If agent completes the maximum number of steps for a task then switch to the next task in the curriculum.
-        if shell_iterations % 1 == 0: #agent.total_steps >= task_steps_limit:
+        if shell_iterations % 10 == 0: #agent.total_steps >= task_steps_limit:
             print("reached here")
             task_counter_ = shell_task_counter
             logger.info('\n' + Fore.WHITE + f'*****agent {agent_id} / end of training on task {task_counter_}')
