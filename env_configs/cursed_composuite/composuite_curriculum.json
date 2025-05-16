@@ -1,6 +1,6 @@
 {
     "tasks": [
-        ["IIWA", "Box", "None", "Reach"],
+        ["IIWA", "Box", "None", "PickPlace"],
         ["IIWA", "Box", "None", "Reach"],
         ["IIWA", "Box", "None", "Reach"],
         ["IIWA", "Box", "None", "Reach"],

@@ -808,18 +808,30 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
     def _forward_mask_linear_comb(self):
         _subnet = self.scores[self.task]
 
-        if len(self.comm_masks) == 0:
-            return self._subnet_class.apply(_subnet)
+        # if len(self.comm_masks) == 0:
+        #     return self._subnet_class.apply(_subnet)
         
         _subnets = [self.scores[idx].detach() for idx in range(self.task)] if not(self.task == 0 or self.task < self.num_tasks_learned) else []
         _subnets.append(_subnet)
-        _subnets.extend([c.detach() for c in self.comm_masks])
+        # _subnets.extend([c.detach() for c in self.comm_masks])
 
-        _betas = self.betas[self.task, 0:self.task+1+self.num_comm_masks]
+        _betas = self.betas[self.task, 0:self.task+1]#+self.num_comm_masks]
         _betas = torch.softmax(_betas, dim=-1)
 
-        _subnets = [_b * _s for _b, _s in zip(_betas, _subnets)]
-        _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
+        
+        # Select top-k betas and corresponding subnets
+        k = min(10, len(_betas))  # in case k > number of subnets
+        topk_vals, topk_indices = torch.topk(_betas, k)
+
+        # Normalize top-k betas if desired
+        topk_vals = topk_vals / topk_vals.sum()
+
+        # Select corresponding subnets
+        _subnets_topk = [ _subnets[i] for i in topk_indices.tolist() ]
+
+        # Linearly combine top-k subnets
+        _subnet_linear_comb = torch.stack([b * s for b, s in zip(topk_vals, _subnets_topk)], dim=0).sum(dim=0)
+
         return self._subnet_class.apply(_subnet_linear_comb)
 
     """def _forward_mask_linear_comb(self):
