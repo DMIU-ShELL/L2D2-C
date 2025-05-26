@@ -271,7 +271,7 @@ def composuite_ppo(name, args, shell_config):
         phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
         actor_body=FCBody_SS_Comp(
             state_dim,
-            hidden_units=(128, 128),#(64, 64),
+            hidden_units=(64, 64),
             discrete_mask=False,
             gate=torch.tanh,
             num_tasks= 2000, #config.cl_num_tasks,
@@ -280,7 +280,7 @@ def composuite_ppo(name, args, shell_config):
         ),
         critic_body=FCBody_SS_Comp(
             state_dim,
-            hidden_units=(128, 128),  #(64, 64),
+            hidden_units=(64, 64),
             discrete_mask=False,
             gate=torch.tanh,
             num_tasks=2000, #config.cl_num_tasks,

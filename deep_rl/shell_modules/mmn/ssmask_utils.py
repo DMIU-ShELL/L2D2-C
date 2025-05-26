@@ -891,9 +891,23 @@ class CompBLC_MultitaskMaskLinear(nn.Linear):
         assert len(_betas) == len(_subnets), 'an error ocurred'
 
         
+        
+
         _subnets = [_b * _s for _b, _s in  zip(_betas, _subnets)]
         _subnet_linear_comb = torch.stack(_subnets, dim=0).sum(dim=0)
         self.scores[self.task].data = _subnet_linear_comb.data
+
+        # print("masks...", _subnet_linear_comb.data.shape)
+        # 2) Find which entries are negative
+        neg_mask = _subnet_linear_comb.data < 0
+
+        # 3) Create a fresh tensor to draw from for reinitializing
+        reinit = torch.empty_like(_subnet_linear_comb.data)
+        nn.init.kaiming_uniform_(reinit, a=math.sqrt(5))
+
+        # 4) Overwrite only the negative positions with their positive counterparts
+        _subnet_linear_comb.data[neg_mask] = reinit[neg_mask]
+        
         self.scores[self.task+1].data = _subnet_linear_comb.data   #instead of kaiming init masks start with last consoliated one.
         return
 
