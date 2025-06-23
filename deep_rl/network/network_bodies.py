@@ -189,22 +189,54 @@ class CReLU(nn.Module):
         return torch.cat([F.relu(x), F.relu(-x)], dim=1)
 
 
-class FCBody_SS_Comp(nn.Module): # fcbody for supermask superposition continual learning algorithm
-    def __init__(self, state_dim, task_label_dim=None, hidden_units=(64, 64), gate=CReLU(), discrete_mask=True, num_tasks=3, new_task_mask=NEW_MASK_RANDOM, seed=1):
+class FCBody_SS_Comp(nn.Module):
+    """
+    Fully connected body for Supermask Superposition continual learning algorithm.
+    Supports custom activation 'gate' (e.g., CReLU) and optional layer normalization.
+    """
+    def __init__(
+        self,
+        state_dim,
+        task_label_dim=None,
+        hidden_units=(64, 64),
+        gate: nn.Module = F.relu,
+        layernorm: bool = False,
+        discrete_mask: bool = True,
+        num_tasks: int = 3,
+        new_task_mask=None,
+        seed: int = 1
+    ):
         super(FCBody_SS_Comp, self).__init__()
-        print("\n\n\n\nSTATE_DIM", state_dim)
+        # Determine input dimension
         if task_label_dim is None:
-            dims = (state_dim, ) + hidden_units
+            dims = [state_dim] + list(hidden_units)
         else:
-            dims = (state_dim + task_label_dim, ) + hidden_units
+            dims = [state_dim + task_label_dim] + list(hidden_units)
 
-        self.layers = nn.ModuleList([CompBLC_MultitaskMaskLinear(dim_in, dim_out, discrete=discrete_mask, \
-            num_tasks=num_tasks, new_mask_type=new_task_mask, seed=seed) \
-            for dim_in, dim_out in zip(dims[:-1], dims[1:])
-        ])
+        self.layers = nn.ModuleList()
         self.gate = gate
+        self.layernorm = layernorm
         self.feature_dim = dims[-1]
         self.task_label_dim = task_label_dim
+
+        # Build masked linear layers with optional gate and layernorm
+        for in_dim, out_dim in zip(dims[:-1], dims[1:]):
+            # Masked linear layer
+            self.layers.append(
+                CompBLC_MultitaskMaskLinear(
+                    in_dim,
+                    out_dim,
+                    discrete=discrete_mask,
+                    num_tasks=num_tasks,
+                    new_mask_type=new_task_mask,
+                    seed=seed
+                )
+            )
+            # Optional layer normalization
+            if self.layernorm:
+                self.layers.append(nn.LayerNorm(out_dim))
+            # Activation/gate
+            self.layers.append(self.gate)
 
     def forward(self, x, task_label=None, return_layer_output=False, prefix=''):
         if self.task_label_dim is not None:
