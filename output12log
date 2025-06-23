@@ -1,0 +1,92 @@
+nohup: ignoring input
+2025-06-13 02:19:20,359 - MAIN - INFO: *****initialising L2D2-C agent
+Namespace(curriculum_id=2, port=29602, shell_config_path='./shell_configs/the_chosen_one/compo.json', exp_id='comp_agent2', eval=False, omni=False, localhost=True, shuffle=False, comm_interval=20, device=1, reference='reference.csv', dropout=0.0, new_task_mask='linear_comb', pathheader='compsuite_pickplaceit10s_128eeds/')
+{'seed': 9159, 'detect_reference_num': 50, 'detect_num_samples': 128, 'emb_dist_threshold': 24, 'detect_module_activation_frequency': 1, 'agents': [{'task_ids': [0], 'max_steps': 10000000}, {'task_ids': [1], 'max_steps': 10000000}, {'task_ids': [3], 'max_steps': 10000000}, {'task_ids': [4], 'max_steps': 10000000}, {'task_ids': [5], 'max_steps': 10000000}, {'task_ids': [6], 'max_steps': 10000000}, {'task_ids': [7], 'max_steps': 10000000}, {'task_ids': [8], 'max_steps': 10000000}, {'task_ids': [9], 'max_steps': 10000000}, {'task_ids': [10], 'max_steps': 10000000}, {'task_ids': [11], 'max_steps': 10000000}, {'task_ids': [12], 'max_steps': 10000000}, {'task_ids': [13], 'max_steps': 10000000}], 'env': {'env_name': 'composuite', 'env_config_path': './env_configs/cursed_composuite/composuite_curriculum.json'}, 'curriculum': {'task_ids': [2], 'max_steps': 10000000}}
+task 1
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+2025-06-13 02:19:20,448 - robosuite_logs - WARNING: No private macro file found!
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+2025-06-13 02:19:20,448 - robosuite_logs - WARNING: It is recommended to use a private macro file
+[robosuite WARNING] To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+2025-06-13 02:19:20,448 - robosuite_logs - WARNING: To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py
+2025-06-13 02:19:20,505 - MAIN - INFO: *****initialising L2D2-C agent
+Namespace(curriculum_id=12, port=29612, shell_config_path='./shell_configs/the_chosen_one/compo.json', exp_id='comp_agent12', eval=False, omni=False, localhost=True, shuffle=False, comm_interval=20, device=1, reference='reference.csv', dropout=0.0, new_task_mask='linear_comb', pathheader='compsuite_pickplaceit10s_128eeds/')
+{'seed': 9169, 'detect_reference_num': 50, 'detect_num_samples': 128, 'emb_dist_threshold': 24, 'detect_module_activation_frequency': 1, 'agents': [{'task_ids': [0], 'max_steps': 10000000}, {'task_ids': [1], 'max_steps': 10000000}, {'task_ids': [2], 'max_steps': 10000000}, {'task_ids': [3], 'max_steps': 10000000}, {'task_ids': [4], 'max_steps': 10000000}, {'task_ids': [5], 'max_steps': 10000000}, {'task_ids': [6], 'max_steps': 10000000}, {'task_ids': [7], 'max_steps': 10000000}, {'task_ids': [8], 'max_steps': 10000000}, {'task_ids': [9], 'max_steps': 10000000}, {'task_ids': [10], 'max_steps': 10000000}, {'task_ids': [11], 'max_steps': 10000000}, {'task_ids': [13], 'max_steps': 10000000}], 'env': {'env_name': 'composuite', 'env_config_path': './env_configs/cursed_composuite/composuite_curriculum.json'}, 'curriculum': {'task_ids': [12], 'max_steps': 10000000}}
+task 1
+2025-06-13 02:19:20,549 - MAIN - INFO: *****initialising L2D2-C agent
+Namespace(curriculum_id=9, port=29609, shell_config_path='./shell_configs/the_chosen_one/compo.json', exp_id='comp_agent9', eval=False, omni=False, localhost=True, shuffle=False, comm_interval=20, device=1, reference='reference.csv', dropout=0.0, new_task_mask='linear_comb', pathheader='compsuite_pickplaceit10s_128eeds/')
+{'seed': 9166, 'detect_reference_num': 50, 'detect_num_samples': 128, 'emb_dist_threshold': 24, 'detect_module_activation_frequency': 1, 'agents': [{'task_ids': [0], 'max_steps': 10000000}, {'task_ids': [1], 'max_steps': 10000000}, {'task_ids': [2], 'max_steps': 10000000}, {'task_ids': [3], 'max_steps': 10000000}, {'task_ids': [4], 'max_steps': 10000000}, {'task_ids': [5], 'max_steps': 10000000}, {'task_ids': [6], 'max_steps': 10000000}, {'task_ids': [7], 'max_steps': 10000000}, {'task_ids': [8], 'max_steps': 10000000}, {'task_ids': [10], 'max_steps': 10000000}, {'task_ids': [11], 'max_steps': 10000000}, {'task_ids': [12], 'max_steps': 10000000}, {'task_ids': [13], 'max_steps': 10000000}], 'env': {'env_name': 'composuite', 'env_config_path': './env_configs/cursed_composuite/composuite_curriculum.json'}, 'curriculum': {'task_ids': [9], 'max_steps': 10000000}}
+task 1
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+2025-06-13 02:19:20,587 - robosuite_logs - WARNING: No private macro file found!
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+2025-06-13 02:19:20,587 - robosuite_logs - WARNING: It is recommended to use a private macro file
+[robosuite WARNING] To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+2025-06-13 02:19:20,587 - robosuite_logs - WARNING: To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py
+2025-06-13 02:19:20,621 - MAIN - INFO: *****initialising L2D2-C agent
+Namespace(curriculum_id=11, port=29611, shell_config_path='./shell_configs/the_chosen_one/compo.json', exp_id='comp_agent11', eval=False, omni=False, localhost=True, shuffle=False, comm_interval=20, device=1, reference='reference.csv', dropout=0.0, new_task_mask='linear_comb', pathheader='compsuite_pickplaceit10s_128eeds/')
+{'seed': 9168, 'detect_reference_num': 50, 'detect_num_samples': 128, 'emb_dist_threshold': 24, 'detect_module_activation_frequency': 1, 'agents': [{'task_ids': [0], 'max_steps': 10000000}, {'task_ids': [1], 'max_steps': 10000000}, {'task_ids': [2], 'max_steps': 10000000}, {'task_ids': [3], 'max_steps': 10000000}, {'task_ids': [4], 'max_steps': 10000000}, {'task_ids': [5], 'max_steps': 10000000}, {'task_ids': [6], 'max_steps': 10000000}, {'task_ids': [7], 'max_steps': 10000000}, {'task_ids': [8], 'max_steps': 10000000}, {'task_ids': [9], 'max_steps': 10000000}, {'task_ids': [10], 'max_steps': 10000000}, {'task_ids': [12], 'max_steps': 10000000}, {'task_ids': [13], 'max_steps': 10000000}], 'env': {'env_name': 'composuite', 'env_config_path': './env_configs/cursed_composuite/composuite_curriculum.json'}, 'curriculum': {'task_ids': [11], 'max_steps': 10000000}}
+task 1
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+2025-06-13 02:19:20,632 - robosuite_logs - WARNING: No private macro file found!
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+2025-06-13 02:19:20,632 - robosuite_logs - WARNING: It is recommended to use a private macro file
+[robosuite WARNING] To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+2025-06-13 02:19:20,632 - robosuite_logs - WARNING: To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py
+2025-06-13 02:19:20,656 - MAIN - INFO: *****initialising L2D2-C agent
+Namespace(curriculum_id=5, port=29605, shell_config_path='./shell_configs/the_chosen_one/compo.json', exp_id='comp_agent5', eval=False, omni=False, localhost=True, shuffle=False, comm_interval=20, device=1, reference='reference.csv', dropout=0.0, new_task_mask='linear_comb', pathheader='compsuite_pickplaceit10s_128eeds/')
+{'seed': 9162, 'detect_reference_num': 50, 'detect_num_samples': 128, 'emb_dist_threshold': 24, 'detect_module_activation_frequency': 1, 'agents': [{'task_ids': [0], 'max_steps': 10000000}, {'task_ids': [1], 'max_steps': 10000000}, {'task_ids': [2], 'max_steps': 10000000}, {'task_ids': [3], 'max_steps': 10000000}, {'task_ids': [4], 'max_steps': 10000000}, {'task_ids': [6], 'max_steps': 10000000}, {'task_ids': [7], 'max_steps': 10000000}, {'task_ids': [8], 'max_steps': 10000000}, {'task_ids': [9], 'max_steps': 10000000}, {'task_ids': [10], 'max_steps': 10000000}, {'task_ids': [11], 'max_steps': 10000000}, {'task_ids': [12], 'max_steps': 10000000}, {'task_ids': [13], 'max_steps': 10000000}], 'env': {'env_name': 'composuite', 'env_config_path': './env_configs/cursed_composuite/composuite_curriculum.json'}, 'curriculum': {'task_ids': [5], 'max_steps': 10000000}}
+task 1
+2025-06-13 02:19:20,687 - MAIN - INFO: *****initialising L2D2-C agent
+Namespace(curriculum_id=0, port=29600, shell_config_path='./shell_configs/the_chosen_one/compo.json', exp_id='comp_agent0', eval=False, omni=False, localhost=True, shuffle=False, comm_interval=20, device=1, reference='reference.csv', dropout=0.0, new_task_mask='linear_comb', pathheader='compsuite_pickplaceit10s_128eeds/')
+{'seed': 9157, 'detect_reference_num': 50, 'detect_num_samples': 128, 'emb_dist_threshold': 24, 'detect_module_activation_frequency': 1, 'agents': [{'task_ids': [1], 'max_steps': 10000000}, {'task_ids': [2], 'max_steps': 10000000}, {'task_ids': [3], 'max_steps': 10000000}, {'task_ids': [4], 'max_steps': 10000000}, {'task_ids': [5], 'max_steps': 10000000}, {'task_ids': [6], 'max_steps': 10000000}, {'task_ids': [7], 'max_steps': 10000000}, {'task_ids': [8], 'max_steps': 10000000}, {'task_ids': [9], 'max_steps': 10000000}, {'task_ids': [10], 'max_steps': 10000000}, {'task_ids': [11], 'max_steps': 10000000}, {'task_ids': [12], 'max_steps': 10000000}, {'task_ids': [13], 'max_steps': 10000000}], 'env': {'env_name': 'composuite', 'env_config_path': './env_configs/cursed_composuite/composuite_curriculum.json'}, 'curriculum': {'task_ids': [0], 'max_steps': 10000000}}
+task 1
+2025-06-13 02:19:20,694 - MAIN - INFO: *****initialising L2D2-C agent
+Namespace(curriculum_id=4, port=29604, shell_config_path='./shell_configs/the_chosen_one/compo.json', exp_id='comp_agent4', eval=False, omni=False, localhost=True, shuffle=False, comm_interval=20, device=1, reference='reference.csv', dropout=0.0, new_task_mask='linear_comb', pathheader='compsuite_pickplaceit10s_128eeds/')
+{'seed': 9161, 'detect_reference_num': 50, 'detect_num_samples': 128, 'emb_dist_threshold': 24, 'detect_module_activation_frequency': 1, 'agents': [{'task_ids': [0], 'max_steps': 10000000}, {'task_ids': [1], 'max_steps': 10000000}, {'task_ids': [2], 'max_steps': 10000000}, {'task_ids': [3], 'max_steps': 10000000}, {'task_ids': [5], 'max_steps': 10000000}, {'task_ids': [6], 'max_steps': 10000000}, {'task_ids': [7], 'max_steps': 10000000}, {'task_ids': [8], 'max_steps': 10000000}, {'task_ids': [9], 'max_steps': 10000000}, {'task_ids': [10], 'max_steps': 10000000}, {'task_ids': [11], 'max_steps': 10000000}, {'task_ids': [12], 'max_steps': 10000000}, {'task_ids': [13], 'max_steps': 10000000}], 'env': {'env_name': 'composuite', 'env_config_path': './env_configs/cursed_composuite/composuite_curriculum.json'}, 'curriculum': {'task_ids': [4], 'max_steps': 10000000}}
+task 1
+2025-06-13 02:19:20,698 - MAIN - INFO: *****initialising L2D2-C agent
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+2025-06-13 02:19:20,699 - robosuite_logs - WARNING: No private macro file found!
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+2025-06-13 02:19:20,699 - robosuite_logs - WARNING: It is recommended to use a private macro file
+[robosuite WARNING] To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+2025-06-13 02:19:20,699 - robosuite_logs - WARNING: To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py
+Namespace(curriculum_id=10, port=29610, shell_config_path='./shell_configs/the_chosen_one/compo.json', exp_id='comp_agent10', eval=False, omni=False, localhost=True, shuffle=False, comm_interval=20, device=1, reference='reference.csv', dropout=0.0, new_task_mask='linear_comb', pathheader='compsuite_pickplaceit10s_128eeds/')
+{'seed': 9167, 'detect_reference_num': 50, 'detect_num_samples': 128, 'emb_dist_threshold': 24, 'detect_module_activation_frequency': 1, 'agents': [{'task_ids': [0], 'max_steps': 10000000}, {'task_ids': [1], 'max_steps': 10000000}, {'task_ids': [2], 'max_steps': 10000000}, {'task_ids': [3], 'max_steps': 10000000}, {'task_ids': [4], 'max_steps': 10000000}, {'task_ids': [5], 'max_steps': 10000000}, {'task_ids': [6], 'max_steps': 10000000}, {'task_ids': [7], 'max_steps': 10000000}, {'task_ids': [8], 'max_steps': 10000000}, {'task_ids': [9], 'max_steps': 10000000}, {'task_ids': [11], 'max_steps': 10000000}, {'task_ids': [12], 'max_steps': 10000000}, {'task_ids': [13], 'max_steps': 10000000}], 'env': {'env_name': 'composuite', 'env_config_path': './env_configs/cursed_composuite/composuite_curriculum.json'}, 'curriculum': {'task_ids': [10], 'max_steps': 10000000}}
+task 1
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+2025-06-13 02:19:20,727 - robosuite_logs - WARNING: No private macro file found!
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+2025-06-13 02:19:20,727 - robosuite_logs - WARNING: It is recommended to use a private macro file
+[robosuite WARNING] To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+2025-06-13 02:19:20,727 - robosuite_logs - WARNING: To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+2025-06-13 02:19:20,761 - robosuite_logs - WARNING: No private macro file found!
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+2025-06-13 02:19:20,761 - robosuite_logs - WARNING: It is recommended to use a private macro file
+[robosuite WARNING] To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+2025-06-13 02:19:20,761 - robosuite_logs - WARNING: To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+2025-06-13 02:19:20,762 - robosuite_logs - WARNING: No private macro file found!
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+2025-06-13 02:19:20,762 - robosuite_logs - WARNING: It is recommended to use a private macro file
+[robosuite WARNING] To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+2025-06-13 02:19:20,763 - robosuite_logs - WARNING: To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py
+Namespace(curriculum_id=6, port=29606, shell_config_path='./shell_configs/the_chosen_one/compo.json', exp_id='comp_agent6', eval=False, omni=False, localhost=True, shuffle=False, comm_interval=20, device=1, reference='reference.csv', dropout=0.0, new_task_mask='linear_comb', pathheader='compsuite_pickplaceit10s_128eeds/')
+Traceback (most recent call last):
+  File "/home/lunet/coimd/L2D2-C/run_composuite.py", line 412, in <module>
+    composuite_ppo(name, args, shell_config)
+  File "/home/lunet/coimd/L2D2-C/run_composuite.py", line 251, in composuite_ppo
+    config, env_config_path = setup_configs_and_logs(config, args, shell_config, global_config)
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+  File "/home/lunet/coimd/L2D2-C/run_composuite.py", line 110, in setup_configs_and_logs
+2025-06-13 02:19:20,764 - robosuite_logs - WARNING: No private macro file found!
+    shutil.copy(env_config_path, log_dir)
+  File "/home/lunet/coimd/.conda/envs/myenv/lib/python3.9/shutil.py", line 427, in copy
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+2025-06-13 02:19:20,764 - robosuite_logs - WARNING: It is recommended to use a private macro file
+[robosuite WARNING] To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+2025-06-13 02:19:20,764 - robosuite_logs - WARNING: To setup, run: python /home/lunet/coimd/.conda/envs/myenv/lib/python3.9/site-packages/robosuite/scripts/setup_macros.py
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/home/lun

@@ -174,7 +174,8 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
         
         #Ihave changed the bellow commande by substitue the label dim with embedding dim
         self.network = config.network_fn(self.task.state_dim, self.task.action_dim, label_dim)#self.task_emb_size)
-        _params = list(self.network.parameters())
+        _params = list(self.network.parameters())  #seems like this is initial parameters
+        self.initial_params = [p.clone().detach() for p in self.network.parameters()]
         self.opt = config.optimizer_fn(_params, config.lr)
 
         #self.scheduler = lr_scheduler.StepLR(self.opt, step_size=config.lr_decay_step, gamma=config.lr_decay_gamma)
@@ -223,26 +224,22 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             self.iteration_success_rate = None
 
     def iteration(self):
-        '''This function performs the training iteration.
-        It is where the learner of the agent (the neural network) is being optimized'''
-
+    
         start_time = time.time()
-        
         config = self.config
         rollout = []
         states = self.states
 
-        # Rollout function.
+        # Collect rollout
         states, rollout = self._rollout_fn(states)
-        #self.config.logger.info(f'----------------------- Rollout function complete in {time.time() - start_time} seconds -----------------------\n')
-
         self.states = states
-        pending_value = self.network.predict(states)[-2]#self.network.predict(states, task_label=batch_task_label)[-2]
+        pending_value = self.network.predict(states)[-2]
         rollout.append([states, pending_value, None, None, None, None])
-        
+
         processed_rollout = [None] * (len(rollout) - 1)
         advantages = tensor(np.zeros((config.num_workers, 1)))
         returns = pending_value.detach()
+
         for i in reversed(range(len(rollout) - 1)):
             states, value, actions, log_probs, rewards, terminals = rollout[i]
             terminals = tensor(terminals).unsqueeze(1)
@@ -254,109 +251,107 @@ class PPOContinualLearnerAgent(BaseContinualLearnerAgent):
             if not config.use_gae:
                 advantages = returns - value.detach()
             else:
-                td_error = rewards + config.discount * terminals*next_value.detach() - value.detach()
+                td_error = rewards + config.discount * terminals * next_value.detach() - value.detach()
                 advantages = advantages * config.gae_tau * config.discount * terminals + td_error
             processed_rollout[i] = [states, actions, log_probs, returns, advantages]
-        
-        #self.config.logger.info(f'----------------------- Rollout processing complete in {time.time() - start_time} seconds -----------------------\n')
 
         states, actions, log_probs_old, returns, advantages = map(lambda x: torch.cat(x, dim=0), zip(*processed_rollout))
         eps = 1e-6
         advantages = (advantages - advantages.mean()) / (advantages.std() + eps)
 
         # Setup logging
-        grad_norm_log = []
-        policy_loss_log = []
-        value_loss_log = []
-        log_probs_log = []
-        entropy_log = []
-        ratio_log = []
+        grad_norm_log, policy_loss_log, value_loss_log = [], [], []
+        log_probs_log, entropy_log, ratio_log = [], [], []
 
+        # Full batch PPO
         if config.use_full_batch:
-            print('Using full batch')
             for _ in range(config.optimization_epochs):
                 _, _, log_probs, entropy_loss, values, outs = self.network.predict(states, actions)
-
                 ratio = (log_probs - log_probs_old).exp()
                 obj = ratio * advantages
                 obj_clipped = ratio.clamp(1.0 - config.ppo_ratio_clip, 1.0 + config.ppo_ratio_clip) * advantages
-                
-                # Compute policy loss
+
                 policy_loss = -torch.min(obj, obj_clipped).mean(0) - config.entropy_weight * entropy_loss.mean()
-                
-                # Compute value loss
                 value_loss = 0.5 * (returns - values).pow(2).mean()
 
-                # Compute KL divergence for early stopping
                 approx_kl = (log_probs_old - log_probs).mean().item()
                 if approx_kl > 1.5 * config.target_kl:
-                    break  # Stop training if KL exceeds threshold
-
-                # Logging
-                log_probs_log.append(log_probs.detach().cpu().numpy().mean())
-                entropy_log.append(entropy_loss.detach().cpu().numpy().mean())
-                ratio_log.append(ratio.detach().cpu().numpy().mean())
-                policy_loss_log.append(policy_loss.detach().cpu().numpy())
-                value_loss_log.append(value_loss.detach().cpu().numpy())
+                    break
 
                 self.opt.zero_grad()
-                (policy_loss + value_loss).backward()
+                total_loss = policy_loss + value_loss
+
+                # ➕ Add L2-init regularization
+                for p, p_init in zip(self.network.parameters(), self.initial_params):
+                    if p.grad is not None:
+                        total_loss = total_loss + config.l2_init_coeff * (p - p_init).pow(2).sum()
+
+                total_loss.backward()
                 norm_ = nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
-                grad_norm_log.append(norm_.detach().cpu().numpy())
                 self.opt.step()
 
-        # PPO with mini batching
+                # Logging
+                log_probs_log.append(log_probs.mean().item())
+                entropy_log.append(entropy_loss.mean().item())
+                ratio_log.append(ratio.mean().item())
+                policy_loss_log.append(policy_loss.item())
+                value_loss_log.append(value_loss.item())
+                grad_norm_log.append(norm_.item())
+
+        # Mini-batch PPO
         else:
-            print('Using mini batching')
             batcher = Batcher(states.size(0) // config.num_mini_batches, [np.arange(states.size(0))])
             for _ in range(config.optimization_epochs):
                 batcher.shuffle()
                 while not batcher.end():
                     batch_indices = batcher.next_batch()[0]
                     batch_indices = tensor(batch_indices).long()
-                    sampled_states = states[batch_indices]
-                    sampled_actions = actions[batch_indices]
-                    sampled_log_probs_old = log_probs_old[batch_indices]
-                    sampled_returns = returns[batch_indices]
-                    sampled_advantages = advantages[batch_indices]
+                    s, a, lp_old, r, adv = states[batch_indices], actions[batch_indices], \
+                                        log_probs_old[batch_indices], returns[batch_indices], \
+                                        advantages[batch_indices]
 
                     _, _, log_probs, entropy_loss, values, outs = self.network.predict(
-                        sampled_states,
-                        sampled_actions,
-                        return_layer_output=True
-                    )
+                        s, a, return_layer_output=True)
 
-                    ratio = (log_probs - sampled_log_probs_old).exp()
-                    obj = ratio * sampled_advantages
-                    obj_clipped = ratio.clamp(1.0 - self.config.ppo_ratio_clip,
-                                            1.0 + self.config.ppo_ratio_clip) * sampled_advantages
-                    
-                    # Compute losses
+                    ratio = (log_probs - lp_old).exp()
+                    obj = ratio * adv
+                    obj_clipped = ratio.clamp(1.0 - config.ppo_ratio_clip,
+                                            1.0 + config.ppo_ratio_clip) * adv
+
                     policy_loss = -torch.min(obj, obj_clipped).mean(0) - config.entropy_weight * entropy_loss.mean()
-                    value_loss = 0.5 * (sampled_returns - values).pow(2).mean()
-
-                    # Logging
-                    log_probs_log.append(log_probs.detach().cpu().numpy().mean())
-                    entropy_log.append(entropy_loss.detach().cpu().numpy().mean())
-                    ratio_log.append(ratio.detach().cpu().numpy().mean())
-                    policy_loss_log.append(policy_loss.detach().cpu().numpy())
-                    value_loss_log.append(value_loss.detach().cpu().numpy())
+                    value_loss = 0.5 * (r - values).pow(2).mean()
 
                     self.opt.zero_grad()
-                    (policy_loss + value_loss).backward()
+                    total_loss = policy_loss + value_loss
+
+                    # ➕ Add L2-init regularization
+                    for p, p_init in zip(self.network.parameters(), self.initial_params):
+                        if p.grad is not None:
+                            total_loss = total_loss + config.l2_init_coeff * (p - p_init).pow(2).sum()
+
+                    total_loss.backward()
                     norm_ = nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
-                    grad_norm_log.append(norm_.detach().cpu().numpy())
                     self.opt.step()
 
-        #self.config.logger.info(f'----------------------- Optimization epochs complete in {time.time() - start_time} seconds -----------------------\n')
+                    # Logging
+                    log_probs_log.append(log_probs.mean().item())
+                    entropy_log.append(entropy_loss.mean().item())
+                    ratio_log.append(ratio.mean().item())
+                    policy_loss_log.append(policy_loss.item())
+                    value_loss_log.append(value_loss.item())
+                    grad_norm_log.append(norm_.item())
 
-        # Update total steps
-        steps = config.rollout_length * config.num_workers
-        self.total_steps += steps
+        self.total_steps += config.rollout_length * config.num_workers
         self.layers_output = outs
-        return {'grad_norm': grad_norm_log, 'policy_loss': policy_loss_log, \
-            'value_loss': value_loss_log, 'log_prob': log_probs_log, 'entropy': entropy_log, \
-            'ppo_ratio': ratio_log}
+
+        return {
+            'grad_norm': grad_norm_log,
+            'policy_loss': policy_loss_log,
+            'value_loss': value_loss_log,
+            'log_prob': log_probs_log,
+            'entropy': entropy_log,
+            'ppo_ratio': ratio_log
+        }
 
     def _rollout_normal(self, states):
         '''It runs the agent on the environment and collects SAR data to staore in the Replay

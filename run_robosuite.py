@@ -42,7 +42,7 @@ import random
 def global_config(config, name):
     config.env_name = name
     config.env_config_path = None
-    config.lr = 0.0001
+    config.lr = 0.001
     config.cl_preservation = 'supermask'
     config.seed = None
     config.backbone_seed = 9157
@@ -265,19 +265,19 @@ def composuite_ppo(name, args, shell_config):
         phi_body=DummyBody_CL(state_dim, task_label_dim=label_dim),
         actor_body=FCBody_SS_Comp(
             state_dim,
-            hidden_units=(128, 128),
+            hidden_units=(64, 64),
             discrete_mask=False,
             gate=torch.tanh,
-            num_tasks=config.cl_num_tasks,
+            num_tasks=2000,
             new_task_mask=args.new_task_mask,
             seed=config.seed
             ),
         critic_body=FCBody_SS_Comp(
             state_dim,
-            hidden_units=(128,128),
+            hidden_units=(64, 64),
             discrete_mask=False,
             gate=torch.tanh,
-            num_tasks=config.cl_num_tasks,
+            num_tasks=2000,
             new_task_mask=args.new_task_mask,
             seed=config.seed
         ),
