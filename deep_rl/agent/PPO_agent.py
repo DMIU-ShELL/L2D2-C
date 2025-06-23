@@ -1024,7 +1024,12 @@ class PPODetectShell(PPOShellAgent):
         #     set_model_task(self.network, self.current_task_key, current_reward=current_reward)
 
         return
-    
+    def apply_shrink_and_perturb(self, p=0.9, sigma=0.01):
+        with torch.no_grad():
+            for param in self.network.parameters():
+                param.data.mul_(p)
+                param.data.add_(sigma * torch.randn_like(param))
+                
     def task_train_end_emb(self):
         '''Method for stopping the training upon a specific task. It is being used when
         the Detect Module perceives a task change, in order to stop training for the old
@@ -1038,6 +1043,7 @@ class PPODetectShell(PPOShellAgent):
         self.current_task_emb = None
         cache_masks(self.network)
         
+        self.apply_shrink_and_perturb(p=0.9, sigma=0.01)
         if self.new_task:
             set_num_tasks_learned(self.network, len(self.seen_tasks))
 
