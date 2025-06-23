@@ -1043,7 +1043,7 @@ class PPODetectShell(PPOShellAgent):
         self.current_task_emb = None
         cache_masks(self.network)
         
-        self.apply_shrink_and_perturb(p=0.9, sigma=0.01)
+        # self.apply_shrink_and_perturb(p=0.9, sigma=0.01)
         if self.new_task:
             set_num_tasks_learned(self.network, len(self.seen_tasks))
 
